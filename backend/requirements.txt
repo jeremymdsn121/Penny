@@ -1,0 +1,14 @@
+# Core API
+fastapi
+uvicorn[standard]
+
+# Settings / validation
+pydantic
+pydantic-settings
+email-validator
+
+# HTTP client for Supabase Auth + PostgREST (and later Rentcast)
+httpx
+
+# .env loading
+python-dotenv
