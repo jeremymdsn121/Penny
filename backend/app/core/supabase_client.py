@@ -14,7 +14,8 @@ from app.config import settings
 
 AUTH_BASE = f"{settings.SUPABASE_URL}/auth/v1"
 REST_BASE = f"{settings.SUPABASE_URL}/rest/v1"
-_TIMEOUT = httpx.Timeout(20.0)
+STORAGE_BASE = f"{settings.SUPABASE_URL}/storage/v1"
+_TIMEOUT = httpx.Timeout(30.0)
 
 
 class SupabaseError(Exception):
@@ -160,3 +161,184 @@ async def get_brokerage(brokerage_id: str) -> dict[str, Any] | None:
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if rows else None
+
+
+async def update_brokerage(brokerage_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/brokerages",
+            params={"id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def get_task_autonomy(brokerage_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/task_autonomy",
+            params={"brokerage_id": f"eq.{brokerage_id}", "select": "task_id,autonomous"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def insert_transaction(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(f"{REST_BASE}/transactions", json=data, headers=headers)
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def list_transactions(brokerage_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transactions",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_transaction(brokerage_id: str, transaction_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transactions",
+            params={
+                "id": f"eq.{transaction_id}",
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "limit": "1",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_transaction(
+    brokerage_id: str, transaction_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/transactions",
+            params={"id": f"eq.{transaction_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def get_confirmed_knowledge_rules(brokerage_id: str) -> list[dict[str, Any]]:
+    """Confirmed brokerage style rules, injected into AI system prompts."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_rules",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "confirmed": "eq.true",
+                "select": "category,rule",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def replace_task_autonomy(
+    brokerage_id: str, rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Delete the brokerage's existing toggles, then insert the supplied set."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        del_resp = await client.delete(
+            f"{REST_BASE}/task_autonomy",
+            params={"brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+        if del_resp.status_code >= 400:
+            raise SupabaseError(del_resp.status_code, _detail(del_resp))
+        if not rows:
+            return []
+        payload = [{"brokerage_id": brokerage_id, **r} for r in rows]
+        ins_resp = await client.post(
+            f"{REST_BASE}/task_autonomy",
+            json=payload,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if ins_resp.status_code >= 400:
+        raise SupabaseError(ins_resp.status_code, _detail(ins_resp))
+    return ins_resp.json()
+
+
+# --------------------------------------------------------------------------- #
+# Storage
+# --------------------------------------------------------------------------- #
+
+async def ensure_bucket(name: str, *, public: bool = False) -> None:
+    """Create a storage bucket if it doesn't already exist (idempotent)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{STORAGE_BASE}/bucket",
+            json={"id": name, "name": name, "public": public},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        detail = _detail(resp)
+        if resp.status_code == 409 or "already exists" in detail.lower():
+            return
+        raise SupabaseError(resp.status_code, detail)
+
+
+async def upload_object(bucket: str, path: str, content: bytes, content_type: str) -> str:
+    headers = {
+        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": content_type,
+        "x-upsert": "true",
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{STORAGE_BASE}/object/{bucket}/{path}", content=content, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return path
+
+
+async def create_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{STORAGE_BASE}/object/sign/{bucket}/{path}",
+            json={"expiresIn": expires_in},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    body = resp.json()
+    signed = body.get("signedURL") or body.get("signedUrl")
+    if signed and signed.startswith("/"):
+        return f"{STORAGE_BASE}{signed}"
+    return signed

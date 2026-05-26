@@ -10,6 +10,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   signup: (data: SignupData) => Promise<void>
   logout: () => Promise<void>
+  setBrokerage: (brokerage: Brokerage) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -56,6 +57,8 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
         })
       },
+
+      setBrokerage: (brokerage) => set({ brokerage }),
     }),
     {
       name: 'penny-auth',

@@ -30,10 +30,8 @@ async def signup(body: SignupRequest) -> AuthResponse:
         brokerage = await sb.insert_brokerage(
             {
                 "name": body.brokerage_name,
-                "assistant_name": body.assistant_name,
-                "state": body.state,
+                "assistant_name": "Penny",
                 "email": body.email,
-                "phone": body.phone,
                 "subscription_tier": "starter",
             }
         )

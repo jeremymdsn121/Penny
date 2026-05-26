@@ -10,5 +10,14 @@ email-validator
 # HTTP client for Supabase Auth + PostgREST (and later Rentcast)
 httpx
 
+# File uploads (FastAPI multipart)
+python-multipart
+
+# Contract PDF text extraction
+pymupdf
+
+# AI field extraction
+anthropic
+
 # .env loading
 python-dotenv
