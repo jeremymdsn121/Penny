@@ -4,8 +4,14 @@
     {
       "name": "penny-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\penny\\frontend", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "penny-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\penny\\frontend", "run", "preview", "--", "--port", "4173"],
+      "port": 4173
     }
   ]
 }

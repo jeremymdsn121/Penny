@@ -5,9 +5,9 @@ export default {
     extend: {
       colors: {
         penny: {
-          DEFAULT: '#16a34a',
-          dark: '#15803d',
-          light: '#dcfce7',
+          DEFAULT: '#7C3AED',
+          dark: '#6D28D9',
+          light: '#EDE9FE',
         },
       },
     },
