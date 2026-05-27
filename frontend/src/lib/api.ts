@@ -434,6 +434,85 @@ export const deadlinesApi = {
 }
 
 // --------------------------------------------------------------------------- //
+// Listings (MLS prep)
+// --------------------------------------------------------------------------- //
+
+export interface Listing {
+  id: string
+  brokerage_id: string
+  status?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  zip?: string | null
+  property_type?: string | null
+  list_price?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  square_footage?: number | null
+  lot_size_sqft?: number | null
+  year_built?: number | null
+  stories?: number | null
+  garage_spaces?: number | null
+  hoa_fee?: number | null
+  hoa_frequency?: string | null
+  annual_taxes?: number | null
+  parcel_number?: string | null
+  mls_number?: string | null
+  public_remarks?: string | null
+  features?: string[] | null
+  school_district?: string | null
+  listing_agent_name?: string | null
+  listing_agent_email?: string | null
+  seller_name?: string | null
+  listing_packet_url?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ListingExtractResult {
+  listing_packet_url: string
+  signed_url?: string | null
+  page_count: number
+  fields: Record<string, string | number | string[] | null>
+  not_found: string[]
+}
+
+export const listingsApi = {
+  extract: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch('/api/v1/listings/extract', {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<ListingExtractResult>
+    })
+  },
+  create: (data: Partial<Listing>) =>
+    api.post<Listing>('/listings', data).then((r) => r.data),
+  list: () => api.get<Listing[]>('/listings').then((r) => r.data),
+  get: (id: string) => api.get<Listing>(`/listings/${id}`).then((r) => r.data),
+  update: (id: string, data: Partial<Listing>) =>
+    api.patch<Listing>(`/listings/${id}`, data).then((r) => r.data),
+  remove: (id: string) => api.delete(`/listings/${id}`),
+  push: (id: string, confirmed: boolean) =>
+    api
+      .post<{ pushed: boolean; mls_number: string | null; reason: string }>(
+        `/listings/${id}/push`,
+        { confirmed },
+      )
+      .then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
 // Knowledge base — brand & style
 // --------------------------------------------------------------------------- //
 

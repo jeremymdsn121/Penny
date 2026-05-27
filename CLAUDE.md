@@ -128,9 +128,20 @@ first thing to check (ngrok inspector: http://localhost:4040).
   `microsoft_token` jsonb columns, refresh, real free/busy + event creation) is
   **deferred** — to be wired once the OAuth apps are registered and testable.
   Only the `calendar_provider` bodies change then; callers stay the same.
+- **MLS listing prep:** `app/services/mls_extract.py` + `app/api/v1/routes/listings.py`.
+  Listing side (distinct from transactions): a `listings` table (migration 005,
+  brokerage-scoped). `POST /listings/extract` AI-extracts MLS fields from an
+  uploaded listing packet (PDF as native document, like `ai_extract`); the agent
+  reviews/edits and saves via `listings` CRUD. **Pushing to an MLS goes through a
+  seam** (`app/services/mls_provider.py`): `POST /listings/{id}/push` is
+  confirm-gated but reports "not connected" — there's no universal MLS write API,
+  so real publishing is a **deferred, per-market integration** (e.g. Spark API for
+  Flexmls markets), wired when credentials/approval exist. Web UI: a Listings page
+  (`/listings`, upload→review) + listing detail/edit.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
-  Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
+  Pages: Dashboard, transactions, **Listings** (`/listings`), WhatsApp settings,
+  **Brand & Style** (`/knowledge`).
 
 ## Database
 
@@ -141,6 +152,8 @@ Editor (paste file *contents*, not the path):
 - `003_whatsapp.sql` `whatsapp_contacts`, `whatsapp_messages`, `transactions.notes`
 - `004_knowledge.sql` `knowledge_documents` + `knowledge_rules.document_id`
   (**not yet applied to the dev DB** — run it before using the knowledge base)
+- `005_listings.sql` `listings` table (MLS listing prep) + RLS
+  (**not yet applied to the dev DB** — run it before using listings)
 
 Deadline tracking + reminders need **no new migration** — the `deadlines` table
 (with `due_date`, `responsible_parties`, and the `reminder_5day/2day/day_sent`
@@ -217,6 +230,12 @@ not yet exercised against live services):
   Google/Microsoft calendar sync (OAuth connect + free/busy + event creation) —
   built behind the `calendar_provider` seam, to be wired when the OAuth apps are
   registered so it can be verified against the real providers.
+- **MLS listing prep** — `listings` table + AI packet extraction + Listings
+  page/detail + confirm-gated push (no-op seam). Field cleaner unit-checked;
+  routes register; frontend typechecks. Needs `005_listings.sql` applied +
+  `ANTHROPIC_API_KEY` for extraction. **Deferred:** real MLS publishing — a
+  per-market write integration behind the `mls_provider` seam (no universal MLS
+  write API exists).
 
 Outstanding setup before the above work end-to-end (all on Jeremy's side):
 run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
@@ -228,12 +247,16 @@ Not started / deferred:
   connect + token refresh + real free/busy + event creation into the
   `calendar_provider` seam. Do this in one focused pass once the OAuth apps are
   registered, so it's testable against real providers (avoids building blind).
-- **MLS listing prep** (Phase 3): AI-extract a listing packet into MLS-ready
-  fields; likely needs a small listings data model (migration).
+- **MLS publishing** (deferred, not blocked): a per-market write integration
+  behind the `mls_provider` seam (no universal MLS write API). Pursue per
+  beachhead market once credentials/approval exist; testable then, not blind.
 - WhatsApp "actions": photo upload via MMS, richer data capture.
-- Phase 2 is feature-complete (intro email, knowledge base, document generation,
-  deadline reminders, compliance review); Phase 3 has comparable sales + the
-  scheduling core done — all pending live end-to-end verification.
+- **Phases 1–3 are now feature-complete in-app.** Intro email, knowledge base,
+  document generation, deadline reminders, compliance review (Phase 2);
+  comparable sales, scheduling core, MLS listing prep (Phase 3). Everything is
+  pending live end-to-end verification (keys/migrations on Jeremy's side) rather
+  than further build. The only remaining *build* work is the two deferred
+  external integrations above (calendar OAuth, MLS publishing).
 
 Commercialization (planned, post-build): pricing model decided — all features,
 per-seat, no tiers, small base, recurring. GTM next. See memory for details.

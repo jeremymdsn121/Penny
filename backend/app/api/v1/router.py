@@ -5,6 +5,7 @@ from app.api.v1.routes import (
     auth,
     deadlines,
     knowledge,
+    listings,
     onboarding,
     transactions,
     whatsapp,
@@ -18,3 +19,4 @@ api_router.include_router(whatsapp.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(deadlines.router)
 api_router.include_router(appointments.router)
+api_router.include_router(listings.router)

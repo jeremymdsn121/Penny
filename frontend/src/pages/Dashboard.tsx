@@ -99,6 +99,13 @@ export default function Dashboard() {
             ⏰ Run reminders
           </button>
           <button
+            onClick={() => navigate('/listings')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Listings"
+          >
+            🏠 Listings
+          </button>
+          <button
             onClick={() => navigate('/knowledge')}
             className="text-sm font-medium text-gray-500 hover:text-gray-900"
             title="Brand & Style"

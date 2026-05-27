@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import Knowledge from './pages/Knowledge'
+import ListingDetail from './pages/ListingDetail'
+import Listings from './pages/Listings'
 import Login from './pages/Login'
 import NewTransaction from './pages/NewTransaction'
 import Onboarding from './pages/Onboarding'
@@ -62,6 +64,22 @@ export default function App() {
         element={
           <ProtectedRoute>
             {onboarded ? <Knowledge /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/listings"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <Listings /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/listings/:listing_id"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <ListingDetail /> : <Navigate to="/onboarding" replace />}
           </ProtectedRoute>
         }
       />
