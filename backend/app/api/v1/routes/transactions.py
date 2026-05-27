@@ -1,12 +1,15 @@
+import asyncio
+import html
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pydantic import BaseModel
 
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
-from app.services import ai_extract
+from app.services import ai_extract, doc_generate, email_client
 from app.services.pdf_extract import pdf_page_count
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -125,3 +128,90 @@ async def update_one(
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return tx
+
+
+# --------------------------------------------------------------------------- #
+# Document drafting + sending (PRD §8.3) — drafts in the brokerage's voice
+# using confirmed knowledge_rules; sending is a separate, confirmed step.
+# --------------------------------------------------------------------------- #
+
+class DraftDocumentIn(BaseModel):
+    doc_type: str = "status_update"
+    recipient: str | None = None
+    instructions: str | None = None
+
+
+class SendDocumentIn(BaseModel):
+    to_emails: list[str]
+    subject: str
+    body: str
+    confirmed: bool = False
+
+
+@router.post("/{transaction_id}/draft-document")
+async def draft_document(
+    transaction_id: str,
+    body: DraftDocumentIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Draft a document for this transaction. Read-only — sends nothing."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    rules = await sb.get_confirmed_knowledge_rules(brokerage["id"])
+    try:
+        draft = await doc_generate.generate_document(
+            transaction=tx,
+            doc_type=body.doc_type,
+            brokerage_name=brokerage.get("name", "your brokerage"),
+            style_rules=rules,
+            recipient=body.recipient,
+            instructions=body.instructions,
+        )
+    except doc_generate.DocNotConfigured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI isn't configured yet — set ANTHROPIC_API_KEY on the backend.",
+        )
+    except doc_generate.DocGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    return {"doc_type": body.doc_type, **draft}
+
+
+@router.post("/{transaction_id}/send-document")
+async def send_document(
+    transaction_id: str,
+    body: SendDocumentIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Send a (reviewed) document by email. Requires explicit confirmation."""
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required before sending.",
+        )
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    recipients = [e.strip() for e in body.to_emails if e and e.strip()]
+    if not recipients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient email provided."
+        )
+    html_body = (
+        '<html><body><div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
+        f'white-space:pre-wrap;color:#111827;font-size:15px;line-height:1.6;">{html.escape(body.body)}</div></body></html>'
+    )
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=recipients,
+        subject=body.subject,
+        html=html_body,
+        plain=body.body,
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not send — email isn't configured or the send failed.",
+        )
+    return {"sent": True, "recipients": recipients}

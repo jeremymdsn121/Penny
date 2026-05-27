@@ -22,7 +22,7 @@ from anthropic import AsyncAnthropic
 
 from app.config import settings
 from app.core import supabase_client as sb
-from app.services import email_client
+from app.services import doc_generate, email_client
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
@@ -143,6 +143,44 @@ _TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["address_query", "confirmed"],
+        },
+    },
+    {
+        "name": "draft_document",
+        "description": (
+            "Draft a document (letter or email) for a transaction in the brokerage's "
+            "voice — a status update, cover letter, follow-up, or congratulations note. "
+            "Returns the draft for the agent to review. Read-only: it does NOT send "
+            "anything. To actually send it, the agent uses the web app."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "doc_type": {
+                    "type": "string",
+                    "enum": [
+                        "status_update",
+                        "cover_letter",
+                        "follow_up",
+                        "congratulations",
+                        "custom",
+                    ],
+                    "description": "The kind of document to draft.",
+                },
+                "recipient": {
+                    "type": "string",
+                    "description": "Who it's addressed to (optional, e.g. 'the buyer', 'the lender').",
+                },
+                "instructions": {
+                    "type": "string",
+                    "description": "Specific points to include (optional; expected for doc_type 'custom').",
+                },
+            },
+            "required": ["address_query", "doc_type"],
         },
     },
 ]
@@ -352,6 +390,38 @@ async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
     )
 
 
+async def _exec_draft_document(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    brokerage = await sb.get_brokerage(brokerage_id)
+    brokerage_name = (brokerage or {}).get("name", "the brokerage")
+    rules = await sb.get_confirmed_knowledge_rules(brokerage_id)
+    try:
+        draft = await doc_generate.generate_document(
+            transaction=tx,
+            doc_type=inputs.get("doc_type", "status_update"),
+            brokerage_name=brokerage_name,
+            style_rules=rules,
+            recipient=inputs.get("recipient"),
+            instructions=inputs.get("instructions"),
+        )
+    except doc_generate.DocNotConfigured:
+        return (
+            "I can't draft documents yet — the backend is missing its AI key "
+            "(ANTHROPIC_API_KEY)."
+        )
+    except doc_generate.DocGenerationError as exc:
+        return f"I couldn't draft that document: {exc}"
+    address = tx.get("address", "this transaction")
+    subject = draft.get("subject") or "(no subject)"
+    return (
+        f"Draft for {address}:\n\nSubject: {subject}\n\n{draft['body']}\n\n"
+        "Review and edit as needed — you can send it from the web app, or tell me "
+        "what to change."
+    )
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -359,6 +429,7 @@ _TOOL_MAP = {
     "add_transaction_note": _exec_add_transaction_note,
     "preview_intro_email": _exec_preview_intro_email,
     "send_intro_email": _exec_send_intro_email,
+    "draft_document": _exec_draft_document,
 }
 
 

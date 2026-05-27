@@ -155,6 +155,20 @@ export default function TransactionDetail() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Document drafting
+  const [docType, setDocType] = useState('status_update')
+  const [docRecipient, setDocRecipient] = useState('')
+  const [docInstructions, setDocInstructions] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
+  const [draftSubject, setDraftSubject] = useState('')
+  const [draftBody, setDraftBody] = useState('')
+  const [toEmail, setToEmail] = useState('')
+  const [confirmingSend, setConfirmingSend] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [docError, setDocError] = useState<string | null>(null)
+  const [docNotice, setDocNotice] = useState<string | null>(null)
+
   useEffect(() => {
     if (!transaction_id) return
     transactionsApi
@@ -187,6 +201,56 @@ export default function TransactionDetail() {
     if (tx) setValues(txToStrings(tx))
     setEditMode(false)
     setSaveError(null)
+  }
+
+  async function handleGenerate() {
+    if (!tx) return
+    setGenerating(true)
+    setDocError(null)
+    setDocNotice(null)
+    try {
+      const draft = await transactionsApi.draftDocument(tx.id, {
+        doc_type: docType,
+        recipient: docRecipient.trim() || undefined,
+        instructions: docInstructions.trim() || undefined,
+      })
+      setDraftSubject(draft.subject)
+      setDraftBody(draft.body)
+      setHasDraft(true)
+      setConfirmingSend(false)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data
+        ?.detail
+      setDocError(detail ?? 'Could not generate the draft.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleSend() {
+    if (!tx) return
+    setSending(true)
+    setDocError(null)
+    try {
+      await transactionsApi.sendDocument(tx.id, {
+        to_emails: [toEmail.trim()],
+        subject: draftSubject,
+        body: draftBody,
+        confirmed: true,
+      })
+      setDocNotice(`Sent to ${toEmail.trim()}.`)
+      setConfirmingSend(false)
+      setHasDraft(false)
+      setDraftSubject('')
+      setDraftBody('')
+      setToEmail('')
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data
+        ?.detail
+      setDocError(detail ?? 'Could not send. Check the email address and that SendGrid is configured.')
+    } finally {
+      setSending(false)
+    }
   }
 
   // ---------- loading / error ----------
@@ -329,6 +393,143 @@ export default function TransactionDetail() {
             )}
           </div>
         ))}
+
+        {/* Draft a document */}
+        {!editMode && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Draft a document
+            </h3>
+            <p className="mb-4 text-xs text-gray-400">
+              Penny drafts in your brand voice using your confirmed Brand &amp; Style rules.
+              Review before sending.
+            </p>
+
+            {docError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {docError}
+              </div>
+            )}
+            {docNotice && (
+              <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                {docNotice}
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Type</label>
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                  className="input"
+                >
+                  <option value="status_update">Status update</option>
+                  <option value="cover_letter">Cover letter</option>
+                  <option value="follow_up">Follow-up</option>
+                  <option value="congratulations">Congratulations</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Recipient (optional)
+                </label>
+                <input
+                  type="text"
+                  value={docRecipient}
+                  onChange={(e) => setDocRecipient(e.target.value)}
+                  placeholder="e.g. the buyer, the lender"
+                  className="input"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Instructions (optional)
+              </label>
+              <textarea
+                value={docInstructions}
+                onChange={(e) => setDocInstructions(e.target.value)}
+                rows={2}
+                placeholder="Anything specific to include…"
+                className="input"
+              />
+            </div>
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="btn-primary mt-3 flex items-center gap-2"
+            >
+              {generating && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {generating ? 'Drafting…' : hasDraft ? 'Regenerate' : 'Generate draft'}
+            </button>
+
+            {hasDraft && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Subject</label>
+                <input
+                  type="text"
+                  value={draftSubject}
+                  onChange={(e) => setDraftSubject(e.target.value)}
+                  className="input"
+                />
+                <label className="mb-1 mt-3 block text-xs font-medium text-gray-600">Body</label>
+                <textarea
+                  value={draftBody}
+                  onChange={(e) => setDraftBody(e.target.value)}
+                  rows={12}
+                  className="input text-sm"
+                />
+                <div className="mt-4 max-w-sm">
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Send to (email)
+                  </label>
+                  <input
+                    type="email"
+                    value={toEmail}
+                    onChange={(e) => setToEmail(e.target.value)}
+                    placeholder="recipient@example.com"
+                    className="input"
+                  />
+                </div>
+                {!confirmingSend ? (
+                  <button
+                    onClick={() => setConfirmingSend(true)}
+                    disabled={!toEmail.trim()}
+                    className="btn-primary mt-3 disabled:opacity-50"
+                  >
+                    Send…
+                  </button>
+                ) : (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+                    <span className="text-sm text-violet-800">
+                      Send this to <strong>{toEmail.trim()}</strong>?
+                    </span>
+                    <button
+                      onClick={handleSend}
+                      disabled={sending}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      {sending && (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      )}
+                      Confirm send
+                    </button>
+                    <button
+                      onClick={() => setConfirmingSend(false)}
+                      className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Contract PDF */}
         {tx.contract_pdf_url && (

@@ -219,6 +219,26 @@ export const transactionsApi = {
   get: (id: string) => api.get<Transaction>(`/transactions/${id}`).then((r) => r.data),
   update: (id: string, data: Partial<Transaction>) =>
     api.patch<Transaction>(`/transactions/${id}`, data).then((r) => r.data),
+  draftDocument: (
+    id: string,
+    data: { doc_type: string; recipient?: string; instructions?: string },
+  ) =>
+    api
+      .post<{ doc_type: string; subject: string; body: string }>(
+        `/transactions/${id}/draft-document`,
+        data,
+      )
+      .then((r) => r.data),
+  sendDocument: (
+    id: string,
+    data: { to_emails: string[]; subject: string; body: string; confirmed: boolean },
+  ) =>
+    api
+      .post<{ sent: boolean; recipients: string[] }>(
+        `/transactions/${id}/send-document`,
+        data,
+      )
+      .then((r) => r.data),
 }
 
 // --------------------------------------------------------------------------- //
