@@ -7,7 +7,7 @@ from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
 from app.services import ai_extract
-from app.services.pdf_extract import extract_pdf_text, pdf_page_count
+from app.services.pdf_extract import pdf_page_count
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -43,17 +43,11 @@ async def extract(
             detail="PDF exceeds the 25 MB limit",
         )
 
-    # Confirm it's a readable PDF and get text.
+    # Confirm it's a readable PDF and get the page count.
     try:
         page_count = pdf_page_count(content)
-        text = extract_pdf_text(content)
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not read PDF")
-    if not text.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No extractable text found (scanned PDFs aren't supported yet)",
-        )
 
     # Store the original in the private contracts bucket.
     await _ensure_bucket()
@@ -63,10 +57,10 @@ async def extract(
     except sb.SupabaseError as exc:
         raise HTTPException(status_code=exc.status_code, detail=f"Upload failed: {exc.detail}")
 
-    # AI field extraction.
+    # AI field extraction — send raw PDF bytes directly (handles all PDF types).
     rules = await sb.get_confirmed_knowledge_rules(brokerage["id"])
     try:
-        fields = await ai_extract.extract_contract_fields(text, rules)
+        fields = await ai_extract.extract_contract_fields(content, rules)
     except ai_extract.AINotConfigured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

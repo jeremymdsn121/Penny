@@ -268,6 +268,150 @@ async def get_confirmed_knowledge_rules(brokerage_id: str) -> list[dict[str, Any
     return resp.json()
 
 
+async def search_transactions(
+    brokerage_id: str, address_query: str
+) -> list[dict[str, Any]]:
+    """Return transactions whose address contains the query string (case-insensitive)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transactions",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "address": f"ilike.*{address_query}*",
+                "select": "*",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+# --------------------------------------------------------------------------- #
+# WhatsApp contacts
+# --------------------------------------------------------------------------- #
+
+async def lookup_whatsapp_contact(phone_number: str) -> dict[str, Any] | None:
+    """Find a brokerage by a registered realtor phone number."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/whatsapp_contacts",
+            params={"phone_number": f"eq.{phone_number}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_whatsapp_contacts(brokerage_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/whatsapp_contacts",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "order": "created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def upsert_whatsapp_contact(
+    brokerage_id: str, phone_number: str, display_name: str | None = None
+) -> dict[str, Any]:
+    payload = {"brokerage_id": brokerage_id, "phone_number": phone_number}
+    if display_name is not None:
+        payload["display_name"] = display_name
+    headers = _service_headers() | {
+        "Prefer": "return=representation,resolution=merge-duplicates",
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/whatsapp_contacts",
+            json=payload,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def delete_whatsapp_contact(brokerage_id: str, phone_number: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/whatsapp_contacts",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "phone_number": f"eq.{phone_number}",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# --------------------------------------------------------------------------- #
+# WhatsApp messages (conversation history)
+# --------------------------------------------------------------------------- #
+
+async def save_whatsapp_message(
+    brokerage_id: str,
+    phone_number: str,
+    direction: str,
+    body: str,
+    *,
+    media_url: str | None = None,
+    content_type: str = "text",
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "brokerage_id": brokerage_id,
+        "phone_number": phone_number,
+        "direction": direction,
+        "body": body,
+        "content_type": content_type,
+    }
+    if media_url:
+        payload["media_url"] = media_url
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/whatsapp_messages", json=payload, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def get_whatsapp_messages(
+    brokerage_id: str, phone_number: str, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Return the most recent messages for a thread, oldest-first."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/whatsapp_messages",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "phone_number": f"eq.{phone_number}",
+                "select": "direction,body,content_type,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return list(reversed(rows))  # oldest-first for Claude messages array
+
+
 async def replace_task_autonomy(
     brokerage_id: str, rows: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:

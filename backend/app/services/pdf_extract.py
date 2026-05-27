@@ -40,13 +40,32 @@ def score_page(text: str) -> int:
     return score
 
 
+def _page_text(page: "fitz.Page") -> str:  # type: ignore[name-defined]
+    """Regular text + any AcroForm widget values on this page."""
+    text = page.get_text()
+
+    # Fillable PDFs store data in form widgets rather than the text layer.
+    # Append every non-empty widget value so the model can see filled fields.
+    field_lines: list[str] = []
+    for widget in page.widgets() or []:
+        name = (widget.field_name or "").strip()
+        value = str(widget.field_value or "").strip()
+        if value and value not in ("Off", "0"):
+            field_lines.append(f"{name}: {value}" if name else value)
+
+    if field_lines:
+        text = text + "\n\n[Form fields]\n" + "\n".join(field_lines)
+
+    return text
+
+
 def extract_pdf_text(pdf_bytes: bytes, max_chars: int = MAX_CHARS) -> str:
     """Return the highest-signal pages concatenated, in original page order."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
         pages = []
         for i, page in enumerate(doc):
-            text = page.get_text()
+            text = _page_text(page)
             pages.append({"num": i + 1, "text": text, "score": score_page(text)})
     finally:
         doc.close()

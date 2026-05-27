@@ -1,0 +1,116 @@
+# Penny — Virtual Brokerage Assistant
+
+B2B SaaS "virtual transaction coordinator" for real estate brokerages. One Penny
+instance per brokerage, priced by agent seats. Built from a PRD; stack is fixed
+by the PRD — **do not substitute libraries**.
+
+```
+penny/
+  backend/    FastAPI + Python (Supabase over httpx)
+  frontend/   React 18 + TS + Vite + Tailwind + Zustand + Axios + RHF/Zod
+```
+
+## Run
+
+**Backend** (from `backend/`, uses the existing `.venv`):
+```bash
+# bash / git-bash
+.venv/Scripts/python.exe -m uvicorn app.main:app --reload
+# PowerShell
+.venv\Scripts\Activate.ps1; uvicorn app.main:app --reload
+```
+API at http://localhost:8000 (docs `/docs`, health `/health`). All routes under
+`/api/v1`; auth routes public, everything else needs `Authorization: Bearer <jwt>`.
+`.env` is loaded **relative to the working dir**, so always run from `backend/`.
+
+**Frontend** (from `frontend/`):
+```bash
+npm install   # first time
+npm run dev    # http://localhost:5173, proxies /api -> backend
+npm run typecheck
+```
+If `node`/`npm` reports "not found" mid-session, it's a Windows PATH quirk in a
+stale shell — open a fresh terminal; the toolchain is fine.
+
+**WhatsApp local testing** needs ngrok in front of the backend:
+```bash
+ngrok http 8000
+```
+Then set the Twilio WhatsApp sandbox "When a message comes in" webhook to
+`https://<ngrok-host>/api/v1/whatsapp/inbound` (POST). The free-tier ngrok URL
+**changes on every restart** — when inbound stops working, this stale URL is the
+first thing to check (ngrok inspector: http://localhost:4040).
+
+## Architecture
+
+- **Auth:** Supabase Auth is the IdP. Backend creates the auth user (admin API,
+  email auto-confirmed in dev) + a `brokerages` row, then stamps
+  `app_metadata.brokerage_id` on the user. That id travels in the JWT and drives
+  backend scoping **and** Postgres RLS.
+- **Supabase access:** `app/core/supabase_client.py` — thin async httpx wrappers
+  (not supabase-py). Service-role key is used server-side only and bypasses RLS.
+- **AI:** Anthropic `claude-sonnet-4-5` for the WhatsApp agent
+  (`app/services/penny_agent.py`, tool-use loop) and contract field extraction
+  (`app/services/ai_extract.py`).
+- **WhatsApp (text + voice):** inbound webhook `app/api/v1/routes/whatsapp.py`
+  → Twilio signature check → contact lookup → optional Whisper transcription
+  (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
+  (`app/services/twilio_client.py`). Conversation history persisted in
+  `whatsapp_messages`. Agent tools: list transactions, get details, update
+  stage, add note.
+- **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
+  `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
+
+## Database
+
+Migrations in `backend/migrations/`, run **in order** via the Supabase SQL
+Editor (paste file *contents*, not the path):
+- `001_*` initial schema (brokerages, transactions, RLS helpers)
+- `002_*` `onboarding_completed`
+- `003_whatsapp.sql` `whatsapp_contacts`, `whatsapp_messages`, `transactions.notes`
+
+## Env vars (names only — never print values)
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Whisper),
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`,
+`TWILIO_SKIP_VALIDATION`. Later phases: `SENDGRID_API_KEY`, `RENTCAST_API_KEY`,
+Google/Microsoft OAuth, `REDIS_URL`.
+
+WhatsApp specifics:
+- `TWILIO_WHATSAPP_FROM` must be the **sandbox** number (`whatsapp:+14155238886`),
+  not the assigned SMS number — replies must originate from a WhatsApp-enabled
+  number. Sandbox agents must first send `join <sandbox-word>` to opt in.
+- `TWILIO_SKIP_VALIDATION=true` in local dev: signature validation fails behind
+  ngrok because the signed URL doesn't match the reconstructed one. Never skip
+  in production.
+- Phone numbers are canonicalised by `_normalise_phone` (US-first: a 10-digit
+  number, even with a stray `+`, becomes `+1XXXXXXXXXX`; true international
+  numbers pass through). Keep storage + lookup going through this helper.
+
+## Conventions & security (hard rules)
+
+- Never put API keys in frontend code — all AI/integration calls go through the backend.
+- All API keys stored encrypted at rest; `service_role` key is server-only (bypasses RLS).
+- Always scope DB queries by `brokerage_id` — never return data across brokerages.
+- Never hallucinate extracted fields — return empty string if a field isn't found.
+- Never skip the confirmation step for rules, document sending, or email approval.
+- Never let compliance review run autonomously — always surface findings to the agent.
+- Build phases in PRD order; resist scope creep — don't pre-build later-phase features.
+- When inspecting `.env`, show only key names + char counts, never the secret values.
+
+## Status & next up
+
+Done & tested: scaffold, auth, onboarding (5 steps), contract PDF extraction +
+transactions, and the full **WhatsApp text+voice channel** (register agent
+numbers, text/voice-memo Penny, agent acts on transactions).
+
+Not started:
+- WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
+- Phase 1 intro email via SendGrid.
+- Phase 2: compliance review (human-confirmed), deadline tracking + reminders, document sending.
+- Phase 3: scheduling, comparable sales (Rentcast), MLS entry.
+
+Dev note: the only onboarded test brokerage is **"Test"**
+(`b8bfa04b-e94a-4495-82d5-68f5f70830a1`); registered WhatsApp test contact is
+`+14054139444` ("Jeremy").

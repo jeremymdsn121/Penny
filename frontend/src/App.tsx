@@ -6,6 +6,7 @@ import NewTransaction from './pages/NewTransaction'
 import Onboarding from './pages/Onboarding'
 import Signup from './pages/Signup'
 import TransactionDetail from './pages/TransactionDetail'
+import WhatsAppSettings from './pages/WhatsAppSettings'
 import { useAuthStore } from './store/auth'
 
 export default function App() {
@@ -44,6 +45,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             {onboarded ? <TransactionDetail /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/whatsapp"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <WhatsAppSettings /> : <Navigate to="/onboarding" replace />}
           </ProtectedRoute>
         }
       />

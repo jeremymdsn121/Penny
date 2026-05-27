@@ -20,6 +20,21 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// When the server returns 401 the token is expired or missing — clear local
+// auth state and redirect to login so the user gets a fresh token.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      authToken = null
+      // Wipe the persisted Zustand store so ProtectedRoute redirects properly.
+      localStorage.removeItem('penny-auth')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  },
+)
+
 export interface Brokerage {
   id: string
   name: string
@@ -150,15 +165,53 @@ export interface ExtractResult {
   not_found: string[]
 }
 
+// --------------------------------------------------------------------------- //
+// WhatsApp
+// --------------------------------------------------------------------------- //
+
+export interface WhatsAppContact {
+  id: string
+  brokerage_id: string
+  phone_number: string
+  display_name?: string | null
+  created_at: string
+}
+
+export interface WhatsAppConfig {
+  penny_whatsapp_number: string | null
+  configured: boolean
+}
+
+export const whatsappApi = {
+  config: () => api.get<WhatsAppConfig>('/whatsapp/config').then((r) => r.data),
+  listContacts: () => api.get<WhatsAppContact[]>('/whatsapp/contacts').then((r) => r.data),
+  addContact: (phone_number: string, display_name?: string) =>
+    api
+      .post<WhatsAppContact>('/whatsapp/contacts', { phone_number, display_name })
+      .then((r) => r.data),
+  removeContact: (phone_number: string) =>
+    api.delete(`/whatsapp/contacts/${encodeURIComponent(phone_number)}`),
+}
+
 export const transactionsApi = {
   extract: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return api
-      .post<ExtractResult>('/transactions/extract', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      .then((r) => r.data)
+    // Use native fetch so the browser sets Content-Type: multipart/form-data
+    // with the correct boundary — axios's default json Content-Type interferes.
+    return fetch('/api/v1/transactions/extract', {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<ExtractResult>
+    })
   },
   create: (data: Partial<Transaction>) =>
     api.post<Transaction>('/transactions', data).then((r) => r.data),

@@ -21,3 +21,9 @@ anthropic
 
 # .env loading
 python-dotenv
+
+# WhatsApp / SMS messaging
+twilio
+
+# Voice memo transcription
+openai

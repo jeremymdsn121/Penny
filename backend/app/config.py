@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     MICROSOFT_CLIENT_SECRET: str | None = None
     REDIS_URL: str | None = None
 
+    # Twilio — WhatsApp messaging
+    TWILIO_ACCOUNT_SID: str | None = None
+    TWILIO_AUTH_TOKEN: str | None = None
+    # E.g. "whatsapp:+14155238886" (sandbox) or "whatsapp:+1XXXXXXXXXX" (production)
+    TWILIO_WHATSAPP_FROM: str | None = None
+    # Set to True in local dev when using ngrok so signature validation is skipped
+    TWILIO_SKIP_VALIDATION: bool = False
+
+    # OpenAI — Whisper audio transcription for voice memos
+    OPENAI_API_KEY: str | None = None
+
     # Frontend origins allowed by CORS.
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",

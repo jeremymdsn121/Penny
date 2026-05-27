@@ -3,8 +3,14 @@
 The model is told to return strict JSON for a fixed set of keys and to use null
 for anything it can't find — never guess. We inject the brokerage's confirmed
 knowledge rules into the system prompt so Penny stays on-brand.
+
+PDF strategy: we send the raw PDF bytes directly to the Anthropic API as a
+native document (vision-capable), which handles text-layer PDFs, fillable
+AcroForms, flattened forms, and scanned images equally well — no fragile
+text-extraction pre-processing needed.
 """
 
+import base64
 import json
 import re
 from typing import Any
@@ -13,20 +19,20 @@ from anthropic import AsyncAnthropic
 
 from app.config import settings
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1500
 
 # Keys map 1:1 to columns on the transactions table.
 CONTRACT_FIELDS: list[str] = [
     "address", "city", "state", "zip",
-    "buyer_name", "buyer_email", "buyer_phone",
-    "seller_name", "seller_email", "seller_phone",
-    "list_price", "sale_price", "financing",
+    "buyer_name",
+    "seller_name",
+    "sale_price", "financing",
     "contract_date", "closing_date",
     "listing_agent_name", "listing_agent_email",
     "selling_agent_name", "selling_agent_email",
-    "lender_name", "lender_email",
-    "title_company", "title_email",
+    "lender_name",
+    "title_company",
     "mls_number",
 ]
 
@@ -107,15 +113,43 @@ def _clean(key: str, value: Any) -> Any:
 
 
 async def extract_contract_fields(
-    contract_text: str, knowledge_rules: list[dict[str, Any]] | None = None
+    pdf_bytes: bytes, knowledge_rules: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
+    """Extract structured fields from a contract PDF.
+
+    The PDF is sent directly to the Anthropic API as a base64-encoded document
+    so the model can read it with vision — handling text-layer, AcroForm,
+    flattened, and scanned PDFs without any pre-processing.
+    """
     client = _client()
-    response = await client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=_build_system(knowledge_rules or []),
-        messages=[{"role": "user", "content": f"Contract text:\n\n{contract_text}"}],
-    )
+    pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=_build_system(knowledge_rules or []),
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract the contract fields from this document.",
+                        },
+                    ],
+                }
+            ],
+        )
+    except Exception as exc:
+        raise AIExtractionError(f"Anthropic API error: {exc}") from exc
     raw = "".join(block.text for block in response.content if block.type == "text")
     data = _parse_json(raw)
     return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}

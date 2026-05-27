@@ -21,7 +21,6 @@ const FIELD_GROUPS = [
   {
     label: 'Deal',
     fields: [
-      { key: 'list_price', label: 'List Price ($)' },
       { key: 'sale_price', label: 'Sale Price ($)' },
       { key: 'financing', label: 'Financing' },
       { key: 'contract_date', label: 'Contract Date (YYYY-MM-DD)' },
@@ -32,16 +31,12 @@ const FIELD_GROUPS = [
     label: 'Buyer',
     fields: [
       { key: 'buyer_name', label: 'Name' },
-      { key: 'buyer_email', label: 'Email' },
-      { key: 'buyer_phone', label: 'Phone' },
     ],
   },
   {
     label: 'Seller',
     fields: [
       { key: 'seller_name', label: 'Name' },
-      { key: 'seller_email', label: 'Email' },
-      { key: 'seller_phone', label: 'Phone' },
     ],
   },
   {
@@ -62,21 +57,12 @@ const FIELD_GROUPS = [
     label: 'Lender',
     fields: [
       { key: 'lender_name', label: 'Name' },
-      { key: 'lender_email', label: 'Email' },
     ],
   },
   {
     label: 'Title',
     fields: [
       { key: 'title_company', label: 'Company' },
-      { key: 'title_email', label: 'Email' },
-    ],
-  },
-  {
-    label: 'Transaction Coordinator',
-    fields: [
-      { key: 'tc_name', label: 'Name' },
-      { key: 'tc_email', label: 'Email' },
     ],
   },
 ]
@@ -84,14 +70,14 @@ const FIELD_GROUPS = [
 // Keys the AI extracts — used to decide ring color
 const EXTRACTED_KEYS = new Set([
   'address', 'city', 'state', 'zip',
-  'buyer_name', 'buyer_email', 'buyer_phone',
-  'seller_name', 'seller_email', 'seller_phone',
-  'list_price', 'sale_price', 'financing',
+  'buyer_name',
+  'seller_name',
+  'sale_price', 'financing',
   'contract_date', 'closing_date',
   'listing_agent_name', 'listing_agent_email',
   'selling_agent_name', 'selling_agent_email',
-  'lender_name', 'lender_email',
-  'title_company', 'title_email',
+  'lender_name',
+  'title_company',
   'mls_number',
 ])
 

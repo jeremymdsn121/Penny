@@ -67,9 +67,18 @@ export default function Dashboard() {
           </div>
           <span className="font-semibold text-gray-900">{brokerage?.name ?? 'Penny'}</span>
         </div>
-        <button onClick={onLogout} className="text-sm font-medium text-gray-500 hover:text-gray-900">
-          Log out
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/settings/whatsapp')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="WhatsApp Settings"
+          >
+            📱 WhatsApp
+          </button>
+          <button onClick={onLogout} className="text-sm font-medium text-gray-500 hover:text-gray-900">
+            Log out
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
