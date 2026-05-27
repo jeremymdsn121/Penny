@@ -33,3 +33,6 @@ sendgrid
 
 # DOCX text extraction (knowledge-base style docs)
 python-docx
+
+# IANA timezone database (Windows has no system tzdata) — scheduling slot math
+tzdata

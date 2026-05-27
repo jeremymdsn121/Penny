@@ -59,7 +59,8 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
   stage, add note, preview/send intro email, draft document, list/add deadlines,
-  review compliance (surface-only — never approves), comparable sales.
+  review compliance (surface-only — never approves), comparable sales,
+  propose/book/list appointments.
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -113,6 +114,20 @@ first thing to check (ngrok inspector: http://localhost:4040).
   `get_comparable_sales` takes a free-form address (works for any property, not
   just one on file). 503 without `RENTCAST_API_KEY`. Web UI: a Comparable sales
   panel on the transaction page.
+- **Scheduling (appointments):** `app/services/scheduling.py` (pure slot math:
+  state→IANA tz map + `propose_slots` over working hours/buffer, filtering
+  conflicts) + `app/api/v1/routes/appointments.py`. `appointments` table, scoped
+  through the parent transaction. `POST /appointments/propose` returns open slots;
+  `POST /appointments/book` is **confirm-gated** (required unless the `scheduling`
+  task is autonomous) and records the appointment. Agent tools
+  `propose_showing_times`, `book_appointment` (confirmed gate), `list_appointments`.
+  Web UI: a Scheduling panel on the transaction page. **Live calendar sync is
+  behind a seam** (`app/services/calendar_provider.py`): `status`/`get_busy`/
+  `create_event` currently report "not connected" / no-op. The Google/Microsoft
+  OAuth flow (connect, token storage in the existing `google_calendar_token` /
+  `microsoft_token` jsonb columns, refresh, real free/busy + event creation) is
+  **deferred** — to be wired once the OAuth apps are registered and testable.
+  Only the `calendar_provider` bodies change then; callers stay the same.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
@@ -138,7 +153,9 @@ flags) is already in `001`.
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`,
 `TWILIO_SKIP_VALIDATION`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL` (intro
 email; the from address must be a verified SendGrid sender), `RENTCAST_API_KEY`
-(comparable sales). Later phases: Google/Microsoft OAuth (scheduling), `REDIS_URL`.
+(comparable sales). Deferred (calendar sync, not yet wired): `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`,
+`REDIS_URL`.
 
 WhatsApp specifics:
 - `TWILIO_WHATSAPP_FROM` must be the **sandbox** number (`whatsapp:+14155238886`),
@@ -193,19 +210,30 @@ not yet exercised against live services):
   response parser unit-checked; route registers; frontend typechecks; no-key path
   returns a clean 503. **Not** yet run against the live Rentcast API — needs
   `RENTCAST_API_KEY` (a key you can grab instantly from rentcast.io).
+- **Scheduling (appointments)** — slot proposal + booking + confirmation gate +
+  agent tools + Scheduling panel. Slot math unit-checked (buffer, work-hour
+  bounds, past-time filtering, tz); routes register; frontend typechecks. Works
+  today against working hours + local appointments. **Deferred:** live
+  Google/Microsoft calendar sync (OAuth connect + free/busy + event creation) —
+  built behind the `calendar_provider` seam, to be wired when the OAuth apps are
+  registered so it can be verified against the real providers.
 
 Outstanding setup before the above work end-to-end (all on Jeremy's side):
 run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
 `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`. (Deadline reminders need no migration;
 they no-op gracefully without Twilio/SendGrid.)
 
-Not started:
-- WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
-- Phase 2 is now feature-complete (intro email, knowledge base, document
-  generation, deadline reminders, compliance review) — all pending live
-  end-to-end verification rather than further build.
-- Phase 3: scheduling (needs Google/Microsoft calendar OAuth), comparable sales
-  (Rentcast), MLS entry.
+Not started / deferred:
+- **Calendar OAuth for scheduling** (deferred, not blocked): wire Google/Microsoft
+  connect + token refresh + real free/busy + event creation into the
+  `calendar_provider` seam. Do this in one focused pass once the OAuth apps are
+  registered, so it's testable against real providers (avoids building blind).
+- **MLS listing prep** (Phase 3): AI-extract a listing packet into MLS-ready
+  fields; likely needs a small listings data model (migration).
+- WhatsApp "actions": photo upload via MMS, richer data capture.
+- Phase 2 is feature-complete (intro email, knowledge base, document generation,
+  deadline reminders, compliance review); Phase 3 has comparable sales + the
+  scheduling core done — all pending live end-to-end verification.
 
 Commercialization (planned, post-build): pricing model decided — all features,
 per-seat, no tiers, small base, recurring. GTM next. See memory for details.

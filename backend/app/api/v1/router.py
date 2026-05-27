@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.routes import (
+    appointments,
     auth,
     deadlines,
     knowledge,
@@ -16,3 +17,4 @@ api_router.include_router(transactions.router)
 api_router.include_router(whatsapp.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(deadlines.router)
+api_router.include_router(appointments.router)

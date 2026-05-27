@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
 import {
+  appointmentsApi,
   deadlinesApi,
   PARTY_ROLES,
   transactionsApi,
+  type Appointment,
   type CompsResult,
   type ComplianceReview,
   type Deadline,
+  type ProposeResult,
   type Transaction,
 } from '../lib/api'
 
@@ -227,6 +230,15 @@ export default function TransactionDetail() {
   const [compsLoading, setCompsLoading] = useState(false)
   const [compsError, setCompsError] = useState<string | null>(null)
 
+  // Scheduling
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [proposal, setProposal] = useState<ProposeResult | null>(null)
+  const [proposing, setProposing] = useState(false)
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [booking, setBooking] = useState(false)
+  const [schedError, setSchedError] = useState<string | null>(null)
+  const [schedNotice, setSchedNotice] = useState<string | null>(null)
+
   useEffect(() => {
     if (!transaction_id) return
     transactionsApi
@@ -241,6 +253,10 @@ export default function TransactionDetail() {
       .list(transaction_id)
       .then(setDeadlines)
       .catch(() => {/* deadlines degrade silently */})
+    appointmentsApi
+      .list(transaction_id)
+      .then(setAppointments)
+      .catch(() => {/* appointments degrade silently */})
   }, [transaction_id])
 
   async function refreshDeadlines() {
@@ -347,6 +363,69 @@ export default function TransactionDetail() {
       setCompsError(detail ?? 'Could not pull comparable sales.')
     } finally {
       setCompsLoading(false)
+    }
+  }
+
+  function fmtSlot(iso: string, tz?: string): string {
+    try {
+      return new Date(iso).toLocaleString('en-US', {
+        timeZone: tz,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    } catch {
+      return iso
+    }
+  }
+
+  async function handleProposeSlots() {
+    if (!tx) return
+    setProposing(true)
+    setSchedError(null)
+    setSchedNotice(null)
+    setSelectedSlot(null)
+    try {
+      setProposal(await appointmentsApi.propose({ transaction_id: tx.id, days: 7 }))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setSchedError(detail ?? 'Could not propose times.')
+    } finally {
+      setProposing(false)
+    }
+  }
+
+  async function handleBook() {
+    if (!tx || !selectedSlot) return
+    setBooking(true)
+    setSchedError(null)
+    try {
+      await appointmentsApi.book({
+        transaction_id: tx.id,
+        type: 'showing',
+        scheduled_at: selectedSlot,
+        confirmed: true,
+      })
+      setSchedNotice(`Booked for ${fmtSlot(selectedSlot, proposal?.timezone)}.`)
+      setSelectedSlot(null)
+      setProposal(null)
+      setAppointments(await appointmentsApi.list(tx.id))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setSchedError(detail ?? 'Could not book the appointment.')
+    } finally {
+      setBooking(false)
+    }
+  }
+
+  async function handleCancelAppointment(id: string) {
+    try {
+      await appointmentsApi.remove(id)
+      if (tx) setAppointments(await appointmentsApi.list(tx.id))
+    } catch {
+      setSchedError('Could not cancel that appointment.')
     }
   }
 
@@ -711,6 +790,121 @@ export default function TransactionDetail() {
                 Add deadline
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Scheduling */}
+        {!editMode && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Scheduling
+            </h3>
+            <p className="mb-4 text-xs text-gray-400">
+              Penny proposes open times from your working hours and books showings or
+              inspections. Calendar sync isn’t connected yet — times reflect your hours and
+              existing appointments.
+            </p>
+
+            {schedError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {schedError}
+              </div>
+            )}
+            {schedNotice && (
+              <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                {schedNotice}
+              </div>
+            )}
+
+            {appointments.length > 0 && (
+              <ul className="mb-5 divide-y divide-gray-100">
+                {appointments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="text-sm font-medium capitalize text-gray-900">
+                        {(a.type ?? 'appointment').replace('_', ' ')}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {a.scheduled_at ? fmtSlot(a.scheduled_at) : 'Time TBD'}
+                        {a.calendar_event_id ? ' · on calendar' : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCancelAppointment(a.id)}
+                      className="text-xs font-medium text-gray-400 hover:text-red-600"
+                    >
+                      Cancel
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              onClick={handleProposeSlots}
+              disabled={proposing}
+              className="btn-primary flex items-center gap-2"
+            >
+              {proposing && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {proposing ? 'Finding times…' : 'Propose times'}
+            </button>
+
+            {proposal && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                {proposal.slots.length === 0 ? (
+                  <p className="text-sm text-gray-400">
+                    No open times in your working hours over the next week.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-xs font-medium text-gray-600">
+                      Pick a time ({proposal.timezone}):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.slots.map((slot) => (
+                        <button
+                          key={slot}
+                          onClick={() => setSelectedSlot(slot)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            selectedSlot === slot
+                              ? 'border-violet-300 bg-violet-50 text-violet-700'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {fmtSlot(slot, proposal.timezone)}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedSlot && (
+                      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+                        <span className="text-sm text-violet-800">
+                          Book a showing for{' '}
+                          <strong>{fmtSlot(selectedSlot, proposal.timezone)}</strong>?
+                        </span>
+                        <button
+                          onClick={handleBook}
+                          disabled={booking}
+                          className="btn-primary flex items-center gap-2"
+                        >
+                          {booking && (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          )}
+                          Confirm booking
+                        </button>
+                        <button
+                          onClick={() => setSelectedSlot(null)}
+                          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

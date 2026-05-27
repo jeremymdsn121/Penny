@@ -15,14 +15,21 @@ Tools available to Claude:
 """
 
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from anthropic import AsyncAnthropic
 
 from app.config import settings
 from app.core import supabase_client as sb
-from app.services import compliance, doc_generate, email_client, rentcast
+from app.services import (
+    calendar_provider,
+    compliance,
+    doc_generate,
+    email_client,
+    rentcast,
+    scheduling,
+)
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
@@ -279,6 +286,82 @@ _TOOLS: list[dict[str, Any]] = [
                 }
             },
             "required": ["address"],
+        },
+    },
+    {
+        "name": "propose_showing_times",
+        "description": (
+            "Propose open appointment times for a transaction based on the "
+            "brokerage's working hours and buffer, avoiding existing appointments. "
+            "Use this when the agent wants to schedule a showing or inspection. "
+            "Read-only — it suggests times but books nothing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "How many days ahead to search (default 5).",
+                },
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "book_appointment",
+        "description": (
+            "Book an appointment (showing, inspection, etc.) on a transaction at a "
+            "specific time. This creates a calendar event when a calendar is "
+            "connected, so it requires confirmed=true — set that only after the "
+            "agent confirms the time, or when scheduling is autonomous for this brokerage."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "scheduled_at": {
+                    "type": "string",
+                    "description": "ISO 8601 datetime, ideally one of the proposed slots.",
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Appointment type, e.g. 'showing' or 'inspection'.",
+                },
+                "attendees": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional attendee emails.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "Must be true to book. Set only after the agent confirms, "
+                        "or when scheduling is autonomous for this brokerage."
+                    ),
+                },
+            },
+            "required": ["address_query", "scheduled_at", "confirmed"],
+        },
+    },
+    {
+        "name": "list_appointments",
+        "description": "List the scheduled appointments for a transaction. Read-only.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
         },
     },
 ]
@@ -664,6 +747,125 @@ async def _exec_get_comparable_sales(brokerage_id: str, inputs: dict) -> str:
     return "\n".join(lines)
 
 
+def _fmt_slot(dt: datetime) -> str:
+    hour = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return dt.strftime("%a %b %d, ") + f"{hour}:{dt.minute:02d} {ampm}"
+
+
+async def _brokerage_busy(brokerage_id: str) -> list[tuple[datetime, datetime]]:
+    txs = await sb.list_transactions(brokerage_id)
+    appts = await sb.list_appointments_in([t["id"] for t in txs])
+    busy: list[tuple[datetime, datetime]] = []
+    for a in appts:
+        when = a.get("scheduled_at")
+        if not when:
+            continue
+        try:
+            bs = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        busy.append((bs, bs + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)))
+    return busy
+
+
+async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    brokerage = await sb.get_brokerage(brokerage_id) or {}
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
+    now = datetime.now(tz)
+    days = int(inputs.get("days") or 5)
+    busy = await _brokerage_busy(brokerage_id)
+    slots = scheduling.propose_slots(
+        work_start=brokerage.get("work_start"),
+        work_end=brokerage.get("work_end"),
+        buffer_minutes=brokerage.get("buffer_minutes") or 0,
+        tz=tz,
+        start_day=now.date(),
+        days=days,
+        busy=busy,
+        now=now,
+        max_slots=6,
+    )
+    if not slots:
+        return (
+            f"I couldn't find open times for {tx.get('address', 'this property')} in "
+            "your working hours over that range."
+        )
+    lines = [f"Open times for {tx.get('address', 'this property')} ({tz.key}):"]
+    lines += [f"- {_fmt_slot(s)}" for s in slots]
+    lines.append("Tell me which one to book and I'll schedule it once you confirm.")
+    return "\n".join(lines)
+
+
+async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
+    autonomous = False
+    try:
+        autonomy = await sb.get_task_autonomy(brokerage_id)
+        autonomous = any(
+            r.get("task_id") == "scheduling" and r.get("autonomous") for r in autonomy
+        )
+    except Exception:
+        autonomous = False
+    if not inputs.get("confirmed") and not autonomous:
+        return (
+            "Not booked — I need confirmation first. Show the agent the time and "
+            "ask them to confirm, then call this again with confirmed=true."
+        )
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    raw = (inputs.get("scheduled_at") or "").strip()
+    try:
+        start = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return "I need the time as an ISO 8601 datetime (e.g. 2026-06-01T14:30:00-05:00)."
+    brokerage = await sb.get_brokerage(brokerage_id) or {}
+    appt_type = (inputs.get("type") or "showing").strip()
+    attendees = [a for a in (inputs.get("attendees") or []) if a and a.strip()]
+    end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
+    address = (tx.get("address") or "the property").strip()
+    event_id = await calendar_provider.create_event(
+        brokerage,
+        summary=f"{appt_type.replace('_', ' ').title()} — {address}",
+        start=start,
+        end=end,
+        attendees=attendees,
+    )
+    await sb.insert_appointment({
+        "transaction_id": tx["id"],
+        "type": appt_type,
+        "showing_method": brokerage.get("showing_method"),
+        "scheduled_at": start.isoformat(),
+        "confirmed": True,
+        "calendar_event_id": event_id,
+        "attendees": attendees,
+    })
+    synced = " and added it to your calendar" if event_id else ""
+    return f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{synced}."
+
+
+async def _exec_list_appointments(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    appts = await sb.list_appointments_for_transaction(tx["id"])
+    if not appts:
+        return f"No appointments scheduled for {tx.get('address', 'this transaction')}."
+    lines = [f"Appointments for {tx.get('address', 'this transaction')}:"]
+    for a in appts:
+        when = a.get("scheduled_at")
+        label = a.get("type", "appointment")
+        try:
+            dt = datetime.fromisoformat(str(when).replace("Z", "+00:00")) if when else None
+        except ValueError:
+            dt = None
+        lines.append(f"- {label}: {_fmt_slot(dt) if dt else 'time TBD'}")
+    return "\n".join(lines)
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -676,6 +878,9 @@ _TOOL_MAP = {
     "add_deadline": _exec_add_deadline,
     "review_compliance": _exec_review_compliance,
     "get_comparable_sales": _exec_get_comparable_sales,
+    "propose_showing_times": _exec_propose_showing_times,
+    "book_appointment": _exec_book_appointment,
+    "list_appointments": _exec_list_appointments,
 }
 
 
@@ -766,7 +971,13 @@ async def run_penny_agent(
         "Comparable sales:\n"
         "- get_comparable_sales pulls comps and an estimated value for any property "
         "address. Use it when the agent asks about comps, a CMA, or what a home is "
-        "worth. Present figures plainly and note they're estimates."
+        "worth. Present figures plainly and note they're estimates.\n\n"
+        "Scheduling:\n"
+        "- propose_showing_times suggests open slots; book_appointment books one. "
+        "Booking creates a calendar event, so you MUST get the agent's explicit "
+        "confirmation of the time before calling book_appointment with confirmed=true "
+        "(unless scheduling is autonomous for this brokerage). list_appointments shows "
+        "what's on the books."
     )
 
     # Build the messages array from history + current message.

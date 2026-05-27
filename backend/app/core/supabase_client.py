@@ -673,6 +673,94 @@ async def delete_deadline(deadline_id: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Appointments — scoped through the parent transaction (like deadlines). The
+# caller verifies the transaction belongs to the brokerage before mutating.
+# --------------------------------------------------------------------------- #
+
+async def list_appointments_for_transaction(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/appointments",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "scheduled_at.asc.nullslast",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_appointments_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Appointments across many transactions (used for conflict checks)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/appointments",
+            params={"transaction_id": f"in.({ids})", "select": "*"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_appointment(appointment_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/appointments",
+            params={"id": f"eq.{appointment_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def insert_appointment(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(f"{REST_BASE}/appointments", json=data, headers=headers)
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def update_appointment(
+    appointment_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/appointments",
+            params={"id": f"eq.{appointment_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_appointment(appointment_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/appointments",
+            params={"id": f"eq.{appointment_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# --------------------------------------------------------------------------- #
 # Storage
 # --------------------------------------------------------------------------- #
 

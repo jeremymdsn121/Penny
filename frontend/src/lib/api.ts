@@ -282,6 +282,57 @@ export interface CompsResult {
 }
 
 // --------------------------------------------------------------------------- //
+// Scheduling / appointments
+// --------------------------------------------------------------------------- //
+
+export interface Appointment {
+  id: string
+  transaction_id: string
+  type?: string | null
+  showing_method?: string | null
+  scheduled_at?: string | null
+  confirmed?: boolean
+  calendar_event_id?: string | null
+  attendees?: string[] | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ProposeResult {
+  timezone: string
+  duration_minutes: number
+  calendar: { provider: string | null; connected: boolean; sync_enabled: boolean }
+  slots: string[]
+}
+
+export const appointmentsApi = {
+  list: (transactionId: string) =>
+    api
+      .get<Appointment[]>('/appointments', { params: { transaction_id: transactionId } })
+      .then((r) => r.data),
+  propose: (data: {
+    transaction_id: string
+    days?: number
+    start_date?: string
+    duration_minutes?: number
+  }) => api.post<ProposeResult>('/appointments/propose', data).then((r) => r.data),
+  book: (data: {
+    transaction_id: string
+    type: string
+    scheduled_at: string
+    attendees?: string[]
+    confirmed: boolean
+  }) =>
+    api
+      .post<{ appointment: Appointment; calendar_event_created: boolean }>(
+        '/appointments/book',
+        data,
+      )
+      .then((r) => r.data),
+  remove: (id: string) => api.delete(`/appointments/${id}`),
+}
+
+// --------------------------------------------------------------------------- //
 // Compliance review
 // --------------------------------------------------------------------------- //
 
