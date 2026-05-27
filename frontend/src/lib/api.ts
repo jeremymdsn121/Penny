@@ -220,3 +220,66 @@ export const transactionsApi = {
   update: (id: string, data: Partial<Transaction>) =>
     api.patch<Transaction>(`/transactions/${id}`, data).then((r) => r.data),
 }
+
+// --------------------------------------------------------------------------- //
+// Knowledge base — brand & style
+// --------------------------------------------------------------------------- //
+
+export interface KnowledgeDocument {
+  id: string
+  brokerage_id: string
+  filename: string
+  storage_path: string
+  content_type?: string | null
+  file_size?: number | null
+  status: string // 'processing' | 'processed' | 'failed'
+  error?: string | null
+  created_at: string
+  updated_at?: string
+}
+
+export interface KnowledgeRule {
+  id: string
+  category?: string | null
+  rule: string
+  confirmed: boolean
+  document_id?: string | null
+  source_document?: string | null
+  created_at?: string
+}
+
+export interface KnowledgeUploadResult {
+  document: KnowledgeDocument
+  rules: KnowledgeRule[]
+  extraction_error?: string | null
+}
+
+export const knowledgeApi = {
+  listDocuments: () =>
+    api.get<KnowledgeDocument[]>('/knowledge/documents').then((r) => r.data),
+  uploadDocument: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    // Native fetch so the browser sets the multipart boundary (see extract above).
+    return fetch('/api/v1/knowledge/documents', {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<KnowledgeUploadResult>
+    })
+  },
+  deleteDocument: (id: string) => api.delete(`/knowledge/documents/${id}`),
+  listRules: () => api.get<KnowledgeRule[]>('/knowledge/rules').then((r) => r.data),
+  updateRule: (
+    id: string,
+    data: { confirmed?: boolean; category?: string; rule?: string },
+  ) => api.patch<KnowledgeRule>(`/knowledge/rules/${id}`, data).then((r) => r.data),
+  deleteRule: (id: string) => api.delete(`/knowledge/rules/${id}`),
+}

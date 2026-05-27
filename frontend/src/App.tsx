@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
+import Knowledge from './pages/Knowledge'
 import Login from './pages/Login'
 import NewTransaction from './pages/NewTransaction'
 import Onboarding from './pages/Onboarding'
@@ -53,6 +54,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             {onboarded ? <WhatsAppSettings /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/knowledge"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <Knowledge /> : <Navigate to="/onboarding" replace />}
           </ProtectedRoute>
         }
       />

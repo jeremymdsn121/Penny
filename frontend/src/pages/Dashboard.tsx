@@ -69,6 +69,13 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button
+            onClick={() => navigate('/knowledge')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Brand & Style"
+          >
+            📄 Brand &amp; Style
+          </button>
+          <button
             onClick={() => navigate('/settings/whatsapp')}
             className="text-sm font-medium text-gray-500 hover:text-gray-900"
             title="WhatsApp Settings"

@@ -30,3 +30,6 @@ openai
 
 # Transactional email
 sendgrid
+
+# DOCX text extraction (knowledge-base style docs)
+python-docx

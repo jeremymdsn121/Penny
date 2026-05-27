@@ -438,6 +438,148 @@ async def replace_task_autonomy(
 
 
 # --------------------------------------------------------------------------- #
+# Knowledge base — documents + extracted style rules
+# --------------------------------------------------------------------------- #
+
+async def insert_knowledge_document(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/knowledge_documents", json=data, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def list_knowledge_documents(brokerage_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_documents",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_knowledge_document(
+    brokerage_id: str, document_id: str
+) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_documents",
+            params={
+                "id": f"eq.{document_id}",
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "limit": "1",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_knowledge_document(
+    brokerage_id: str, document_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/knowledge_documents",
+            params={"id": f"eq.{document_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_knowledge_document(brokerage_id: str, document_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/knowledge_documents",
+            params={"id": f"eq.{document_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def insert_knowledge_rules(
+    brokerage_id: str, rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Bulk-insert proposed style rules (each defaults to confirmed=false)."""
+    if not rows:
+        return []
+    payload = [{"brokerage_id": brokerage_id, **r} for r in rows]
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/knowledge_rules", json=payload, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_knowledge_rules(brokerage_id: str) -> list[dict[str, Any]]:
+    """All style rules for review — confirmed and pending, newest first."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_rules",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "id,category,rule,confirmed,document_id,source_document,created_at",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def update_knowledge_rule(
+    brokerage_id: str, rule_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/knowledge_rules",
+            params={"id": f"eq.{rule_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_knowledge_rule(brokerage_id: str, rule_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/knowledge_rules",
+            params={"id": f"eq.{rule_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# --------------------------------------------------------------------------- #
 # Storage
 # --------------------------------------------------------------------------- #
 
@@ -470,6 +612,15 @@ async def upload_object(bucket: str, path: str, content: bytes, content_type: st
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return path
+
+
+async def delete_object(bucket: str, path: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{STORAGE_BASE}/object/{bucket}/{path}", headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
 
 
 async def create_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str:
