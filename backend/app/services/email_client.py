@@ -17,17 +17,24 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Parties on a transaction that can receive the intro email, in roster order.
-# (role label, name column, email column)
-_INTRO_PARTY_FIELDS: list[tuple[str, str, str]] = [
-    ("Buyer", "buyer_name", "buyer_email"),
-    ("Seller", "seller_name", "seller_email"),
-    ("Listing agent", "listing_agent_name", "listing_agent_email"),
-    ("Selling agent", "selling_agent_name", "selling_agent_email"),
-    ("Lender", "lender_name", "lender_email"),
-    ("Title company", "title_company", "title_email"),
-    ("Transaction coordinator", "tc_name", "tc_email"),
-]
+# Parties on a transaction, keyed by a stable role id. Used by the intro email
+# (whole roster) and by deadline reminders (responsible_parties stores these
+# keys). (key -> (role label, name column, email column))
+_PARTY_BY_KEY: dict[str, tuple[str, str, str]] = {
+    "buyer": ("Buyer", "buyer_name", "buyer_email"),
+    "seller": ("Seller", "seller_name", "seller_email"),
+    "listing_agent": ("Listing agent", "listing_agent_name", "listing_agent_email"),
+    "selling_agent": ("Selling agent", "selling_agent_name", "selling_agent_email"),
+    "lender": ("Lender", "lender_name", "lender_email"),
+    "title": ("Title company", "title_company", "title_email"),
+    "tc": ("Transaction coordinator", "tc_name", "tc_email"),
+}
+
+# Stable ordering for the intro-email roster (all parties).
+_INTRO_PARTY_FIELDS: list[tuple[str, str, str]] = list(_PARTY_BY_KEY.values())
+
+# Exposed so routes/agent can validate responsible_parties keys.
+PARTY_KEYS: list[str] = list(_PARTY_BY_KEY.keys())
 
 
 # --------------------------------------------------------------------------- #
@@ -42,6 +49,29 @@ def gather_intro_parties(tx: dict[str, Any]) -> list[dict[str, str]]:
     """
     parties: list[dict[str, str]] = []
     for role, name_col, email_col in _INTRO_PARTY_FIELDS:
+        email = (tx.get(email_col) or "").strip()
+        if not email:
+            continue
+        name = (tx.get(name_col) or "").strip() or role
+        parties.append({"role": role, "name": name, "email": email})
+    return parties
+
+
+def gather_parties_by_keys(
+    tx: dict[str, Any], keys: list[str]
+) -> list[dict[str, str]]:
+    """Resolve responsible-party role keys to contactable parties.
+
+    Each entry is ``{"role", "name", "email"}`` for keys that map to a known
+    party with an email on file. Unknown keys and parties without an email are
+    skipped (you can't notify someone you can't reach).
+    """
+    parties: list[dict[str, str]] = []
+    for key in keys or []:
+        spec = _PARTY_BY_KEY.get(key)
+        if not spec:
+            continue
+        role, name_col, email_col = spec
         email = (tx.get(email_col) or "").strip()
         if not email:
             continue

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
-import { transactionsApi, type Transaction } from '../lib/api'
+import { deadlinesApi, transactionsApi, type Transaction } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 
 const STAGE_LABELS: Record<string, string> = {
@@ -39,6 +39,8 @@ export default function Dashboard() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [txLoading, setTxLoading] = useState(true)
+  const [reminderBusy, setReminderBusy] = useState(false)
+  const [reminderNote, setReminderNote] = useState<string | null>(null)
 
   useEffect(() => {
     transactionsApi
@@ -51,6 +53,23 @@ export default function Dashboard() {
   const onLogout = async () => {
     await logout()
     navigate('/login')
+  }
+
+  const onRunReminders = async () => {
+    setReminderBusy(true)
+    setReminderNote(null)
+    try {
+      const res = await deadlinesApi.runReminders()
+      setReminderNote(
+        res.processed === 0
+          ? 'No deadlines are due for a reminder right now.'
+          : `Sent ${res.processed} reminder${res.processed !== 1 ? 's' : ''}.`,
+      )
+    } catch {
+      setReminderNote('Could not run reminders. Please try again.')
+    } finally {
+      setReminderBusy(false)
+    }
   }
 
   const pennyMessage =
@@ -68,6 +87,17 @@ export default function Dashboard() {
           <span className="font-semibold text-gray-900">{brokerage?.name ?? 'Penny'}</span>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={onRunReminders}
+            disabled={reminderBusy}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50"
+            title="Run deadline reminders now"
+          >
+            {reminderBusy && (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+            )}
+            ⏰ Run reminders
+          </button>
           <button
             onClick={() => navigate('/knowledge')}
             className="text-sm font-medium text-gray-500 hover:text-gray-900"
@@ -90,6 +120,12 @@ export default function Dashboard() {
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
         <PennyBubble>{pennyMessage}</PennyBubble>
+
+        {reminderNote && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-800">
+            {reminderNote}
+          </div>
+        )}
 
         {/* Brokerage info */}
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">

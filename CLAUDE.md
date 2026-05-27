@@ -58,7 +58,7 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
-  stage, add note, preview/send intro email, draft document.
+  stage, add note, preview/send intro email, draft document, list/add deadlines.
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -78,6 +78,20 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (requires `confirmed=true`, sends via SendGrid). Agent tool `draft_document`
   (WhatsApp, draft-only); web UI is the "Draft a document" panel on the
   transaction detail page (generate → edit → confirm-then-send).
+- **Deadlines & reminders:** `app/api/v1/routes/deadlines.py` +
+  `app/services/deadline_reminders.py`. Deadlines hang off a transaction
+  (`deadlines` table, scoped through its parent — verify ownership in the route,
+  service-role bypasses RLS). CRUD + agent tools (`add_deadline`, `list_deadlines`).
+  Reminders fire from an **idempotent scan** `POST /deadlines/run-reminders`
+  (no in-process scheduler — a scheduled job/cron calls it; dev has a "Run
+  reminders" button on the Dashboard). At the 5-day / 2-day / day-of marks the
+  scan WhatsApp-nudges the brokerage's registered contacts (internal, always) and
+  flips the `reminder_*_sent` flags so a mark never repeats. Notifying outside
+  parties is external comms, so it's gated: the scan auto-emails responsible
+  parties only when `deadline-reminders` is autonomous; otherwise use the
+  confirm-gated `POST /deadlines/{id}/notify-parties` (the "Notify parties"
+  button). `responsible_parties` stores role keys (buyer/seller/listing_agent/
+  selling_agent/lender/title/tc) resolved to emails via `email_client`.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
@@ -91,6 +105,10 @@ Editor (paste file *contents*, not the path):
 - `003_whatsapp.sql` `whatsapp_contacts`, `whatsapp_messages`, `transactions.notes`
 - `004_knowledge.sql` `knowledge_documents` + `knowledge_rules.document_id`
   (**not yet applied to the dev DB** — run it before using the knowledge base)
+
+Deadline tracking + reminders need **no new migration** — the `deadlines` table
+(with `due_date`, `responsible_parties`, and the `reminder_5day/2day/day_sent`
+flags) is already in `001`.
 
 ## Env vars (names only — never print values)
 
@@ -139,16 +157,22 @@ not yet exercised against live services):
   rules) — needs `ANTHROPIC_API_KEY` to draft and SendGrid configured to send.
   The transaction-detail "Draft a document" panel passed typecheck but has **not**
   had a live browser render yet (needs a loaded transaction).
+- **Deadline tracking + reminders** — CRUD + agent tools + the idempotent scan
+  endpoint. Marks logic unit-checked; routes import + register; frontend
+  typechecks. **Not** yet browser-rendered or run against live Twilio/SendGrid.
+  The reminder scan currently runs per-brokerage (the Dashboard "Run reminders"
+  button); for unattended prod, point a scheduled job at it, or add a
+  shared-secret all-brokerages variant when going live.
 
 Outstanding setup before the above work end-to-end (all on Jeremy's side):
 run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
-`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`.
+`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`. (Deadline reminders need no migration;
+they no-op gracefully without Twilio/SendGrid.)
 
 Not started:
 - WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
-- Phase 2 remaining: compliance review (human-confirmed), deadline tracking +
-  reminders. (Both avoid new migrations — `deadlines` + `compliance_status`
-  already exist in `001`.)
+- Phase 2 remaining: compliance review (human-confirmed). (No new migration —
+  `compliance_status` already exists in `001`.)
 - Phase 3: scheduling, comparable sales (Rentcast), MLS entry.
 
 Commercialization (planned, post-build): pricing model decided — all features,

@@ -242,6 +242,75 @@ export const transactionsApi = {
 }
 
 // --------------------------------------------------------------------------- //
+// Deadlines
+// --------------------------------------------------------------------------- //
+
+export interface Deadline {
+  id: string
+  transaction_id: string
+  label: string
+  due_date?: string | null
+  responsible_parties?: string[] | null
+  status?: string | null
+  reminder_5day_sent?: boolean
+  reminder_2day_sent?: boolean
+  reminder_day_sent?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+// Party role keys, matching the backend (email_client.PARTY_KEYS).
+export const PARTY_ROLES: { key: string; label: string }[] = [
+  { key: 'buyer', label: 'Buyer' },
+  { key: 'seller', label: 'Seller' },
+  { key: 'listing_agent', label: 'Listing agent' },
+  { key: 'selling_agent', label: 'Selling agent' },
+  { key: 'lender', label: 'Lender' },
+  { key: 'title', label: 'Title' },
+  { key: 'tc', label: 'Transaction coordinator' },
+]
+
+export interface ReminderRunResult {
+  processed: number
+  items: {
+    deadline_id: string
+    label?: string | null
+    address?: string | null
+    mark: string
+    days_until: number
+    nudged: boolean
+    party_action: string
+    parties_emailed: string[]
+  }[]
+}
+
+export const deadlinesApi = {
+  list: (transactionId: string) =>
+    api
+      .get<Deadline[]>('/deadlines', { params: { transaction_id: transactionId } })
+      .then((r) => r.data),
+  create: (data: {
+    transaction_id: string
+    label: string
+    due_date?: string
+    responsible_parties?: string[]
+  }) => api.post<Deadline>('/deadlines', data).then((r) => r.data),
+  update: (
+    id: string,
+    data: { label?: string; due_date?: string; responsible_parties?: string[]; status?: string },
+  ) => api.patch<Deadline>(`/deadlines/${id}`, data).then((r) => r.data),
+  remove: (id: string) => api.delete(`/deadlines/${id}`),
+  notifyParties: (id: string, confirmed: boolean) =>
+    api
+      .post<{ sent: boolean; recipients: string[] }>(`/deadlines/${id}/notify-parties`, {
+        confirmed,
+      })
+      .then((r) => r.data),
+  runReminders: () =>
+    api.post<ReminderRunResult>('/deadlines/run-reminders').then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
 // Knowledge base — brand & style
 // --------------------------------------------------------------------------- //
 

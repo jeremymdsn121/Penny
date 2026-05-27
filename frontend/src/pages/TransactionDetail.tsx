@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
-import { transactionsApi, type Transaction } from '../lib/api'
+import {
+  deadlinesApi,
+  PARTY_ROLES,
+  transactionsApi,
+  type Deadline,
+  type Transaction,
+} from '../lib/api'
+
+const PARTY_LABEL: Record<string, string> = Object.fromEntries(
+  PARTY_ROLES.map((r) => [r.key, r.label]),
+)
 
 // --------------------------------------------------------------------------- //
 // Field groups — same structure as NewTransaction for consistency
@@ -169,6 +179,17 @@ export default function TransactionDetail() {
   const [docError, setDocError] = useState<string | null>(null)
   const [docNotice, setDocNotice] = useState<string | null>(null)
 
+  // Deadlines
+  const [deadlines, setDeadlines] = useState<Deadline[]>([])
+  const [dlLabel, setDlLabel] = useState('')
+  const [dlDue, setDlDue] = useState('')
+  const [dlParties, setDlParties] = useState<string[]>([])
+  const [dlAdding, setDlAdding] = useState(false)
+  const [dlError, setDlError] = useState<string | null>(null)
+  const [dlNotice, setDlNotice] = useState<string | null>(null)
+  const [confirmNotifyId, setConfirmNotifyId] = useState<string | null>(null)
+  const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null)
+
   useEffect(() => {
     if (!transaction_id) return
     transactionsApi
@@ -179,7 +200,74 @@ export default function TransactionDetail() {
       })
       .catch(() => setError('Transaction not found.'))
       .finally(() => setLoading(false))
+    deadlinesApi
+      .list(transaction_id)
+      .then(setDeadlines)
+      .catch(() => {/* deadlines degrade silently */})
   }, [transaction_id])
+
+  async function refreshDeadlines() {
+    if (!transaction_id) return
+    try {
+      setDeadlines(await deadlinesApi.list(transaction_id))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function toggleParty(key: string) {
+    setDlParties((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    )
+  }
+
+  async function handleAddDeadline() {
+    if (!tx || !dlLabel.trim() || !dlDue) return
+    setDlAdding(true)
+    setDlError(null)
+    setDlNotice(null)
+    try {
+      await deadlinesApi.create({
+        transaction_id: tx.id,
+        label: dlLabel.trim(),
+        due_date: dlDue,
+        responsible_parties: dlParties,
+      })
+      setDlLabel('')
+      setDlDue('')
+      setDlParties([])
+      await refreshDeadlines()
+    } catch {
+      setDlError('Could not add the deadline. Please try again.')
+    } finally {
+      setDlAdding(false)
+    }
+  }
+
+  async function handleDeleteDeadline(id: string) {
+    try {
+      await deadlinesApi.remove(id)
+      await refreshDeadlines()
+    } catch {
+      setDlError('Could not delete that deadline.')
+    }
+  }
+
+  async function handleNotifyParties(id: string) {
+    setNotifyBusyId(id)
+    setDlError(null)
+    setDlNotice(null)
+    try {
+      const res = await deadlinesApi.notifyParties(id, true)
+      setDlNotice(`Notified ${res.recipients.length} part${res.recipients.length === 1 ? 'y' : 'ies'}.`)
+      setConfirmNotifyId(null)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setDlError(detail ?? 'Could not notify parties.')
+    } finally {
+      setNotifyBusyId(null)
+    }
+  }
 
   async function handleSave() {
     if (!tx) return
@@ -393,6 +481,157 @@ export default function TransactionDetail() {
             )}
           </div>
         ))}
+
+        {/* Deadlines */}
+        {!editMode && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Deadlines
+            </h3>
+            <p className="mb-4 text-xs text-gray-400">
+              Penny reminds you at the 5-day, 2-day, and day-of marks. Responsible parties
+              are notified automatically only if you've made deadline reminders autonomous —
+              otherwise use “Notify parties” to confirm and send.
+            </p>
+
+            {dlError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {dlError}
+              </div>
+            )}
+            {dlNotice && (
+              <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                {dlNotice}
+              </div>
+            )}
+
+            {deadlines.length === 0 ? (
+              <p className="mb-4 text-sm text-gray-400">No deadlines tracked yet.</p>
+            ) : (
+              <ul className="mb-5 divide-y divide-gray-100">
+                {deadlines.map((d) => {
+                  const sent = [
+                    d.reminder_5day_sent && '5-day',
+                    d.reminder_2day_sent && '2-day',
+                    d.reminder_day_sent && 'day-of',
+                  ].filter(Boolean) as string[]
+                  const parties = (d.responsible_parties ?? []).map(
+                    (k) => PARTY_LABEL[k] ?? k,
+                  )
+                  return (
+                    <li key={d.id} className="py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{d.label}</p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            Due {d.due_date || '—'}
+                            {parties.length > 0 && <> · Parties: {parties.join(', ')}</>}
+                          </p>
+                          {sent.length > 0 && (
+                            <p className="mt-1 text-xs text-violet-600">
+                              Reminders sent: {sent.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3">
+                          {parties.length > 0 &&
+                            (confirmNotifyId === d.id ? (
+                              <span className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleNotifyParties(d.id)}
+                                  disabled={notifyBusyId === d.id}
+                                  className="text-xs font-medium text-violet-700 hover:underline disabled:opacity-50"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => setConfirmNotifyId(null)}
+                                  className="text-xs font-medium text-gray-400 hover:text-gray-700"
+                                >
+                                  Cancel
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmNotifyId(d.id)}
+                                className="text-xs font-medium text-penny hover:underline"
+                              >
+                                Notify parties
+                              </button>
+                            ))}
+                          <button
+                            onClick={() => handleDeleteDeadline(d.id)}
+                            className="text-xs font-medium text-gray-400 hover:text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            <div className="border-t border-gray-100 pt-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Label</label>
+                  <input
+                    type="text"
+                    value={dlLabel}
+                    onChange={(e) => setDlLabel(e.target.value)}
+                    placeholder="e.g. Inspection contingency"
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Due date</label>
+                  <input
+                    type="date"
+                    value={dlDue}
+                    onChange={(e) => setDlDue(e.target.value)}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Responsible parties (optional)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PARTY_ROLES.map((r) => {
+                    const on = dlParties.includes(r.key)
+                    return (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => toggleParty(r.key)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          on
+                            ? 'border-violet-300 bg-violet-50 text-violet-700'
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <button
+                onClick={handleAddDeadline}
+                disabled={dlAdding || !dlLabel.trim() || !dlDue}
+                className="btn-primary mt-3 flex items-center gap-2 disabled:opacity-50"
+              >
+                {dlAdding && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                )}
+                Add deadline
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Draft a document */}
         {!editMode && (

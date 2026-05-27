@@ -183,6 +183,66 @@ _TOOLS: list[dict[str, Any]] = [
             "required": ["address_query", "doc_type"],
         },
     },
+    {
+        "name": "list_deadlines",
+        "description": (
+            "List the tracked deadlines for a transaction — label, due date, "
+            "status, and which reminders have already gone out. Read-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "add_deadline",
+        "description": (
+            "Add a deadline to a transaction (e.g. inspection, financing, "
+            "appraisal, closing). Penny will remind the agent at the 5-day, "
+            "2-day, and day-of marks. Optionally list which parties are "
+            "responsible so they can be notified."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "What the deadline is, e.g. 'Inspection contingency'.",
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": "The due date in YYYY-MM-DD format.",
+                },
+                "responsible_parties": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "buyer",
+                            "seller",
+                            "listing_agent",
+                            "selling_agent",
+                            "lender",
+                            "title",
+                            "tc",
+                        ],
+                    },
+                    "description": "Optional party role keys responsible for this deadline.",
+                },
+            },
+            "required": ["address_query", "label", "due_date"],
+        },
+    },
 ]
 
 
@@ -422,6 +482,75 @@ async def _exec_draft_document(brokerage_id: str, inputs: dict) -> str:
     )
 
 
+def _fmt_parties(keys: list[str] | None) -> str:
+    labels = {
+        "buyer": "buyer",
+        "seller": "seller",
+        "listing_agent": "listing agent",
+        "selling_agent": "selling agent",
+        "lender": "lender",
+        "title": "title",
+        "tc": "TC",
+    }
+    names = [labels.get(k, k) for k in (keys or [])]
+    return ", ".join(names) if names else "no one set"
+
+
+async def _exec_list_deadlines(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    deadlines = await sb.list_deadlines_for_transaction(tx["id"])
+    if not deadlines:
+        return f"No deadlines tracked yet for {tx.get('address', 'this transaction')}."
+    lines = [f"Deadlines for {tx.get('address', 'this transaction')}:"]
+    for d in deadlines:
+        reminders = [
+            name
+            for name, flag in (
+                ("5-day", "reminder_5day_sent"),
+                ("2-day", "reminder_2day_sent"),
+                ("day-of", "reminder_day_sent"),
+            )
+            if d.get(flag)
+        ]
+        sent = f" (sent: {', '.join(reminders)})" if reminders else ""
+        lines.append(
+            f"- {d.get('label', 'Deadline')}: due {_fmt_date(d.get('due_date'))}"
+            f" · parties: {_fmt_parties(d.get('responsible_parties'))}{sent}"
+        )
+    return "\n".join(lines)
+
+
+async def _exec_add_deadline(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    label = (inputs.get("label") or "").strip()
+    due_date = (inputs.get("due_date") or "").strip()
+    if not label:
+        return "I need a label for the deadline (e.g. 'Inspection contingency')."
+    try:
+        date.fromisoformat(due_date)
+    except ValueError:
+        return "I need the due date in YYYY-MM-DD format."
+    valid_keys = {"buyer", "seller", "listing_agent", "selling_agent", "lender", "title", "tc"}
+    parties = [k for k in (inputs.get("responsible_parties") or []) if k in valid_keys]
+    await sb.insert_deadline({
+        "transaction_id": tx["id"],
+        "label": label,
+        "due_date": due_date,
+        "responsible_parties": parties,
+        "status": "pending",
+    })
+    who = f" Responsible: {_fmt_parties(parties)}." if parties else ""
+    return (
+        f"Added '{label}' due {_fmt_date(due_date)} for "
+        f"{tx.get('address', 'the transaction')}. I'll remind you at the 5-day, "
+        f"2-day, and day-of marks.{who}"
+    )
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -430,6 +559,8 @@ _TOOL_MAP = {
     "preview_intro_email": _exec_preview_intro_email,
     "send_intro_email": _exec_send_intro_email,
     "draft_document": _exec_draft_document,
+    "list_deadlines": _exec_list_deadlines,
+    "add_deadline": _exec_add_deadline,
 }
 
 
@@ -507,7 +638,12 @@ async def run_penny_agent(
         "Sending the intro email:\n"
         "- The intro email introduces every party on a deal (buyer, seller, agents, "
         "lender, title) to each other and presents you as the coordinator.\n"
-        f"{intro_rule}"
+        f"{intro_rule}\n\n"
+        "Deadlines:\n"
+        "- You can track deadlines (inspection, financing, appraisal, closing) with "
+        "add_deadline and review them with list_deadlines. The agent is reminded "
+        "automatically at the 5-day, 2-day, and day-of marks — you don't send those "
+        "reminders yourself."
     )
 
     # Build the messages array from history + current message.
