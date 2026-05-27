@@ -27,6 +27,3 @@ twilio
 
 # Voice memo transcription
 openai
-
-# Transactional email
-sendgrid

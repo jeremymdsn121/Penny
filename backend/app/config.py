@@ -22,10 +22,6 @@ class Settings(BaseSettings):
     # Optional integrations, wired up in later phases.
     ANTHROPIC_API_KEY: str | None = None
     SENDGRID_API_KEY: str | None = None
-    # "From" address for outbound email. Must be verified in your SendGrid account.
-    SENDGRID_FROM_EMAIL: str = "hello@usepenny.ai"
-    # Public URL of the frontend — used in email CTAs.
-    FRONTEND_URL: str = "http://localhost:5173"
     RENTCAST_API_KEY: str | None = None
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
