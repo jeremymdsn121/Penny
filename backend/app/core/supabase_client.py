@@ -707,6 +707,17 @@ async def upload_object(bucket: str, path: str, content: bytes, content_type: st
     return path
 
 
+async def download_object(bucket: str, path: str) -> bytes:
+    """Fetch an object's raw bytes (service-role, bypasses RLS)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{STORAGE_BASE}/object/{bucket}/{path}", headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.content
+
+
 async def delete_object(bucket: str, path: str) -> None:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.delete(

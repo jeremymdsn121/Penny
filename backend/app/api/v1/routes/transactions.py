@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
-from app.services import ai_extract, doc_generate, email_client
+from app.services import ai_extract, compliance, doc_generate, email_client
 from app.services.pdf_extract import pdf_page_count
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -215,3 +215,58 @@ async def send_document(
             detail="Could not send — email isn't configured or the send failed.",
         )
     return {"sent": True, "recipients": recipients}
+
+
+# --------------------------------------------------------------------------- #
+# Compliance review (PRD task ``compliance`` — locked, human-confirmed). The
+# review only SURFACES findings; it never approves. Setting the compliance
+# status is a separate, explicitly-confirmed human decision.
+# --------------------------------------------------------------------------- #
+
+class ComplianceDecisionIn(BaseModel):
+    status: str
+    confirmed: bool = False
+
+
+@router.post("/{transaction_id}/compliance-review")
+async def compliance_review(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Run a compliance review and surface findings. Read-only — never approves."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    pdf_bytes: bytes | None = None
+    path = (tx.get("contract_pdf_url") or "").strip()
+    if path:
+        try:
+            pdf_bytes = await sb.download_object(CONTRACTS_BUCKET, path)
+        except sb.SupabaseError:
+            pdf_bytes = None  # contract review degrades to structural + checklist
+    return await compliance.review_transaction(tx, pdf_bytes)
+
+
+@router.post("/{transaction_id}/compliance-decision")
+async def compliance_decision(
+    transaction_id: str,
+    body: ComplianceDecisionIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Record the human's compliance decision. Requires explicit confirmation."""
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required to set compliance status.",
+        )
+    if body.status not in compliance.ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"status must be one of {sorted(compliance.ALLOWED_STATUSES)}.",
+        )
+    tx = await sb.update_transaction(
+        brokerage["id"], transaction_id, {"compliance_status": body.status}
+    )
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return {"compliance_status": tx.get("compliance_status")}

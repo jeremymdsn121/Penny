@@ -22,7 +22,7 @@ from anthropic import AsyncAnthropic
 
 from app.config import settings
 from app.core import supabase_client as sb
-from app.services import doc_generate, email_client
+from app.services import compliance, doc_generate, email_client
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
@@ -241,6 +241,25 @@ _TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["address_query", "label", "due_date"],
+        },
+    },
+    {
+        "name": "review_compliance",
+        "description": (
+            "Run a compliance review on a transaction and surface the findings — "
+            "missing disclosures, date problems, and state-checklist items to verify. "
+            "Read-only: this NEVER approves compliance. A human must review and sign "
+            "off in the web app; you only surface what to check."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
         },
     },
 ]
@@ -551,6 +570,39 @@ async def _exec_add_deadline(brokerage_id: str, inputs: dict) -> str:
     )
 
 
+async def _exec_review_compliance(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    pdf_bytes = None
+    path = (tx.get("contract_pdf_url") or "").strip()
+    if path:
+        try:
+            pdf_bytes = await sb.download_object("contracts", path)
+        except Exception:
+            pdf_bytes = None
+    review = await compliance.review_transaction(tx, pdf_bytes)
+    address = tx.get("address", "this transaction")
+    counts = review["counts"]
+    lines = [
+        f"Compliance review for {address} ({review['ruleset_state']} checklist):",
+        f"{counts['issue']} issue(s), {counts['warning']} warning(s).",
+    ]
+    for f in review["findings"][:8]:
+        lines.append(f"- [{f['severity']}] {f['message']}")
+    if not review["contract_reviewed"]:
+        lines.append(
+            "(Contract not AI-reviewed — no PDF on file or AI unavailable; "
+            "structural + checklist only.)"
+        )
+    current = tx.get("compliance_status") or "not reviewed"
+    lines.append(
+        f"Current status: {current}. I can't approve compliance — please review "
+        "and sign off in the web app."
+    )
+    return "\n".join(lines)
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -561,6 +613,7 @@ _TOOL_MAP = {
     "draft_document": _exec_draft_document,
     "list_deadlines": _exec_list_deadlines,
     "add_deadline": _exec_add_deadline,
+    "review_compliance": _exec_review_compliance,
 }
 
 
@@ -643,7 +696,11 @@ async def run_penny_agent(
         "- You can track deadlines (inspection, financing, appraisal, closing) with "
         "add_deadline and review them with list_deadlines. The agent is reminded "
         "automatically at the 5-day, 2-day, and day-of marks — you don't send those "
-        "reminders yourself."
+        "reminders yourself.\n\n"
+        "Compliance:\n"
+        "- review_compliance surfaces compliance findings for a deal. You NEVER "
+        "approve compliance and never tell the agent a deal is compliant — only "
+        "report what to verify and remind them a human must sign off in the web app."
     )
 
     # Build the messages array from history + current message.

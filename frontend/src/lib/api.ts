@@ -152,6 +152,7 @@ export interface Transaction {
   tc_email?: string | null
   mls_number?: string | null
   contract_pdf_url?: string | null
+  compliance_status?: string | null
   agent_id?: string | null
   created_at?: string
   updated_at?: string
@@ -239,6 +240,49 @@ export const transactionsApi = {
         data,
       )
       .then((r) => r.data),
+  complianceReview: (id: string) =>
+    api
+      .post<ComplianceReview>(`/transactions/${id}/compliance-review`)
+      .then((r) => r.data),
+  complianceDecision: (id: string, status: string, confirmed: boolean) =>
+    api
+      .post<{ compliance_status: string | null }>(
+        `/transactions/${id}/compliance-decision`,
+        { status, confirmed },
+      )
+      .then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
+// Compliance review
+// --------------------------------------------------------------------------- //
+
+export interface ComplianceFinding {
+  severity: 'issue' | 'warning' | 'info'
+  category: string
+  message: string
+  source: 'structural' | 'contract'
+  rule_id?: string
+}
+
+export interface ComplianceChecklistItem {
+  id: string
+  category: string
+  requirement: string
+  ai_status: 'satisfied' | 'missing' | 'unclear' | 'not_reviewed'
+  ai_note?: string | null
+}
+
+export interface ComplianceReview {
+  ruleset_state: string
+  state?: string | null
+  contract_reviewed: boolean
+  ai_error?: string | null
+  findings: ComplianceFinding[]
+  checklist: ComplianceChecklistItem[]
+  counts: { issue: number; warning: number }
+  suggested_status: 'approved' | 'needs_attention'
+  disclaimer: string
 }
 
 // --------------------------------------------------------------------------- //

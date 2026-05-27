@@ -58,7 +58,8 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
-  stage, add note, preview/send intro email, draft document, list/add deadlines.
+  stage, add note, preview/send intro email, draft document, list/add deadlines,
+  review compliance (surface-only — never approves).
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -92,6 +93,18 @@ first thing to check (ngrok inspector: http://localhost:4040).
   confirm-gated `POST /deadlines/{id}/notify-parties` (the "Notify parties"
   button). `responsible_parties` stores role keys (buyer/seller/listing_agent/
   selling_agent/lender/title/tc) resolved to emails via `email_client`.
+- **Compliance review (locked, human-confirmed):** `app/services/compliance.py`.
+  Hybrid: deterministic structural checks over the transaction record + an AI
+  pass that reads the contract PDF and assesses it against the state ruleset
+  (DEFAULT or the detailed TX/SC/FL/CA/NY checklist), mirroring `ai_extract`.
+  `POST /transactions/{id}/compliance-review` only **surfaces** findings +
+  annotated checklist + a *suggested* status (read-only, never approves);
+  `POST /transactions/{id}/compliance-decision` (confirm-gated) records the
+  human's decision into `transactions.compliance_status`. Degrades gracefully
+  without a PDF or `ANTHROPIC_API_KEY` (structural + checklist only). Findings
+  are recomputed on demand — only the status is persisted. State rulesets are
+  verification prompts, **not legal advice**. Web UI: a Compliance panel on the
+  transaction page; agent tool `review_compliance` is surface-only.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
@@ -163,6 +176,11 @@ not yet exercised against live services):
   The reminder scan currently runs per-brokerage (the Dashboard "Run reminders"
   button); for unattended prod, point a scheduled job at it, or add a
   shared-secret all-brokerages variant when going live.
+- **Compliance review** (locked, human-confirmed) — hybrid structural + AI
+  contract review, surface-only with a confirm-gated human decision. Structural
+  checks + ruleset selection unit-checked; routes register; frontend typechecks.
+  **Not** yet browser-rendered; the AI contract pass needs `ANTHROPIC_API_KEY`
+  (degrades to structural + checklist without it).
 
 Outstanding setup before the above work end-to-end (all on Jeremy's side):
 run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
@@ -171,9 +189,11 @@ they no-op gracefully without Twilio/SendGrid.)
 
 Not started:
 - WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
-- Phase 2 remaining: compliance review (human-confirmed). (No new migration —
-  `compliance_status` already exists in `001`.)
-- Phase 3: scheduling, comparable sales (Rentcast), MLS entry.
+- Phase 2 is now feature-complete (intro email, knowledge base, document
+  generation, deadline reminders, compliance review) — all pending live
+  end-to-end verification rather than further build.
+- Phase 3: scheduling (needs Google/Microsoft calendar OAuth), comparable sales
+  (Rentcast), MLS entry.
 
 Commercialization (planned, post-build): pricing model decided — all features,
 per-seat, no tiers, small base, recurring. GTM next. See memory for details.

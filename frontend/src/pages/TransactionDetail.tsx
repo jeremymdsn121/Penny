@@ -5,6 +5,7 @@ import {
   deadlinesApi,
   PARTY_ROLES,
   transactionsApi,
+  type ComplianceReview,
   type Deadline,
   type Transaction,
 } from '../lib/api'
@@ -105,6 +106,25 @@ const STAGE_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-600',
 }
 
+const COMPLIANCE_STATUS: Record<string, { label: string; cls: string }> = {
+  approved: { label: 'Approved', cls: 'bg-green-100 text-green-700' },
+  needs_attention: { label: 'Needs attention', cls: 'bg-red-100 text-red-700' },
+  not_reviewed: { label: 'Not reviewed', cls: 'bg-gray-100 text-gray-600' },
+}
+
+const SEVERITY_CLS: Record<string, string> = {
+  issue: 'bg-red-100 text-red-700',
+  warning: 'bg-yellow-100 text-yellow-700',
+  info: 'bg-gray-100 text-gray-600',
+}
+
+const AI_STATUS_CLS: Record<string, string> = {
+  satisfied: 'bg-green-100 text-green-700',
+  missing: 'bg-red-100 text-red-700',
+  unclear: 'bg-yellow-100 text-yellow-700',
+  not_reviewed: 'bg-gray-100 text-gray-500',
+}
+
 function StageBadge({ stage }: { stage?: string | null }) {
   const s = stage ?? 'under_contract'
   return (
@@ -190,6 +210,13 @@ export default function TransactionDetail() {
   const [confirmNotifyId, setConfirmNotifyId] = useState<string | null>(null)
   const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null)
 
+  // Compliance
+  const [review, setReview] = useState<ComplianceReview | null>(null)
+  const [compRunning, setCompRunning] = useState(false)
+  const [compError, setCompError] = useState<string | null>(null)
+  const [confirmDecision, setConfirmDecision] = useState<string | null>(null)
+  const [decisionBusy, setDecisionBusy] = useState(false)
+
   useEffect(() => {
     if (!transaction_id) return
     transactionsApi
@@ -266,6 +293,36 @@ export default function TransactionDetail() {
       setDlError(detail ?? 'Could not notify parties.')
     } finally {
       setNotifyBusyId(null)
+    }
+  }
+
+  async function handleRunCompliance() {
+    if (!tx) return
+    setCompRunning(true)
+    setCompError(null)
+    try {
+      setReview(await transactionsApi.complianceReview(tx.id))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setCompError(detail ?? 'Could not run the compliance review.')
+    } finally {
+      setCompRunning(false)
+    }
+  }
+
+  async function handleDecision(status: string) {
+    if (!tx) return
+    setDecisionBusy(true)
+    setCompError(null)
+    try {
+      const res = await transactionsApi.complianceDecision(tx.id, status, true)
+      setTx({ ...tx, compliance_status: res.compliance_status })
+      setConfirmDecision(null)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setCompError(detail ?? 'Could not update compliance status.')
+    } finally {
+      setDecisionBusy(false)
     }
   }
 
@@ -630,6 +687,167 @@ export default function TransactionDetail() {
                 Add deadline
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Compliance review */}
+        {!editMode && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Compliance review
+              </h3>
+              {(() => {
+                const s = COMPLIANCE_STATUS[tx.compliance_status ?? 'not_reviewed'] ??
+                  COMPLIANCE_STATUS.not_reviewed
+                return (
+                  <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${s.cls}`}>
+                    {s.label}
+                  </span>
+                )
+              })()}
+            </div>
+            <p className="mb-4 text-xs text-gray-400">
+              Penny surfaces findings to verify — she never approves compliance. A human
+              must review and sign off below.
+            </p>
+
+            {compError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {compError}
+              </div>
+            )}
+
+            <button
+              onClick={handleRunCompliance}
+              disabled={compRunning}
+              className="btn-primary flex items-center gap-2"
+            >
+              {compRunning && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {compRunning ? 'Reviewing…' : review ? 'Re-run review' : 'Run compliance review'}
+            </button>
+
+            {review && (
+              <div className="mt-5 space-y-5 border-t border-gray-100 pt-5">
+                <p className="text-sm text-gray-600">
+                  <strong>{review.counts.issue}</strong> issue
+                  {review.counts.issue !== 1 ? 's' : ''}, <strong>{review.counts.warning}</strong>{' '}
+                  warning{review.counts.warning !== 1 ? 's' : ''} · {review.ruleset_state} checklist
+                  {review.contract_reviewed
+                    ? ' · contract reviewed'
+                    : ' · contract not AI-reviewed'}
+                </p>
+                {review.ai_error && (
+                  <p className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+                    {review.ai_error}
+                  </p>
+                )}
+
+                {/* Findings */}
+                {review.findings.length > 0 && (
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Findings
+                    </h4>
+                    <ul className="space-y-2">
+                      {[...review.findings]
+                        .sort((a, b) => {
+                          const order = { issue: 0, warning: 1, info: 2 }
+                          return order[a.severity] - order[b.severity]
+                        })
+                        .map((f, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span
+                              className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                                SEVERITY_CLS[f.severity] ?? SEVERITY_CLS.info
+                              }`}
+                            >
+                              {f.severity}
+                            </span>
+                            <span className="text-gray-700">{f.message}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* State checklist */}
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    {review.ruleset_state} checklist
+                  </h4>
+                  <ul className="space-y-2">
+                    {review.checklist.map((item) => (
+                      <li key={item.id} className="flex items-start gap-2 text-sm">
+                        <span
+                          className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            AI_STATUS_CLS[item.ai_status] ?? AI_STATUS_CLS.not_reviewed
+                          }`}
+                        >
+                          {item.ai_status.replace('_', ' ')}
+                        </span>
+                        <span className="text-gray-700">
+                          {item.requirement}
+                          {item.ai_note && (
+                            <span className="text-gray-400"> — {item.ai_note}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <p className="text-xs text-gray-400">{review.disclaimer}</p>
+
+                {/* Human decision */}
+                <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+                  {confirmDecision ? (
+                    <>
+                      <span className="text-sm text-gray-700">
+                        Set compliance to{' '}
+                        <strong>
+                          {COMPLIANCE_STATUS[confirmDecision]?.label ?? confirmDecision}
+                        </strong>
+                        ?
+                      </span>
+                      <button
+                        onClick={() => handleDecision(confirmDecision)}
+                        disabled={decisionBusy}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        {decisionBusy && (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        )}
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setConfirmDecision(null)}
+                        className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setConfirmDecision('approved')}
+                        className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
+                      >
+                        Approve compliance
+                      </button>
+                      <button
+                        onClick={() => setConfirmDecision('needs_attention')}
+                        className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                      >
+                        Flag for attention
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
