@@ -22,7 +22,7 @@ from anthropic import AsyncAnthropic
 
 from app.config import settings
 from app.core import supabase_client as sb
-from app.services import compliance, doc_generate, email_client
+from app.services import compliance, doc_generate, email_client, rentcast
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
@@ -260,6 +260,25 @@ _TOOLS: list[dict[str, Any]] = [
                 }
             },
             "required": ["address_query"],
+        },
+    },
+    {
+        "name": "get_comparable_sales",
+        "description": (
+            "Look up comparable sales and an estimated value for a property by its "
+            "full address. Use this when the agent asks for comps, a CMA, or what a "
+            "property is worth. Works for any address — it doesn't need to be a "
+            "transaction on file."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": "Full property address, e.g. '123 Oak St, Austin, TX 78701'.",
+                }
+            },
+            "required": ["address"],
         },
     },
 ]
@@ -603,6 +622,48 @@ async def _exec_review_compliance(brokerage_id: str, inputs: dict) -> str:
     return "\n".join(lines)
 
 
+def _money(value: Any) -> str:
+    return f"${value:,.0f}" if isinstance(value, (int, float)) else "?"
+
+
+async def _exec_get_comparable_sales(brokerage_id: str, inputs: dict) -> str:
+    address = (inputs.get("address") or "").strip()
+    if not address:
+        return "I need a property address to pull comparable sales."
+    try:
+        result = await rentcast.get_value_estimate(address)
+    except rentcast.RentcastNotConfigured:
+        return (
+            "Comparable sales aren't set up yet — your broker needs to add the "
+            "RENTCAST_API_KEY on the backend."
+        )
+    except rentcast.RentcastError as exc:
+        return f"I couldn't pull comps: {exc}"
+    lines = [f"Comps for {result['subject_address']}:"]
+    if result.get("estimate"):
+        rng = ""
+        if result.get("range_low") and result.get("range_high"):
+            rng = f" (range {_money(result['range_low'])}–{_money(result['range_high'])})"
+        lines.append(f"Estimated value: {_money(result['estimate'])}{rng}")
+    comps = result.get("comparables") or []
+    if not comps:
+        lines.append("No comparable properties came back for that address.")
+    for c in comps[:5]:
+        bits = [c.get("address") or "Unknown address", _money(c.get("price"))]
+        bd, ba, sf = c.get("bedrooms"), c.get("bathrooms"), c.get("square_footage")
+        spec = []
+        if bd:
+            spec.append(f"{bd:g}bd")
+        if ba:
+            spec.append(f"{ba:g}ba")
+        if sf:
+            spec.append(f"{sf:g} sqft")
+        if spec:
+            bits.append("/".join(spec))
+        lines.append("- " + " · ".join(bits))
+    return "\n".join(lines)
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -614,6 +675,7 @@ _TOOL_MAP = {
     "list_deadlines": _exec_list_deadlines,
     "add_deadline": _exec_add_deadline,
     "review_compliance": _exec_review_compliance,
+    "get_comparable_sales": _exec_get_comparable_sales,
 }
 
 
@@ -700,7 +762,11 @@ async def run_penny_agent(
         "Compliance:\n"
         "- review_compliance surfaces compliance findings for a deal. You NEVER "
         "approve compliance and never tell the agent a deal is compliant — only "
-        "report what to verify and remind them a human must sign off in the web app."
+        "report what to verify and remind them a human must sign off in the web app.\n\n"
+        "Comparable sales:\n"
+        "- get_comparable_sales pulls comps and an estimated value for any property "
+        "address. Use it when the agent asks about comps, a CMA, or what a home is "
+        "worth. Present figures plainly and note they're estimates."
     )
 
     # Build the messages array from history + current message.

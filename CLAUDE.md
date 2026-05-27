@@ -59,7 +59,7 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
   stage, add note, preview/send intro email, draft document, list/add deadlines,
-  review compliance (surface-only — never approves).
+  review compliance (surface-only — never approves), comparable sales.
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -105,6 +105,14 @@ first thing to check (ngrok inspector: http://localhost:4040).
   are recomputed on demand — only the status is persisted. State rulesets are
   verification prompts, **not legal advice**. Web UI: a Compliance panel on the
   transaction page; agent tool `review_compliance` is surface-only.
+- **Comparable sales (Rentcast):** `app/services/rentcast.py`. Thin async client
+  over Rentcast `/avm/value` (header `X-Api-Key`) — given a property address it
+  returns an estimated value, value range, and comparable properties.
+  `POST /transactions/{id}/comps` composes the address from the transaction and
+  returns the estimate + comps (read-only, nothing persisted). Agent tool
+  `get_comparable_sales` takes a free-form address (works for any property, not
+  just one on file). 503 without `RENTCAST_API_KEY`. Web UI: a Comparable sales
+  panel on the transaction page.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
@@ -129,8 +137,8 @@ flags) is already in `001`.
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Whisper),
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`,
 `TWILIO_SKIP_VALIDATION`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL` (intro
-email; the from address must be a verified SendGrid sender). Later phases:
-`RENTCAST_API_KEY`, Google/Microsoft OAuth, `REDIS_URL`.
+email; the from address must be a verified SendGrid sender), `RENTCAST_API_KEY`
+(comparable sales). Later phases: Google/Microsoft OAuth (scheduling), `REDIS_URL`.
 
 WhatsApp specifics:
 - `TWILIO_WHATSAPP_FROM` must be the **sandbox** number (`whatsapp:+14155238886`),
@@ -181,6 +189,10 @@ not yet exercised against live services):
   checks + ruleset selection unit-checked; routes register; frontend typechecks.
   **Not** yet browser-rendered; the AI contract pass needs `ANTHROPIC_API_KEY`
   (degrades to structural + checklist without it).
+- **Comparable sales (Rentcast)** — first Phase 3 feature. Address composer +
+  response parser unit-checked; route registers; frontend typechecks; no-key path
+  returns a clean 503. **Not** yet run against the live Rentcast API — needs
+  `RENTCAST_API_KEY` (a key you can grab instantly from rentcast.io).
 
 Outstanding setup before the above work end-to-end (all on Jeremy's side):
 run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,

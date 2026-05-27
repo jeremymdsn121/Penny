@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
-from app.services import ai_extract, compliance, doc_generate, email_client
+from app.services import ai_extract, compliance, doc_generate, email_client, rentcast
 from app.services.pdf_extract import pdf_page_count
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -270,3 +270,33 @@ async def compliance_decision(
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {"compliance_status": tx.get("compliance_status")}
+
+
+# --------------------------------------------------------------------------- #
+# Comparable sales (PRD Phase 3) — Rentcast value estimate + comps for the
+# property. Read-only; nothing is persisted.
+# --------------------------------------------------------------------------- #
+
+@router.post("/{transaction_id}/comps")
+async def comparable_sales(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    address = rentcast.compose_address(tx)
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This transaction has no property address to look up.",
+        )
+    try:
+        return await rentcast.get_value_estimate(address)
+    except rentcast.RentcastNotConfigured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Comparable sales aren't configured yet — set RENTCAST_API_KEY on the backend.",
+        )
+    except rentcast.RentcastError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))

@@ -5,10 +5,15 @@ import {
   deadlinesApi,
   PARTY_ROLES,
   transactionsApi,
+  type CompsResult,
   type ComplianceReview,
   type Deadline,
   type Transaction,
 } from '../lib/api'
+
+function fmtMoney(v?: number | null): string {
+  return typeof v === 'number' ? `$${Math.round(v).toLocaleString()}` : '—'
+}
 
 const PARTY_LABEL: Record<string, string> = Object.fromEntries(
   PARTY_ROLES.map((r) => [r.key, r.label]),
@@ -217,6 +222,11 @@ export default function TransactionDetail() {
   const [confirmDecision, setConfirmDecision] = useState<string | null>(null)
   const [decisionBusy, setDecisionBusy] = useState(false)
 
+  // Comparable sales
+  const [comps, setComps] = useState<CompsResult | null>(null)
+  const [compsLoading, setCompsLoading] = useState(false)
+  const [compsError, setCompsError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!transaction_id) return
     transactionsApi
@@ -323,6 +333,20 @@ export default function TransactionDetail() {
       setCompError(detail ?? 'Could not update compliance status.')
     } finally {
       setDecisionBusy(false)
+    }
+  }
+
+  async function handleFindComps() {
+    if (!tx) return
+    setCompsLoading(true)
+    setCompsError(null)
+    try {
+      setComps(await transactionsApi.comps(tx.id))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setCompsError(detail ?? 'Could not pull comparable sales.')
+    } finally {
+      setCompsLoading(false)
     }
   }
 
@@ -846,6 +870,92 @@ export default function TransactionDetail() {
                     </>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Comparable sales */}
+        {!editMode && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Comparable sales
+            </h3>
+            <p className="mb-4 text-xs text-gray-400">
+              Penny pulls recent comps and an estimated value for this property. Figures are
+              estimates from Rentcast.
+            </p>
+
+            {compsError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {compsError}
+              </div>
+            )}
+
+            <button
+              onClick={handleFindComps}
+              disabled={compsLoading}
+              className="btn-primary flex items-center gap-2"
+            >
+              {compsLoading && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {compsLoading ? 'Finding comps…' : comps ? 'Refresh comps' : 'Find comps'}
+            </button>
+
+            {comps && (
+              <div className="mt-5 space-y-4 border-t border-gray-100 pt-5">
+                {comps.estimate != null && (
+                  <div>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {fmtMoney(comps.estimate)}
+                    </p>
+                    {comps.range_low != null && comps.range_high != null && (
+                      <p className="text-xs text-gray-400">
+                        Estimated range {fmtMoney(comps.range_low)} – {fmtMoney(comps.range_high)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {comps.comparables.length === 0 ? (
+                  <p className="text-sm text-gray-400">
+                    No comparable properties came back for this address.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="text-xs uppercase tracking-wide text-gray-400">
+                          <th className="pb-2 pr-3 font-medium">Address</th>
+                          <th className="pb-2 pr-3 font-medium">Price</th>
+                          <th className="pb-2 pr-3 font-medium">Bd/Ba</th>
+                          <th className="pb-2 pr-3 font-medium">Sqft</th>
+                          <th className="pb-2 font-medium">Dist.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {comps.comparables.map((c, i) => (
+                          <tr key={i} className="text-gray-700">
+                            <td className="py-2 pr-3">{c.address ?? '—'}</td>
+                            <td className="py-2 pr-3 font-medium">{fmtMoney(c.price)}</td>
+                            <td className="py-2 pr-3 text-gray-500">
+                              {c.bedrooms ?? '—'}/{c.bathrooms ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3 text-gray-500">
+                              {c.square_footage != null
+                                ? c.square_footage.toLocaleString()
+                                : '—'}
+                            </td>
+                            <td className="py-2 text-gray-500">
+                              {c.distance != null ? `${c.distance.toFixed(1)} mi` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -251,6 +251,34 @@ export const transactionsApi = {
         { status, confirmed },
       )
       .then((r) => r.data),
+  comps: (id: string) =>
+    api.post<CompsResult>(`/transactions/${id}/comps`).then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
+// Comparable sales (Rentcast)
+// --------------------------------------------------------------------------- //
+
+export interface Comparable {
+  address?: string | null
+  price?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  square_footage?: number | null
+  year_built?: number | null
+  property_type?: string | null
+  listing_type?: string | null
+  days_on_market?: number | null
+  distance?: number | null
+  correlation?: number | null
+}
+
+export interface CompsResult {
+  subject_address: string
+  estimate?: number | null
+  range_low?: number | null
+  range_high?: number | null
+  comparables: Comparable[]
 }
 
 // --------------------------------------------------------------------------- //
