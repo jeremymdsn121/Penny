@@ -14,6 +14,7 @@ Tools available to Claude:
   - add_transaction_note    : append a timestamped note to a deal
 """
 
+import asyncio
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -21,6 +22,7 @@ from anthropic import AsyncAnthropic
 
 from app.config import settings
 from app.core import supabase_client as sb
+from app.services import email_client
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
@@ -95,6 +97,52 @@ _TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["address_query", "note"],
+        },
+    },
+    {
+        "name": "preview_intro_email",
+        "description": (
+            "Preview (do NOT send) the introduction email for a transaction. "
+            "Returns the recipient list and the draft so you can show the agent "
+            "exactly what will go out. Always call this before send_intro_email "
+            "so the agent can confirm. Read-only — sends nothing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "send_intro_email",
+        "description": (
+            "Send the introduction email to every party on a transaction (buyer, "
+            "seller, agents, lender, title) who has an email on file. This actually "
+            "sends email, so it requires confirmed=true — set that only after the "
+            "agent has explicitly confirmed, or when intro emails are autonomous for "
+            "this brokerage. The deal is marked so the intro is never sent twice."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "Must be true to send. Set only after the agent confirms, "
+                        "or when intro emails are autonomous for this brokerage."
+                    ),
+                },
+            },
+            "required": ["address_query", "confirmed"],
         },
     },
 ]
@@ -218,11 +266,99 @@ async def _exec_add_transaction_note(brokerage_id: str, inputs: dict) -> str:
     return f"Note added to {tx.get('address', 'transaction')}."
 
 
+async def _resolve_single(
+    brokerage_id: str, query: str
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Resolve a query to exactly one transaction.
+
+    Returns ``(tx, None)`` on a unique match, or ``(None, message)`` when there
+    is no match or the query is ambiguous.
+    """
+    txs = await sb.search_transactions(brokerage_id, query)
+    if not txs:
+        return None, f"No transaction found matching '{query}'."
+    if len(txs) > 1:
+        names = ", ".join(t.get("address", "?") for t in txs[:5])
+        return None, (
+            f"Found {len(txs)} transactions matching '{query}': {names}. "
+            "Please be more specific."
+        )
+    return txs[0], None
+
+
+async def _exec_preview_intro_email(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    address = tx.get("address", "this transaction")
+    parties = email_client.gather_intro_parties(tx)
+    if not parties:
+        return (
+            f"No parties on {address} have email addresses on file yet, so there's "
+            "no one to introduce. Add buyer/seller/agent/lender/title emails first."
+        )
+    brokerage = await sb.get_brokerage(brokerage_id)
+    brokerage_name = (brokerage or {}).get("name", "the brokerage")
+    subject, _html, plain = email_client.build_intro_content(tx, brokerage_name)
+    recipients = "\n".join(
+        f"  - {p['role']}: {p['name']} <{p['email']}>" for p in parties
+    )
+    already = (
+        "\n\nNote: an intro email was already sent for this deal."
+        if tx.get("intro_email_sent")
+        else ""
+    )
+    return (
+        f"Intro email preview for {address}:\n\n"
+        f"To ({len(parties)} recipients):\n{recipients}\n\n"
+        f"Subject: {subject}\n\n{plain}{already}"
+    )
+
+
+async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
+    if not inputs.get("confirmed"):
+        return (
+            "Not sent — I need explicit confirmation first. Show the agent the "
+            "preview (preview_intro_email) and ask them to confirm, then call this "
+            "again with confirmed=true."
+        )
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    address = tx.get("address", "this transaction")
+    if tx.get("intro_email_sent"):
+        return (
+            f"The intro email for {address} was already sent, so I won't send it "
+            "again."
+        )
+    parties = email_client.gather_intro_parties(tx)
+    if not parties:
+        return (
+            f"No parties on {address} have email addresses on file, so there's no "
+            "one to send the intro email to."
+        )
+    brokerage = await sb.get_brokerage(brokerage_id)
+    brokerage_name = (brokerage or {}).get("name", "the brokerage")
+    result = await asyncio.to_thread(
+        email_client.send_intro_email, tx, brokerage_name
+    )
+    if not result["sent"]:
+        return f"I couldn't send the intro email: {result['reason']}."
+    await sb.update_transaction(brokerage_id, tx["id"], {"intro_email_sent": True})
+    who = ", ".join(p["name"] for p in result["recipients"])
+    return (
+        f"Sent the intro email for {address} to {len(result['recipients'])} "
+        f"people: {who}."
+    )
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
     "update_transaction_stage": _exec_update_transaction_stage,
     "add_transaction_note": _exec_add_transaction_note,
+    "preview_intro_email": _exec_preview_intro_email,
+    "send_intro_email": _exec_send_intro_email,
 }
 
 
@@ -261,6 +397,31 @@ async def run_penny_agent(
 
     today = date.today().strftime("%B %d, %Y")
     agent_label = contact_display_name or "the agent"
+
+    # Is this brokerage pre-authorised to send intro emails autonomously?
+    intro_autonomous = False
+    try:
+        autonomy = await sb.get_task_autonomy(brokerage_id)
+        intro_autonomous = any(
+            r.get("task_id") == "intro-email" and r.get("autonomous")
+            for r in autonomy
+        )
+    except Exception:
+        intro_autonomous = False
+
+    if intro_autonomous:
+        intro_rule = (
+            "- This brokerage has pre-authorised autonomous intro emails. When the "
+            "agent asks you to send one, call preview_intro_email to show what will "
+            "go out, then call send_intro_email with confirmed=true."
+        )
+    else:
+        intro_rule = (
+            "- Intro emails are NOT autonomous for this brokerage. You MUST call "
+            "preview_intro_email and get the agent's explicit 'yes' before calling "
+            "send_intro_email with confirmed=true. Never send without that confirmation."
+        )
+
     system = (
         f"You are Penny, a real estate transaction coordinator assistant for "
         f"{brokerage_name}. You help agents manage their transactions via WhatsApp.\n\n"
@@ -271,7 +432,11 @@ async def run_penny_agent(
         "- Use plain text only. No markdown tables, no bullet markdown (use plain dashes).\n"
         "- Numbers and dates should be human-readable (e.g. 'May 26, 2026', '$450,000').\n"
         "- If you cannot find a transaction, say so and suggest the agent be more specific.\n"
-        "- Never invent data. Only report what the tools return."
+        "- Never invent data. Only report what the tools return.\n\n"
+        "Sending the intro email:\n"
+        "- The intro email introduces every party on a deal (buyer, seller, agents, "
+        "lender, title) to each other and presents you as the coordinator.\n"
+        f"{intro_rule}"
     )
 
     # Build the messages array from history + current message.
