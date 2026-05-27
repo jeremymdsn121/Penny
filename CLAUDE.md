@@ -50,16 +50,30 @@ first thing to check (ngrok inspector: http://localhost:4040).
 - **Supabase access:** `app/core/supabase_client.py` — thin async httpx wrappers
   (not supabase-py). Service-role key is used server-side only and bypasses RLS.
 - **AI:** Anthropic `claude-sonnet-4-5` for the WhatsApp agent
-  (`app/services/penny_agent.py`, tool-use loop) and contract field extraction
-  (`app/services/ai_extract.py`).
+  (`app/services/penny_agent.py`, tool-use loop), contract field extraction
+  (`app/services/ai_extract.py`), and brand/style rule extraction
+  (`app/services/style_extract.py`).
 - **WhatsApp (text + voice):** inbound webhook `app/api/v1/routes/whatsapp.py`
   → Twilio signature check → contact lookup → optional Whisper transcription
   (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
-  stage, add note.
+  stage, add note, preview/send intro email.
+- **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
+  introduces all parties on a transaction (buyer, seller, agents, lender, title)
+  and presents Penny as coordinator. Sent on request via the WhatsApp agent —
+  `preview_intro_email` (read-only) then `send_intro_email` (requires
+  `confirmed=true`); confirmation is enforced unless the brokerage's `intro-email`
+  task is autonomous. Flips `transactions.intro_email_sent` to prevent
+  double-sends. No-op without `SENDGRID_API_KEY`.
+- **Knowledge base (brand & style):** `app/api/v1/routes/knowledge.py` +
+  `style_extract.py`. Admins upload style references (letterhead, sample letter,
+  template as PDF/image/.docx); Penny proposes style rules into `knowledge_rules`
+  as **unconfirmed**; admin confirms; confirmed rules are injected into AI prompts
+  via `get_confirmed_knowledge_rules`. Files stored in the `knowledge-docs` bucket.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
+  Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
 
 ## Database
 
@@ -68,14 +82,17 @@ Editor (paste file *contents*, not the path):
 - `001_*` initial schema (brokerages, transactions, RLS helpers)
 - `002_*` `onboarding_completed`
 - `003_whatsapp.sql` `whatsapp_contacts`, `whatsapp_messages`, `transactions.notes`
+- `004_knowledge.sql` `knowledge_documents` + `knowledge_rules.document_id`
+  (**not yet applied to the dev DB** — run it before using the knowledge base)
 
 ## Env vars (names only — never print values)
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Whisper),
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`,
-`TWILIO_SKIP_VALIDATION`. Later phases: `SENDGRID_API_KEY`, `RENTCAST_API_KEY`,
-Google/Microsoft OAuth, `REDIS_URL`.
+`TWILIO_SKIP_VALIDATION`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL` (intro
+email; the from address must be a verified SendGrid sender). Later phases:
+`RENTCAST_API_KEY`, Google/Microsoft OAuth, `REDIS_URL`.
 
 WhatsApp specifics:
 - `TWILIO_WHATSAPP_FROM` must be the **sandbox** number (`whatsapp:+14155238886`),
@@ -105,9 +122,17 @@ Done & tested: scaffold, auth, onboarding (5 steps), contract PDF extraction +
 transactions, and the full **WhatsApp text+voice channel** (register agent
 numbers, text/voice-memo Penny, agent acts on transactions).
 
+Built, pending live end-to-end verification (code + unit/type checks pass, but
+not yet exercised against live services):
+- **Intro email** (SendGrid) via the WhatsApp agent — needs `SENDGRID_API_KEY` +
+  a verified `SENDGRID_FROM_EMAIL` to send for real (no-op without a key).
+- **Knowledge base** brand/style ingestion (upload → extract → confirm) — needs
+  migration `004_knowledge.sql` applied and `ANTHROPIC_API_KEY` set for extraction.
+
 Not started:
 - WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
-- Phase 1 intro email via SendGrid.
+- **Document generation** that references confirmed knowledge_rules (the ingestion
+  half is built; producing letters/docs is the next step).
 - Phase 2: compliance review (human-confirmed), deadline tracking + reminders, document sending.
 - Phase 3: scheduling, comparable sales (Rentcast), MLS entry.
 
