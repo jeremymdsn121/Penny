@@ -1,6 +1,7 @@
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.constants import (
     DETAILED_RULESET_STATES,
@@ -13,6 +14,9 @@ from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.auth import BrokerageOut
 from app.schemas.onboarding import OnboardingOptions, OnboardingSubmit
+from app.services.email_client import send_welcome_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -34,6 +38,7 @@ async def options() -> OnboardingOptions:
 @router.post("", response_model=BrokerageOut)
 async def submit(
     body: OnboardingSubmit,
+    background_tasks: BackgroundTasks,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> BrokerageOut:
     state = body.state.upper()
@@ -75,4 +80,21 @@ async def submit(
         },
     )
     await sb.replace_task_autonomy(brokerage["id"], tasks)
+
+    # Send the welcome email in the background — non-blocking, never fatal.
+    # Only fire on the *first* completion (onboarding_completed was False before).
+    if not brokerage.get("onboarding_completed") and updated.get("email"):
+        background_tasks.add_task(
+            send_welcome_email,
+            brokerage_name=updated["name"],
+            assistant_name=updated.get("assistant_name") or "Penny",
+            to_email=updated["email"],
+            state=updated.get("state"),
+        )
+        logger.info(
+            "Queued welcome email for brokerage %s → %s",
+            updated["id"],
+            updated["email"],
+        )
+
     return _brokerage_out(updated)
