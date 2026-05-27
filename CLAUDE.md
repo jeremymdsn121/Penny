@@ -58,7 +58,7 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
-  stage, add note, preview/send intro email.
+  stage, add note, preview/send intro email, draft document.
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -71,6 +71,13 @@ first thing to check (ngrok inspector: http://localhost:4040).
   template as PDF/image/.docx); Penny proposes style rules into `knowledge_rules`
   as **unconfirmed**; admin confirms; confirmed rules are injected into AI prompts
   via `get_confirmed_knowledge_rules`. Files stored in the `knowledge-docs` bucket.
+- **Document generation:** `app/services/doc_generate.py`. Drafts correspondence
+  (status update, cover letter, follow-up, congratulations, custom) for a
+  transaction in the brokerage voice, injecting confirmed `knowledge_rules`.
+  Endpoints `/transactions/{id}/draft-document` (read-only) and `/send-document`
+  (requires `confirmed=true`, sends via SendGrid). Agent tool `draft_document`
+  (WhatsApp, draft-only); web UI is the "Draft a document" panel on the
+  transaction detail page (generate → edit → confirm-then-send).
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, WhatsApp settings, **Brand & Style** (`/knowledge`).
@@ -128,13 +135,24 @@ not yet exercised against live services):
   a verified `SENDGRID_FROM_EMAIL` to send for real (no-op without a key).
 - **Knowledge base** brand/style ingestion (upload → extract → confirm) — needs
   migration `004_knowledge.sql` applied and `ANTHROPIC_API_KEY` set for extraction.
+- **Document generation** (drafts + confirm-then-send, using confirmed style
+  rules) — needs `ANTHROPIC_API_KEY` to draft and SendGrid configured to send.
+  The transaction-detail "Draft a document" panel passed typecheck but has **not**
+  had a live browser render yet (needs a loaded transaction).
+
+Outstanding setup before the above work end-to-end (all on Jeremy's side):
+run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
+`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`.
 
 Not started:
 - WhatsApp "actions": schedule a showing, photo upload via MMS, richer data capture.
-- **Document generation** that references confirmed knowledge_rules (the ingestion
-  half is built; producing letters/docs is the next step).
-- Phase 2: compliance review (human-confirmed), deadline tracking + reminders, document sending.
+- Phase 2 remaining: compliance review (human-confirmed), deadline tracking +
+  reminders. (Both avoid new migrations — `deadlines` + `compliance_status`
+  already exist in `001`.)
 - Phase 3: scheduling, comparable sales (Rentcast), MLS entry.
+
+Commercialization (planned, post-build): pricing model decided — all features,
+per-seat, no tiers, small base, recurring. GTM next. See memory for details.
 
 Dev note: the only onboarded test brokerage is **"Test"**
 (`b8bfa04b-e94a-4495-82d5-68f5f70830a1`); registered WhatsApp test contact is
