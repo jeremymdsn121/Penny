@@ -38,6 +38,8 @@ class DeadlineUpdate(BaseModel):
     due_date: str | None = None
     responsible_parties: list[str] | None = None
     status: str | None = None
+    resolved: bool | None = None
+    resolved_note: str | None = None
 
 
 class NotifyPartiesIn(BaseModel):
@@ -188,16 +190,32 @@ async def notify_parties(
     subject, html, plain = deadline_reminders.build_party_notice(
         tx, deadline, brokerage.get("name", "your brokerage")
     )
+    recipients = [p["email"] for p in parties]
     sent = await asyncio.to_thread(
         email_client.send_email,
-        to_emails=[p["email"] for p in parties],
+        to_emails=recipients,
         subject=subject,
         html=html,
         plain=plain,
+        reply_to=email_client.reply_to_address(tx["id"]),
+        disclosure=email_client.disclosure_text(brokerage),
     )
     if not sent:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Could not send — email isn't configured or the send failed.",
         )
-    return {"sent": True, "recipients": [p["email"] for p in parties]}
+    try:
+        await sb.insert_transaction_email({
+            "transaction_id": tx["id"],
+            "direction": "outbound",
+            "sender_email": email_client.from_email(),
+            "recipient_emails": recipients,
+            "subject": subject,
+            "body_text": plain,
+            "body_html": html,
+            "read": True,
+        })
+    except sb.SupabaseError:
+        pass
+    return {"sent": True, "recipients": recipients}
