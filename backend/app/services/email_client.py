@@ -96,12 +96,78 @@ def _dedupe_emails(emails: list[str]) -> list[str]:
 # Core sender
 # --------------------------------------------------------------------------- #
 
-def send_email(*, to_emails: list[str], subject: str, html: str, plain: str) -> bool:
+def from_email() -> str:
+    """The configured outbound 'From' address (for logging outbound emails)."""
+    return settings.SENDGRID_FROM_EMAIL
+
+
+_DEFAULT_DISCLOSURE = (
+    "Communications from this office may be drafted or assisted by artificial "
+    "intelligence. All communications are reviewed and authorized by a licensed "
+    "real estate professional before sending."
+)
+
+
+def disclosure_text(brokerage: dict[str, Any] | None) -> str | None:
+    """The brokerage's AI-disclosure text, or None when disclosure is disabled.
+
+    Defaults to enabled (the safe choice) when the brokerage row predates the
+    setting columns.
+    """
+    if brokerage is None:
+        return None
+    enabled = brokerage.get("ai_disclosure_enabled")
+    if enabled is False:
+        return None
+    return (brokerage.get("ai_disclosure_text") or _DEFAULT_DISCLOSURE).strip()
+
+
+def reply_to_address(transaction_id: str | None) -> str | None:
+    """Per-transaction Reply-To so inbound replies route back to this deal.
+
+    Returns ``tx-{id}@<REPLY_EMAIL_DOMAIN>`` when a reply domain is configured,
+    else None (reply threading disabled).
+    """
+    domain = (settings.REPLY_EMAIL_DOMAIN or "").strip()
+    if not domain or not transaction_id:
+        return None
+    return f"tx-{transaction_id}@{domain}"
+
+
+def _append_disclosure(html: str, plain: str, disclosure: str | None) -> tuple[str, str]:
+    """Append a small, muted AI-disclosure footer to the email bodies."""
+    if not disclosure:
+        return html, plain
+    import html as _html
+
+    footer_html = (
+        f'<div style="margin-top:24px;padding-top:12px;border-top:1px solid #E5E7EB;'
+        f'font-size:11px;color:{_TEXT_MUTED};line-height:1.5;">{_html.escape(disclosure)}</div>'
+    )
+    # Insert before </body> when present, else just append.
+    if "</body>" in html:
+        html = html.replace("</body>", f"{footer_html}</body>", 1)
+    else:
+        html = f"{html}{footer_html}"
+    plain = f"{plain}\n\n---\n{disclosure}"
+    return html, plain
+
+
+def send_email(
+    *,
+    to_emails: list[str],
+    subject: str,
+    html: str,
+    plain: str,
+    reply_to: str | None = None,
+    disclosure: str | None = None,
+) -> bool:
     """Send a single email to one or more recipients.
 
     Returns True if SendGrid accepted the message, False otherwise. A single
     message is sent with all addresses on the To line, so recipients can see and
-    reply-all to each other — exactly what an introduction should do.
+    reply-all to each other — exactly what an introduction should do. ``reply_to``
+    sets the Reply-To header (used for per-transaction inbound reply threading).
 
     No-op (returns False) when ``SENDGRID_API_KEY`` is unset. Never raises.
     """
@@ -125,6 +191,7 @@ def send_email(*, to_emails: list[str], subject: str, html: str, plain: str) -> 
         logger.error("sendgrid package not installed — run `pip install sendgrid`")
         return False
 
+    html, plain = _append_disclosure(html, plain, disclosure)
     message = Mail(
         from_email=settings.SENDGRID_FROM_EMAIL,
         to_emails=recipients,
@@ -132,6 +199,8 @@ def send_email(*, to_emails: list[str], subject: str, html: str, plain: str) -> 
         plain_text_content=plain,
         html_content=html,
     )
+    if reply_to:
+        message.reply_to = reply_to
     try:
         sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
         response = sg.send(message)
@@ -151,12 +220,15 @@ def send_email(*, to_emails: list[str], subject: str, html: str, plain: str) -> 
 # Intro-email orchestration
 # --------------------------------------------------------------------------- #
 
-def send_intro_email(tx: dict[str, Any], brokerage_name: str) -> dict[str, Any]:
+def send_intro_email(
+    tx: dict[str, Any], brokerage_name: str, brokerage: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Build and send the intro email to every party with an email on file.
 
     Returns ``{"sent": bool, "recipients": [...], "reason": str | None}`` so the
     caller can report what happened and decide whether to flag the transaction
-    as ``intro_email_sent``.
+    as ``intro_email_sent``. When ``brokerage`` is supplied, the AI-disclosure
+    footer and (if enabled) per-party consent links are added.
     """
     parties = gather_intro_parties(tx)
     if not parties:
@@ -167,11 +239,36 @@ def send_intro_email(tx: dict[str, Any], brokerage_name: str) -> dict[str, Any]:
         }
 
     subject, html, plain = build_intro_content(tx, brokerage_name)
+
+    # Optional explicit-consent acknowledgment links, one per party.
+    if brokerage and brokerage.get("request_ai_consent") and tx.get("id"):
+        from app.services import consent
+
+        links = [
+            (p["role"], consent.consent_link(tx["id"], p["role"], p["email"]))
+            for p in parties
+        ]
+        link_html = "".join(
+            f'<li><a href="{url}">Acknowledge AI disclosure ({role})</a></li>'
+            for role, url in links
+        )
+        html = html.replace(
+            "</body>",
+            f'<div style="font-size:12px;color:{_TEXT_MUTED};padding:0 40px 24px;">'
+            f"<p>If applicable, acknowledge below:</p><ul>{link_html}</ul></div></body>",
+            1,
+        )
+        plain += "\n\nAcknowledge AI disclosure:\n" + "\n".join(
+            f"  - {role}: {url}" for role, url in links
+        )
+
     sent = send_email(
         to_emails=[p["email"] for p in parties],
         subject=subject,
         html=html,
         plain=plain,
+        reply_to=reply_to_address(tx.get("id")),
+        disclosure=disclosure_text(brokerage),
     )
     return {
         "sent": sent,
