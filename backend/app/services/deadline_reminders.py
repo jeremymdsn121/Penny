@@ -22,7 +22,7 @@ from datetime import date
 from typing import Any
 
 from app.core import supabase_client as sb
-from app.services import email_client, twilio_client
+from app.services import email_client, twilio_client, workflow
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +236,20 @@ async def run_reminders(brokerage_id: str) -> dict[str, Any]:
 
         due = _parse_due(deadline.get("due_date"))
         days_until = (due - today).days if due else 0
+
+        # Generate any workflow tasks tied to this deadline at this mark
+        # (e.g. "Confirm inspection is scheduled" 5 days before inspection).
+        if fire.threshold_days > 0:
+            try:
+                await workflow.generate_deadline_tasks(
+                    tx,
+                    deadline.get("label") or "",
+                    fire.threshold_days,
+                    deadline.get("due_date"),
+                )
+            except Exception:  # noqa: BLE001 — task gen is best-effort
+                pass
+
         keys = deadline.get("responsible_parties") or []
         parties = email_client.gather_parties_by_keys(tx, keys)
 
@@ -258,9 +272,24 @@ async def run_reminders(brokerage_id: str) -> dict[str, Any]:
                 subject=subject,
                 html=html,
                 plain=plain,
+                reply_to=email_client.reply_to_address(tx["id"]),
+                disclosure=email_client.disclosure_text(brokerage),
             )
             if ok:
                 emailed = [p["email"] for p in parties]
+                try:
+                    await sb.insert_transaction_email({
+                        "transaction_id": tx["id"],
+                        "direction": "outbound",
+                        "sender_email": email_client.from_email(),
+                        "recipient_emails": emailed,
+                        "subject": subject,
+                        "body_text": plain,
+                        "body_html": html,
+                        "read": True,
+                    })
+                except Exception:  # noqa: BLE001
+                    pass
 
         # Flip the crossed flags so this mark (and any passed ones) won't repeat.
         await sb.update_deadline(deadline["id"], flags)
