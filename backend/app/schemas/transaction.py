@@ -36,6 +36,14 @@ class TransactionCreate(BaseModel):
     mls_number: str | None = None
     contract_pdf_url: str | None = None
     agent_id: str | None = None
+    transaction_type: str | None = None
+    # Earnest money deposit (receipt tracking only — no accounting).
+    emd_amount: float | None = None
+    emd_due_date: str | None = None  # YYYY-MM-DD
+    emd_received: bool | None = None
+    emd_received_date: str | None = None  # YYYY-MM-DD
+    emd_held_by: str | None = None
+    emd_notes: str | None = None
 
 
 class TransactionUpdate(TransactionCreate):
