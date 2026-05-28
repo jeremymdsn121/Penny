@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import Communications from '../components/Communications'
+import ComplianceChecklist from '../components/ComplianceChecklist'
+import EmdCard from '../components/EmdCard'
 import PennyBubble from '../components/PennyBubble'
+import SignaturesCard from '../components/SignaturesCard'
+import TaskPanel from '../components/TaskPanel'
+import type { TransactionEmail } from '../lib/api'
 import {
   appointmentsApi,
   deadlinesApi,
@@ -449,6 +455,16 @@ export default function TransactionDetail() {
     if (tx) setValues(txToStrings(tx))
     setEditMode(false)
     setSaveError(null)
+  }
+
+  function handleReplyToEmail(email: TransactionEmail) {
+    setDocType('follow_up')
+    setDocRecipient(email.sender_name || email.sender_email || '')
+    setDocInstructions(
+      `Reply to this message: "${(email.body_text || '').slice(0, 400)}"`,
+    )
+    setToEmail(email.sender_email || '')
+    setDocNotice('Reply prefilled below — generate, review, and send.')
   }
 
   async function handleGenerate() {
@@ -908,6 +924,15 @@ export default function TransactionDetail() {
           </div>
         )}
 
+        {/* Earnest money deposit */}
+        {!editMode && tx && <EmdCard tx={tx} onChange={setTx} />}
+
+        {/* Tasks (workflow) */}
+        {!editMode && tx && <TaskPanel txId={tx.id} />}
+
+        {/* Compliance File (document checklist) */}
+        {!editMode && tx && <ComplianceChecklist txId={tx.id} />}
+
         {/* Compliance review */}
         {!editMode && (
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -1155,6 +1180,11 @@ export default function TransactionDetail() {
           </div>
         )}
 
+        {/* Communications (email thread) */}
+        {!editMode && tx && (
+          <Communications txId={tx.id} onReply={handleReplyToEmail} />
+        )}
+
         {/* Draft a document */}
         {!editMode && (
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -1291,6 +1321,9 @@ export default function TransactionDetail() {
             )}
           </div>
         )}
+
+        {/* Signatures (DocuSign seam) */}
+        {!editMode && tx && <SignaturesCard tx={tx} />}
 
         {/* Contract PDF */}
         {tx.contract_pdf_url && (
