@@ -18,12 +18,25 @@ class Settings(BaseSettings):
     # Reserved FastAPI signing key. Supabase issues the auth JWTs today; this is
     # here for any backend-minted tokens (e.g. signed webhook/state values).
     SECRET_KEY: str = "dev-insecure-change-me"
+    # HMAC secret for AI-disclosure consent links (Section 6). Falls back to
+    # SECRET_KEY when unset.
+    CONSENT_SECRET: str | None = None
+    # Public base URL of the backend, used to build absolute consent links in
+    # outbound email (e.g. "https://api.usepenny.ai"). Defaults to localhost.
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     # Optional integrations, wired up in later phases.
     ANTHROPIC_API_KEY: str | None = None
     SENDGRID_API_KEY: str | None = None
     # "From" address for outbound email. Must be a verified sender in SendGrid.
     SENDGRID_FROM_EMAIL: str = "hello@usepenny.ai"
+    # Domain that routes inbound replies back to Penny via SendGrid Inbound Parse
+    # (MX -> mx.sendgrid.net). Outbound mail sets Reply-To: tx-{id}@<this domain>.
+    # When unset, reply threading is disabled (no Reply-To added).
+    REPLY_EMAIL_DOMAIN: str | None = None
+    # Shared secret for the inbound-parse webhook (passed as ?key=...). When unset,
+    # the webhook is unauthenticated (dev only — set this in production).
+    SENDGRID_WEBHOOK_KEY: str | None = None
     RENTCAST_API_KEY: str | None = None
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
@@ -36,6 +49,9 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str | None = None
     # E.g. "whatsapp:+14155238886" (sandbox) or "whatsapp:+1XXXXXXXXXX" (production)
     TWILIO_WHATSAPP_FROM: str | None = None
+    # Standard Twilio phone number for the SMS fallback channel ("+1XXXXXXXXXX"),
+    # distinct from the WhatsApp sender. Used by POST /sms/inbound replies.
+    TWILIO_SMS_FROM: str | None = None
     # Set to True in local dev when using ngrok so signature validation is skipped
     TWILIO_SKIP_VALIDATION: bool = False
 

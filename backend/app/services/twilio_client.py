@@ -44,6 +44,26 @@ def send_whatsapp_message(to_number: str, body: str) -> None:
     )
 
 
+def _sms_from_number() -> str:
+    if not settings.TWILIO_SMS_FROM:
+        raise TwilioNotConfigured("TWILIO_SMS_FROM must be set for the SMS channel")
+    return settings.TWILIO_SMS_FROM
+
+
+def send_sms_message(to_number: str, body: str) -> None:
+    """Send a standard SMS to a realtor (the WhatsApp fallback channel).
+
+    Replies originate from TWILIO_SMS_FROM, not the WhatsApp sender. SMS segments
+    are 160 chars (70 for unicode); long replies are split by the carrier.
+    """
+    client = _client()
+    client.messages.create(
+        from_=_sms_from_number(),
+        to=to_number,
+        body=body,
+    )
+
+
 def validate_twilio_signature(url: str, params: dict, signature: str) -> bool:
     """Return True if the X-Twilio-Signature header is valid for this request.
 

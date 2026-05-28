@@ -1,32 +1,50 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
-import { whatsappApi, type WhatsAppContact, type WhatsAppConfig } from '../lib/api'
+import {
+  smsApi,
+  whatsappApi,
+  type SmsConfig,
+  type WhatsAppContact,
+  type WhatsAppConfig,
+} from '../lib/api'
 
 // WhatsApp green used only on this page for brand context
 const WA_GREEN = '#25D366'
+
+type Channel = 'whatsapp' | 'sms' | 'both'
 
 export default function WhatsAppSettings() {
   const navigate = useNavigate()
 
   const [config, setConfig] = useState<WhatsAppConfig | null>(null)
+  const [smsConfig, setSmsConfig] = useState<SmsConfig | null>(null)
   const [contacts, setContacts] = useState<WhatsAppContact[]>([])
+  const [smsContacts, setSmsContacts] = useState<WhatsAppContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Add-contact form
   const [phone, setPhone] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [channel, setChannel] = useState<Channel>('whatsapp')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([whatsappApi.config(), whatsappApi.listContacts()])
-      .then(([cfg, ctcts]) => {
+    Promise.all([
+      whatsappApi.config(),
+      whatsappApi.listContacts(),
+      smsApi.config(),
+      smsApi.listContacts(),
+    ])
+      .then(([cfg, ctcts, scfg, sctcts]) => {
         setConfig(cfg)
         setContacts(ctcts)
+        setSmsConfig(scfg)
+        setSmsContacts(sctcts)
       })
-      .catch(() => setError('Could not load WhatsApp settings.'))
+      .catch(() => setError('Could not load messaging settings.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -36,11 +54,15 @@ export default function WhatsAppSettings() {
     setAdding(true)
     setAddError(null)
     try {
-      const contact = await whatsappApi.addContact(
-        phone.trim(),
-        displayName.trim() || undefined,
-      )
-      setContacts((prev) => [...prev, contact])
+      const name = displayName.trim() || undefined
+      if (channel === 'whatsapp' || channel === 'both') {
+        const c = await whatsappApi.addContact(phone.trim(), name)
+        setContacts((prev) => [...prev.filter((p) => p.phone_number !== c.phone_number), c])
+      }
+      if (channel === 'sms' || channel === 'both') {
+        const c = await smsApi.addContact(phone.trim(), name)
+        setSmsContacts((prev) => [...prev.filter((p) => p.phone_number !== c.phone_number), c])
+      }
       setPhone('')
       setDisplayName('')
     } catch (err: unknown) {
@@ -61,6 +83,15 @@ export default function WhatsAppSettings() {
     }
   }
 
+  async function handleRemoveSms(phoneNumber: string) {
+    try {
+      await smsApi.removeContact(phoneNumber)
+      setSmsContacts((prev) => prev.filter((c) => c.phone_number !== phoneNumber))
+    } catch {
+      setError('Could not remove contact.')
+    }
+  }
+
   const pennyNumber = config?.penny_whatsapp_number
 
   return (
@@ -72,14 +103,15 @@ export default function WhatsAppSettings() {
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">WhatsApp Settings</h1>
+        <h1 className="text-sm font-semibold text-gray-900">Messaging</h1>
         <div className="w-28" />
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
         <PennyBubble>
-          Register your agents' WhatsApp numbers so they can text or voice-message me
-          from the field — I'll handle the rest.
+          Register your agents so they can reach me from the field. WhatsApp adds voice
+          memos and contract photos; plain SMS works for anyone without WhatsApp. Pick the
+          channel each agent prefers — or both.
         </PennyBubble>
 
         {error && (
@@ -237,6 +269,23 @@ export default function WhatsAppSettings() {
                     />
                   </div>
                 </div>
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
+                  <div className="flex gap-4 text-sm text-gray-700">
+                    {(['whatsapp', 'sms', 'both'] as Channel[]).map((c) => (
+                      <label key={c} className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name="channel"
+                          value={c}
+                          checked={channel === c}
+                          onChange={() => setChannel(c)}
+                        />
+                        {c === 'whatsapp' ? 'WhatsApp' : c === 'sms' ? 'SMS' : 'Both'}
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <button
                   type="submit"
                   disabled={adding}
@@ -248,6 +297,54 @@ export default function WhatsAppSettings() {
                   Add agent
                 </button>
               </form>
+            </section>
+
+            {/* ── SMS channel ── */}
+            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  SMS Channel
+                </h2>
+                {smsConfig?.penny_sms_number ? (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Penny’s SMS number:{' '}
+                    <span className="font-mono text-gray-700">{smsConfig.penny_sms_number}</span>.
+                    Text-only — no voice memos or photos on this channel.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Not configured — set{' '}
+                    <code className="rounded bg-gray-100 px-1 font-mono">TWILIO_SMS_FROM</code> on
+                    the backend to enable SMS.
+                  </p>
+                )}
+              </div>
+              {smsContacts.length === 0 ? (
+                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                  No SMS agents registered yet.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {smsContacts.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-4 px-6 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {c.display_name || c.phone_number}
+                        </p>
+                        {c.display_name && (
+                          <p className="text-xs text-gray-400">{c.phone_number}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveSms(c.phone_number)}
+                        className="text-xs font-medium text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </>
         )}

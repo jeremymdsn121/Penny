@@ -6,11 +6,16 @@ here, server-side, and bypasses row-level security; the anon key is used for
 user-scoped auth calls (sign in, get user, sign out).
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from app.config import settings
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 AUTH_BASE = f"{settings.SUPABASE_URL}/auth/v1"
 REST_BASE = f"{settings.SUPABASE_URL}/rest/v1"
@@ -190,6 +195,82 @@ async def get_task_autonomy(brokerage_id: str) -> list[dict[str, Any]]:
     return resp.json()
 
 
+# --------------------------------------------------------------------------- #
+# Agents — brokerage-scoped roster (used for per-agent style profiles & channels)
+# --------------------------------------------------------------------------- #
+
+async def list_agents(brokerage_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/agents",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "order": "created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_agent(brokerage_id: str, agent_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/agents",
+            params={
+                "id": f"eq.{agent_id}",
+                "brokerage_id": f"eq.{brokerage_id}",
+                "select": "*",
+                "limit": "1",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def insert_agent(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(f"{REST_BASE}/agents", json=data, headers=headers)
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def update_agent(
+    brokerage_id: str, agent_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/agents",
+            params={"id": f"eq.{agent_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_agent(brokerage_id: str, agent_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/agents",
+            params={"id": f"eq.{agent_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
 async def insert_transaction(data: dict[str, Any]) -> dict[str, Any]:
     headers = _service_headers() | {"Prefer": "return=representation"}
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -251,14 +332,16 @@ async def update_transaction(
     return rows[0] if isinstance(rows, list) and rows else None
 
 
-async def get_confirmed_knowledge_rules(brokerage_id: str) -> list[dict[str, Any]]:
-    """Confirmed brokerage style rules, injected into AI system prompts."""
+async def _confirmed_rules(
+    brokerage_id: str, agent_filter: str
+) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
             f"{REST_BASE}/knowledge_rules",
             params={
                 "brokerage_id": f"eq.{brokerage_id}",
                 "confirmed": "eq.true",
+                "agent_id": agent_filter,
                 "select": "category,rule",
             },
             headers=_service_headers(),
@@ -266,6 +349,33 @@ async def get_confirmed_knowledge_rules(brokerage_id: str) -> list[dict[str, Any
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return resp.json()
+
+
+async def get_confirmed_knowledge_rules(
+    brokerage_id: str, agent_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Confirmed style rules for AI prompts.
+
+    Brokerage-wide rules (agent_id IS NULL) are always included. When an
+    ``agent_id`` is supplied, that agent's confirmed rules are layered on top and
+    take precedence over a brokerage rule sharing the same category — so an
+    agent's "sign off as Best" overrides the brokerage's "Warm regards".
+    """
+    brokerage_rules = await _confirmed_rules(brokerage_id, "is.null")
+    if not agent_id:
+        return brokerage_rules
+
+    agent_rules = await _confirmed_rules(brokerage_id, f"eq.{agent_id}")
+    agent_categories = {
+        (r.get("category") or "").strip().lower() for r in agent_rules
+    }
+    merged = list(agent_rules)
+    merged += [
+        r
+        for r in brokerage_rules
+        if (r.get("category") or "").strip().lower() not in agent_categories
+    ]
+    return merged
 
 
 async def search_transactions(
@@ -289,15 +399,22 @@ async def search_transactions(
 
 
 # --------------------------------------------------------------------------- #
-# WhatsApp contacts
+# Messaging channels (agent_channels) — WhatsApp + SMS. One row per channel; a
+# number can be registered on both. The *_whatsapp_contact wrappers below keep
+# the existing WhatsApp call sites working against the unified table.
 # --------------------------------------------------------------------------- #
 
-async def lookup_whatsapp_contact(phone_number: str) -> dict[str, Any] | None:
-    """Find a brokerage by a registered realtor phone number."""
+async def lookup_channel(phone_number: str, channel: str) -> dict[str, Any] | None:
+    """Find the brokerage/agent a phone number is registered to on a channel."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
-            f"{REST_BASE}/whatsapp_contacts",
-            params={"phone_number": f"eq.{phone_number}", "select": "*", "limit": "1"},
+            f"{REST_BASE}/agent_channels",
+            params={
+                "phone_number": f"eq.{phone_number}",
+                "channel": f"eq.{channel}",
+                "select": "*",
+                "limit": "1",
+            },
             headers=_service_headers(),
         )
     if resp.status_code >= 400:
@@ -306,34 +423,48 @@ async def lookup_whatsapp_contact(phone_number: str) -> dict[str, Any] | None:
     return rows[0] if rows else None
 
 
-async def list_whatsapp_contacts(brokerage_id: str) -> list[dict[str, Any]]:
+async def list_channels(
+    brokerage_id: str, channel: str | None = None
+) -> list[dict[str, Any]]:
+    params = {
+        "brokerage_id": f"eq.{brokerage_id}",
+        "select": "*",
+        "order": "created_at.asc",
+    }
+    if channel:
+        params["channel"] = f"eq.{channel}"
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
-            f"{REST_BASE}/whatsapp_contacts",
-            params={
-                "brokerage_id": f"eq.{brokerage_id}",
-                "select": "*",
-                "order": "created_at.asc",
-            },
-            headers=_service_headers(),
+            f"{REST_BASE}/agent_channels", params=params, headers=_service_headers()
         )
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return resp.json()
 
 
-async def upsert_whatsapp_contact(
-    brokerage_id: str, phone_number: str, display_name: str | None = None
+async def upsert_channel(
+    brokerage_id: str,
+    channel: str,
+    phone_number: str,
+    display_name: str | None = None,
+    agent_id: str | None = None,
 ) -> dict[str, Any]:
-    payload = {"brokerage_id": brokerage_id, "phone_number": phone_number}
+    payload: dict[str, Any] = {
+        "brokerage_id": brokerage_id,
+        "channel": channel,
+        "phone_number": phone_number,
+    }
     if display_name is not None:
         payload["display_name"] = display_name
+    if agent_id is not None:
+        payload["agent_id"] = agent_id
     headers = _service_headers() | {
         "Prefer": "return=representation,resolution=merge-duplicates",
     }
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.post(
-            f"{REST_BASE}/whatsapp_contacts",
+            f"{REST_BASE}/agent_channels",
+            params={"on_conflict": "brokerage_id,phone_number,channel"},
             json=payload,
             headers=headers,
         )
@@ -343,14 +474,107 @@ async def upsert_whatsapp_contact(
     return rows[0] if isinstance(rows, list) and rows else rows
 
 
-async def delete_whatsapp_contact(brokerage_id: str, phone_number: str) -> None:
+async def delete_channel(brokerage_id: str, channel: str, phone_number: str) -> None:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.delete(
-            f"{REST_BASE}/whatsapp_contacts",
+            f"{REST_BASE}/agent_channels",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "channel": f"eq.{channel}",
+                "phone_number": f"eq.{phone_number}",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# Backward-compatible WhatsApp wrappers (existing call sites).
+async def lookup_whatsapp_contact(phone_number: str) -> dict[str, Any] | None:
+    return await lookup_channel(phone_number, "whatsapp")
+
+
+async def list_whatsapp_contacts(brokerage_id: str) -> list[dict[str, Any]]:
+    return await list_channels(brokerage_id, "whatsapp")
+
+
+async def upsert_whatsapp_contact(
+    brokerage_id: str, phone_number: str, display_name: str | None = None
+) -> dict[str, Any]:
+    return await upsert_channel(brokerage_id, "whatsapp", phone_number, display_name)
+
+
+async def delete_whatsapp_contact(brokerage_id: str, phone_number: str) -> None:
+    await delete_channel(brokerage_id, "whatsapp", phone_number)
+
+
+# --------------------------------------------------------------------------- #
+# Pending WhatsApp transactions — V2 Section 1A
+# One row per contact (UNIQUE brokerage_id + phone_number); upsert replaces.
+# --------------------------------------------------------------------------- #
+
+async def get_pending_whatsapp_transaction(
+    brokerage_id: str, phone_number: str
+) -> dict[str, Any] | None:
+    """Return the non-expired pending extraction for this contact, or None."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_whatsapp_transactions",
             params={
                 "brokerage_id": f"eq.{brokerage_id}",
                 "phone_number": f"eq.{phone_number}",
+                "expires_at": f"gt.{_now_iso()}",
+                "select": "*",
+                "limit": "1",
             },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def upsert_pending_whatsapp_transaction(data: dict[str, Any]) -> dict[str, Any]:
+    """Insert or replace a pending extraction for a contact (upsert on brokerage_id+phone_number)."""
+    headers = _service_headers() | {
+        "Prefer": "return=representation,resolution=merge-duplicates",
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/pending_whatsapp_transactions",
+            params={"on_conflict": "brokerage_id,phone_number"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def update_pending_whatsapp_transaction(
+    record_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/pending_whatsapp_transactions",
+            params={"id": f"eq.{record_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_pending_whatsapp_transaction(record_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/pending_whatsapp_transactions",
+            params={"id": f"eq.{record_id}"},
             headers=_service_headers(),
         )
     if resp.status_code >= 400:
@@ -454,11 +678,13 @@ async def insert_knowledge_document(data: dict[str, Any]) -> dict[str, Any]:
 
 
 async def list_knowledge_documents(brokerage_id: str) -> list[dict[str, Any]]:
+    """Brokerage-wide style documents (agent-uploaded ones are excluded)."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
             f"{REST_BASE}/knowledge_documents",
             params={
                 "brokerage_id": f"eq.{brokerage_id}",
+                "agent_id": "is.null",
                 "select": "*",
                 "order": "created_at.desc",
             },
@@ -467,6 +693,41 @@ async def list_knowledge_documents(brokerage_id: str) -> list[dict[str, Any]]:
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return resp.json()
+
+
+async def list_knowledge_documents_for_agent(
+    brokerage_id: str, agent_id: str
+) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_documents",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "agent_id": f"eq.{agent_id}",
+                "select": "*",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def delete_agent_style_profile(brokerage_id: str, agent_id: str) -> None:
+    """Remove all of an agent's style rules and document rows (admin action)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        for table in ("knowledge_rules", "knowledge_documents"):
+            resp = await client.delete(
+                f"{REST_BASE}/{table}",
+                params={
+                    "brokerage_id": f"eq.{brokerage_id}",
+                    "agent_id": f"eq.{agent_id}",
+                },
+                headers=_service_headers(),
+            )
+            if resp.status_code >= 400:
+                raise SupabaseError(resp.status_code, _detail(resp))
 
 
 async def get_knowledge_document(
@@ -534,14 +795,22 @@ async def insert_knowledge_rules(
     return resp.json()
 
 
+_RULE_SELECT = "id,category,rule,confirmed,document_id,source_document,agent_id,created_at"
+
+
 async def list_knowledge_rules(brokerage_id: str) -> list[dict[str, Any]]:
-    """All style rules for review — confirmed and pending, newest first."""
+    """Brokerage-wide style rules for review — confirmed and pending, newest first.
+
+    Agent-specific rules (agent_id set) are excluded; they're reviewed on the
+    agent's own "My Style" page via list_knowledge_rules_for_agent.
+    """
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
             f"{REST_BASE}/knowledge_rules",
             params={
                 "brokerage_id": f"eq.{brokerage_id}",
-                "select": "id,category,rule,confirmed,document_id,source_document,created_at",
+                "agent_id": "is.null",
+                "select": _RULE_SELECT,
                 "order": "created_at.desc",
             },
             headers=_service_headers(),
@@ -549,6 +818,49 @@ async def list_knowledge_rules(brokerage_id: str) -> list[dict[str, Any]]:
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return resp.json()
+
+
+async def list_knowledge_rules_for_agent(
+    brokerage_id: str, agent_id: str
+) -> list[dict[str, Any]]:
+    """Style rules scoped to a single agent — confirmed and pending, newest first."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_rules",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "agent_id": f"eq.{agent_id}",
+                "select": _RULE_SELECT,
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def count_agent_style_rules(brokerage_id: str) -> dict[str, int]:
+    """Return {agent_id: confirmed_rule_count} so admins can see who has a profile."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/knowledge_rules",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "agent_id": "not.is.null",
+                "confirmed": "eq.true",
+                "select": "agent_id",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    counts: dict[str, int] = {}
+    for row in resp.json():
+        aid = row.get("agent_id")
+        if aid:
+            counts[aid] = counts.get(aid, 0) + 1
+    return counts
 
 
 async def update_knowledge_rule(
@@ -834,6 +1146,467 @@ async def delete_appointment(appointment_id: str) -> None:
         )
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# --------------------------------------------------------------------------- #
+# Compliance checklist — templates (system + brokerage) and per-transaction items
+# --------------------------------------------------------------------------- #
+
+async def list_compliance_templates(brokerage_id: str) -> list[dict[str, Any]]:
+    """System-default templates + this brokerage's custom templates."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/compliance_templates",
+            params={
+                "or": f"(brokerage_id.is.null,brokerage_id.eq.{brokerage_id})",
+                "select": "*",
+                "order": "is_system_default.desc,created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_compliance_template(
+    brokerage_id: str, template_id: str
+) -> dict[str, Any] | None:
+    """A template by id — system default or owned by this brokerage."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/compliance_templates",
+            params={
+                "id": f"eq.{template_id}",
+                "or": f"(brokerage_id.is.null,brokerage_id.eq.{brokerage_id})",
+                "select": "*",
+                "limit": "1",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def find_compliance_template(
+    brokerage_id: str, transaction_type: str, state: str | None
+) -> dict[str, Any] | None:
+    """Best template for a transaction: brokerage custom > system default,
+    preferring a state match when present."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/compliance_templates",
+            params={
+                "transaction_type": f"eq.{transaction_type}",
+                "or": f"(brokerage_id.is.null,brokerage_id.eq.{brokerage_id})",
+                "select": "*",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    if not rows:
+        return None
+    st = (state or "").upper()
+
+    def rank(t: dict[str, Any]) -> tuple[int, int]:
+        owned = 1 if t.get("brokerage_id") else 0
+        state_match = 1 if st and (t.get("state") or "").upper() == st else 0
+        return (owned, state_match)
+
+    return max(rows, key=rank)
+
+
+async def get_template_items(template_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/compliance_template_items",
+            params={
+                "template_id": f"eq.{template_id}",
+                "select": "*",
+                "order": "sort_order.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def insert_compliance_template(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/compliance_templates", json=data, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def update_compliance_template(
+    brokerage_id: str, template_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/compliance_templates",
+            params={"id": f"eq.{template_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def insert_template_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/compliance_template_items", json=rows, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def delete_template_items(template_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/compliance_template_items",
+            params={"template_id": f"eq.{template_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def list_checklist_items(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_checklist_items",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "sort_order.asc,created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def insert_checklist_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/transaction_checklist_items", json=rows, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_checklist_item(item_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_checklist_items",
+            params={"id": f"eq.{item_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_checklist_item(
+    item_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/transaction_checklist_items",
+            params={"id": f"eq.{item_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_checklist_item(item_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/transaction_checklist_items",
+            params={"id": f"eq.{item_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def checklist_items_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Required-item statuses across many transactions (for list/queue % calc)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_checklist_items",
+            params={
+                "transaction_id": f"in.({ids})",
+                "required": "eq.true",
+                "select": "transaction_id,status",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+# --------------------------------------------------------------------------- #
+# Party consents — AI-disclosure acknowledgments (V2 Section 6)
+# --------------------------------------------------------------------------- #
+
+async def list_party_consents(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/party_consents",
+            params={"transaction_id": f"eq.{transaction_id}", "select": "*"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def record_party_consent(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/party_consents", json=data, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+# --------------------------------------------------------------------------- #
+# Transaction emails — outbound + inbound reply threading (V2 Section 4)
+# --------------------------------------------------------------------------- #
+
+async def get_transaction_by_id(transaction_id: str) -> dict[str, Any] | None:
+    """Look up a transaction by id alone (no brokerage scope) — webhook use only."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transactions",
+            params={"id": f"eq.{transaction_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def insert_transaction_email(data: dict[str, Any]) -> dict[str, Any]:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/transaction_emails", json=data, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def list_transaction_emails(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_emails",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "received_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def mark_transaction_emails_read(
+    transaction_id: str, user_id: str | None
+) -> None:
+    headers = _service_headers()
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/transaction_emails",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "direction": "eq.inbound",
+                "read": "eq.false",
+            },
+            json={"read": True, "read_at": _now_iso(), "read_by": user_id},
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+# --------------------------------------------------------------------------- #
+# Workflow task templates + per-transaction tasks (V2 Section 3)
+# --------------------------------------------------------------------------- #
+
+async def find_workflow_template(
+    brokerage_id: str, transaction_type: str, state: str | None
+) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/workflow_templates",
+            params={
+                "transaction_type": f"eq.{transaction_type}",
+                "or": f"(brokerage_id.is.null,brokerage_id.eq.{brokerage_id})",
+                "select": "*",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    if not rows:
+        return None
+    st = (state or "").upper()
+
+    def rank(t: dict[str, Any]) -> tuple[int, int]:
+        return (1 if t.get("brokerage_id") else 0,
+                1 if st and (t.get("state") or "").upper() == st else 0)
+
+    return max(rows, key=rank)
+
+
+async def get_workflow_steps(template_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/workflow_steps",
+            params={
+                "template_id": f"eq.{template_id}",
+                "select": "*",
+                "order": "sort_order.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_transaction_tasks(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_tasks",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "due_date.asc.nullslast,created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def insert_transaction_tasks(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/transaction_tasks", json=rows, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_transaction_task(task_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_tasks",
+            params={"id": f"eq.{task_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_transaction_task(
+    task_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/transaction_tasks",
+            params={"id": f"eq.{task_id}"},
+            json=data,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+async def delete_transaction_task(task_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/transaction_tasks",
+            params={"id": f"eq.{task_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def transaction_tasks_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Pending tasks across many transactions (for overdue badges)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_tasks",
+            params={
+                "transaction_id": f"in.({ids})",
+                "status": "eq.pending",
+                "select": "transaction_id,due_date,status",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
 
 
 # --------------------------------------------------------------------------- #

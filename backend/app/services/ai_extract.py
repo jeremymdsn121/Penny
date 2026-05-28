@@ -34,10 +34,12 @@ CONTRACT_FIELDS: list[str] = [
     "lender_name",
     "title_company",
     "mls_number",
+    # Earnest money deposit (V2 Section 5) — receipt tracking only.
+    "emd_amount", "emd_due_date",
 ]
 
-_PRICE_FIELDS = {"list_price", "sale_price"}
-_DATE_FIELDS = {"contract_date", "closing_date"}
+_PRICE_FIELDS = {"list_price", "sale_price", "emd_amount"}
+_DATE_FIELDS = {"contract_date", "closing_date", "emd_due_date"}
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -68,6 +70,9 @@ def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
         "- If a field is not clearly present in the text, use null. NEVER guess, infer, or fabricate.\n"
         "- Dates must be ISO format YYYY-MM-DD.\n"
         "- Prices must be plain numbers with no currency symbol or commas (e.g. 450000).\n"
+        "- emd_amount is the earnest money deposit amount; emd_due_date is the date the "
+        "earnest money must be delivered (often 'within N days of acceptance' — compute it "
+        "from the contract date only if the contract states the day count explicitly).\n"
         "- Emails and phones exactly as written.\n"
         "- Return only the JSON object, no prose, no markdown fences."
     )
@@ -110,6 +115,87 @@ def _clean(key: str, value: Any) -> Any:
     if key in _DATE_FIELDS and value is not None:
         return str(value) if _DATE_RE.match(str(value)) else None
     return value
+
+
+async def extract_contract_fields_from_image(
+    image_bytes: bytes,
+    media_type: str,
+    knowledge_rules: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Extract contract fields from a JPEG or PNG image using vision.
+
+    ``media_type`` should be ``'jpeg'`` or ``'png'`` — the bare type, not the
+    full MIME type.  The image is passed as a base64-encoded image block; the
+    model reads the photo with vision rather than OCR pre-processing.
+    """
+    client = _client()
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    anthropic_media_type = f"image/{media_type}"
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=_build_system(knowledge_rules or []),
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": anthropic_media_type,
+                                "data": image_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract the contract fields from this contract image.",
+                        },
+                    ],
+                }
+            ],
+        )
+    except Exception as exc:
+        raise AIExtractionError(f"Anthropic API error: {exc}") from exc
+    raw = "".join(block.text for block in response.content if block.type == "text")
+    data = _parse_json(raw)
+    return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}
+
+
+async def parse_correction(
+    current_fields: dict[str, Any], correction_text: str
+) -> dict[str, Any]:
+    """Parse a free-form correction message and return only the updated fields.
+
+    Returns an empty dict if no fields can be identified in the correction.
+    """
+    client = _client()
+    keys = ", ".join(CONTRACT_FIELDS)
+    prompt = (
+        f"Current extracted contract fields:\n{json.dumps(current_fields, indent=2)}\n\n"
+        f'The user\'s correction: "{correction_text}"\n\n'
+        "Update only the fields mentioned in the correction. "
+        "Return ONLY a JSON object with the changed field names and their new values. "
+        f"Available field names: {keys}. "
+        "Date format: YYYY-MM-DD. Prices: plain numbers, no currency symbols or commas. "
+        "Return empty object {} if you cannot identify any field to update. "
+        "Return only the JSON object, no prose."
+    )
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as exc:
+        raise AIExtractionError(f"Anthropic API error: {exc}") from exc
+    raw = "".join(block.text for block in response.content if block.type == "text")
+    try:
+        updates = _parse_json(raw)
+    except AIExtractionError:
+        return {}
+    return {k: _clean(k, v) for k, v in updates.items() if k in CONTRACT_FIELDS}
 
 
 async def extract_contract_fields(

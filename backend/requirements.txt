@@ -36,3 +36,7 @@ python-docx
 
 # IANA timezone database (Windows has no system tzdata) — scheduling slot math
 tzdata
+
+# Image processing — WhatsApp contract photo uploads (V2 Section 1A)
+Pillow
+pillow-heif

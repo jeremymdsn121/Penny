@@ -15,6 +15,7 @@ Tools available to Claude:
 """
 
 import asyncio
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -29,10 +30,15 @@ from app.services import (
     email_client,
     rentcast,
     scheduling,
+    workflow,
 )
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
+
+# Set per-request so document-drafting tools can layer the requesting agent's
+# personal style rules on top of the brokerage's (V2 Section 1B).
+_current_agent_id: ContextVar[str | None] = ContextVar("penny_current_agent_id", default=None)
 
 # --------------------------------------------------------------------------- #
 # Tool definitions
@@ -364,6 +370,144 @@ _TOOLS: list[dict[str, Any]] = [
             "required": ["address_query"],
         },
     },
+    {
+        "name": "get_compliance_checklist",
+        "description": (
+            "Show what's still missing from a transaction's compliance file — the "
+            "pending required documents (agency disclosure, wire fraud advisory, "
+            "lead-based paint, etc.). Read-only. Use when the agent asks what's "
+            "missing or outstanding on a deal's file."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "mark_checklist_item",
+        "description": (
+            "Mark a compliance checklist item complete (or waived / not applicable) "
+            "for a transaction. Identify the item by a keyword from its label, e.g. "
+            "'inspection report'. Requires confirmed=true — confirm the exact item "
+            "with the agent first, then call again with confirmed=true."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "item_query": {
+                    "type": "string",
+                    "description": "Keyword identifying the checklist item, e.g. 'inspection report'.",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["complete", "waived", "not_applicable"],
+                    "description": "The new status (default 'complete').",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Must be true to apply. Set only after the agent confirms.",
+                },
+            },
+            "required": ["address_query", "item_query", "confirmed"],
+        },
+    },
+    {
+        "name": "get_emd_status",
+        "description": (
+            "Report the earnest money deposit status for a transaction — amount, due "
+            "date, whether it's been received, and who's holding it. Read-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "mark_emd_received",
+        "description": (
+            "Mark the earnest money deposit as received for a transaction. Requires "
+            "confirmed=true — confirm with the agent first. Optionally include the date "
+            "received (YYYY-MM-DD); defaults to today."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "received_date": {
+                    "type": "string",
+                    "description": "Date received in YYYY-MM-DD (optional; defaults to today).",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Must be true to apply. Set only after the agent confirms.",
+                },
+            },
+            "required": ["address_query", "confirmed"],
+        },
+    },
+    {
+        "name": "get_pending_tasks",
+        "description": (
+            "Show the pending workflow tasks for a transaction — what needs to happen "
+            "next — grouped by urgency (overdue, due today, this week, upcoming). "
+            "Read-only. Use when the agent asks what's next or what they need to do on a deal."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                }
+            },
+            "required": ["address_query"],
+        },
+    },
+    {
+        "name": "mark_task_complete",
+        "description": (
+            "Mark a workflow task complete for a transaction. Identify the task by a "
+            "keyword from its label, e.g. 'order inspection'. Requires confirmed=true — "
+            "confirm the exact task with the agent first."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "task_query": {
+                    "type": "string",
+                    "description": "Keyword identifying the task, e.g. 'order inspection'.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Must be true to apply. Set only after the agent confirms.",
+                },
+            },
+            "required": ["address_query", "task_query", "confirmed"],
+        },
+    },
 ]
 
 
@@ -456,8 +600,16 @@ async def _exec_update_transaction_stage(brokerage_id: str, inputs: dict) -> str
             "Please be more specific."
         )
     tx = txs[0]
-    updated = await sb.update_transaction(brokerage_id, tx["id"], {"stage": new_stage})
+    stage_data: dict[str, Any] = {"stage": new_stage}
+    if new_stage == "closed" and tx.get("stage") != "closed":
+        stage_data["closed_at"] = datetime.now(timezone.utc).isoformat()
+    updated = await sb.update_transaction(brokerage_id, tx["id"], stage_data)
     if updated:
+        if new_stage != tx.get("stage"):
+            try:
+                await workflow.generate_stage_tasks(updated, new_stage)
+            except Exception:
+                pass
         return (
             f"Updated {tx.get('address', 'transaction')} to "
             f"{_fmt_stage(new_stage)}."
@@ -559,11 +711,24 @@ async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "the brokerage")
     result = await asyncio.to_thread(
-        email_client.send_intro_email, tx, brokerage_name
+        email_client.send_intro_email, tx, brokerage_name, brokerage
     )
     if not result["sent"]:
         return f"I couldn't send the intro email: {result['reason']}."
     await sb.update_transaction(brokerage_id, tx["id"], {"intro_email_sent": True})
+    try:
+        subject, _html, plain = email_client.build_intro_content(tx, brokerage_name)
+        await sb.insert_transaction_email({
+            "transaction_id": tx["id"],
+            "direction": "outbound",
+            "sender_email": email_client.from_email(),
+            "recipient_emails": [p["email"] for p in result["recipients"]],
+            "subject": subject,
+            "body_text": plain,
+            "read": True,
+        })
+    except Exception:  # noqa: BLE001 — logging is best-effort
+        pass
     who = ", ".join(p["name"] for p in result["recipients"])
     return (
         f"Sent the intro email for {address} to {len(result['recipients'])} "
@@ -577,7 +742,8 @@ async def _exec_draft_document(brokerage_id: str, inputs: dict) -> str:
         return err
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "the brokerage")
-    rules = await sb.get_confirmed_knowledge_rules(brokerage_id)
+    agent_id = _current_agent_id.get() or tx.get("agent_id")
+    rules = await sb.get_confirmed_knowledge_rules(brokerage_id, agent_id)
     try:
         draft = await doc_generate.generate_document(
             transaction=tx,
@@ -866,6 +1032,185 @@ async def _exec_list_appointments(brokerage_id: str, inputs: dict) -> str:
     return "\n".join(lines)
 
 
+_DONE_CHECKLIST = {"complete", "waived", "not_applicable"}
+
+
+async def _exec_get_compliance_checklist(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    items = await sb.list_checklist_items(tx["id"])
+    address = tx.get("address", "this transaction")
+    if not items:
+        return (
+            f"No compliance checklist exists yet for {address}. It's created from a "
+            "template when the transaction is set up."
+        )
+    pending = [i for i in items if i.get("required") and i.get("status") not in _DONE_CHECKLIST]
+    total_req = sum(1 for i in items if i.get("required"))
+    done_req = total_req - len(pending)
+    if not pending:
+        return f"✅ {address}: all {total_req} required compliance items are complete."
+    lines = [
+        f"{address} compliance file — {done_req}/{total_req} required items done. "
+        f"Still missing:",
+    ]
+    lines += [f"- {i.get('label')}" for i in pending]
+    return "\n".join(lines)
+
+
+async def _exec_mark_checklist_item(brokerage_id: str, inputs: dict) -> str:
+    if not inputs.get("confirmed"):
+        return (
+            "Not marked — confirm the exact item with the agent first, then call "
+            "again with confirmed=true."
+        )
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    query = (inputs.get("item_query") or "").strip().lower()
+    if not query:
+        return "Which checklist item? Give me a keyword from its label."
+    new_status = inputs.get("status") or "complete"
+    if new_status not in _DONE_CHECKLIST:
+        return "Status must be complete, waived, or not_applicable."
+    items = await sb.list_checklist_items(tx["id"])
+    matches = [i for i in items if query in (i.get("label") or "").lower()]
+    if not matches:
+        return f"No checklist item matching '{query}' on {tx.get('address', 'this transaction')}."
+    if len(matches) > 1:
+        names = ", ".join(m.get("label", "?") for m in matches[:5])
+        return f"Multiple items match '{query}': {names}. Please be more specific."
+    item = matches[0]
+    data: dict[str, Any] = {"status": new_status}
+    if new_status == "complete":
+        data["completed_at"] = datetime.now(timezone.utc).isoformat()
+    await sb.update_checklist_item(item["id"], data)
+    verb = {"complete": "complete", "waived": "waived", "not_applicable": "not applicable"}[new_status]
+    return f"Marked '{item.get('label')}' as {verb} for {tx.get('address', 'the transaction')}."
+
+
+async def _exec_get_emd_status(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    address = tx.get("address", "this transaction")
+    amount = tx.get("emd_amount")
+    amount_str = _money(amount) if amount is not None else "an unspecified amount"
+    if tx.get("emd_received"):
+        when = tx.get("emd_received_date")
+        held = tx.get("emd_held_by")
+        held_str = f", held by {held}" if held else ""
+        return (
+            f"EMD for {address}: received{f' on {_fmt_date(when)}' if when else ''} "
+            f"({amount_str}{held_str})."
+        )
+    due = tx.get("emd_due_date")
+    due_str = f", due {_fmt_date(due)}" if due else ""
+    return f"EMD for {address}: NOT yet received ({amount_str}{due_str})."
+
+
+async def _exec_mark_emd_received(brokerage_id: str, inputs: dict) -> str:
+    if not inputs.get("confirmed"):
+        return "Not marked — confirm with the agent first, then call again with confirmed=true."
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    received_date = (inputs.get("received_date") or "").strip()
+    if received_date:
+        try:
+            date.fromisoformat(received_date)
+        except ValueError:
+            return "I need the received date in YYYY-MM-DD format."
+    else:
+        received_date = date.today().isoformat()
+    await sb.update_transaction(
+        brokerage_id, tx["id"], {"emd_received": True, "emd_received_date": received_date}
+    )
+    return f"Marked EMD received on {_fmt_date(received_date)} for {tx.get('address', 'the transaction')}."
+
+
+async def _exec_get_pending_tasks(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    tasks = await sb.list_transaction_tasks(tx["id"])
+    pending = [t for t in tasks if t.get("status") == "pending"]
+    address = tx.get("address", "this transaction")
+    if not pending:
+        return f"No pending tasks for {address} — you're all caught up."
+    today = date.today()
+
+    def bucket(t: dict) -> str:
+        due = t.get("due_date")
+        try:
+            d = date.fromisoformat(str(due)[:10]) if due else None
+        except ValueError:
+            d = None
+        if d is None:
+            return "upcoming"
+        if d < today:
+            return "overdue"
+        if d == today:
+            return "today"
+        if (d - today).days <= 7:
+            return "week"
+        return "upcoming"
+
+    groups: dict[str, list[dict]] = {"overdue": [], "today": [], "week": [], "upcoming": []}
+    for t in pending:
+        groups[bucket(t)].append(t)
+
+    lines = [f"📋 {address} — Pending Tasks"]
+    headers = [
+        ("overdue", "🔴 OVERDUE"),
+        ("today", "📅 DUE TODAY"),
+        ("week", "📅 THIS WEEK"),
+        ("upcoming", "UPCOMING"),
+    ]
+    for key, label in headers:
+        items = groups[key]
+        if not items:
+            continue
+        lines.append("")
+        lines.append(label)
+        for t in items:
+            due = t.get("due_date")
+            suffix = f" (due {_fmt_date(due)})" if due else ""
+            lines.append(f"• {t.get('label')}{suffix}")
+    return "\n".join(lines)
+
+
+async def _exec_mark_task_complete(brokerage_id: str, inputs: dict) -> str:
+    if not inputs.get("confirmed"):
+        return (
+            "Not marked — confirm the exact task with the agent first, then call "
+            "again with confirmed=true."
+        )
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    query = (inputs.get("task_query") or "").strip().lower()
+    if not query:
+        return "Which task? Give me a keyword from its label."
+    tasks = await sb.list_transaction_tasks(tx["id"])
+    matches = [
+        t for t in tasks
+        if t.get("status") == "pending" and query in (t.get("label") or "").lower()
+    ]
+    if not matches:
+        return f"No pending task matching '{query}' on {tx.get('address', 'this transaction')}."
+    if len(matches) > 1:
+        names = ", ".join(m.get("label", "?") for m in matches[:5])
+        return f"Multiple tasks match '{query}': {names}. Please be more specific."
+    task = matches[0]
+    await sb.update_transaction_task(
+        task["id"],
+        {"status": "complete", "completed_at": datetime.now(timezone.utc).isoformat()},
+    )
+    return f"Marked '{task.get('label')}' complete for {tx.get('address', 'the transaction')}."
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -881,6 +1226,12 @@ _TOOL_MAP = {
     "propose_showing_times": _exec_propose_showing_times,
     "book_appointment": _exec_book_appointment,
     "list_appointments": _exec_list_appointments,
+    "get_compliance_checklist": _exec_get_compliance_checklist,
+    "mark_checklist_item": _exec_mark_checklist_item,
+    "get_emd_status": _exec_get_emd_status,
+    "mark_emd_received": _exec_mark_emd_received,
+    "get_pending_tasks": _exec_get_pending_tasks,
+    "mark_task_complete": _exec_mark_task_complete,
 }
 
 
@@ -894,6 +1245,7 @@ async def run_penny_agent(
     contact_display_name: str | None,
     history: list[dict[str, Any]],
     current_message: str,
+    agent_id: str | None = None,
 ) -> str:
     """Run the Penny conversational agent and return a WhatsApp-ready reply.
 
@@ -905,6 +1257,8 @@ async def run_penny_agent(
                  Each has keys: direction ('inbound'|'outbound'), body.
         current_message: The realtor's current message text (already transcribed
                          if it was a voice memo).
+        agent_id: The requesting agent's UUID, when the contact is linked to one —
+                  used to apply that agent's personal style to drafted documents.
 
     Returns:
         Plain text reply to send via WhatsApp.
@@ -914,6 +1268,8 @@ async def run_penny_agent(
             "I'm not fully configured yet — please ask your broker to set the "
             "ANTHROPIC_API_KEY on the backend."
         )
+
+    _current_agent_id.set(agent_id)
 
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
@@ -977,7 +1333,19 @@ async def run_penny_agent(
         "Booking creates a calendar event, so you MUST get the agent's explicit "
         "confirmation of the time before calling book_appointment with confirmed=true "
         "(unless scheduling is autonomous for this brokerage). list_appointments shows "
-        "what's on the books."
+        "what's on the books.\n\n"
+        "Compliance file:\n"
+        "- get_compliance_checklist shows what required documents are still missing from "
+        "a deal's file. mark_checklist_item marks an item complete/waived — confirm the "
+        "exact item with the agent first, then call with confirmed=true.\n\n"
+        "Next steps / tasks:\n"
+        "- get_pending_tasks shows what needs to happen next on a deal, grouped by "
+        "urgency. mark_task_complete marks one done — confirm the exact task first, "
+        "then call with confirmed=true.\n\n"
+        "Earnest money:\n"
+        "- get_emd_status reports whether the earnest money deposit has been received. "
+        "mark_emd_received records receipt — confirm with the agent first, then call "
+        "with confirmed=true. Penny tracks EMD receipt only — never trust-account math."
     )
 
     # Build the messages array from history + current message.

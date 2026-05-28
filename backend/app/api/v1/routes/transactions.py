@@ -1,6 +1,7 @@
 import asyncio
 import html
 import uuid
+from datetime import date, datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -9,15 +10,26 @@ from pydantic import BaseModel
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
-from app.services import ai_extract, compliance, doc_generate, email_client, rentcast
+from app.services import (
+    ai_extract,
+    compliance,
+    compliance_checklist,
+    docusign_provider,
+    doc_generate,
+    email_client,
+    rentcast,
+    workflow,
+)
 from app.services.pdf_extract import pdf_page_count
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 CONTRACTS_BUCKET = "contracts"
+COMPLIANCE_BUCKET = "compliance-docs"
 MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB
 
 _bucket_ready = False
+_compliance_bucket_ready = False
 
 
 async def _ensure_bucket() -> None:
@@ -25,6 +37,13 @@ async def _ensure_bucket() -> None:
     if not _bucket_ready:
         await sb.ensure_bucket(CONTRACTS_BUCKET, public=False)
         _bucket_ready = True
+
+
+async def _ensure_compliance_bucket() -> None:
+    global _compliance_bucket_ready
+    if not _compliance_bucket_ready:
+        await sb.ensure_bucket(COMPLIANCE_BUCKET, public=False)
+        _compliance_bucket_ready = True
 
 
 @router.post("/extract", response_model=ExtractResponse)
@@ -96,14 +115,37 @@ async def create(
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     data["brokerage_id"] = brokerage["id"]
     data.setdefault("stage", "under_contract")
-    return await sb.insert_transaction(data)
+    tx = await sb.insert_transaction(data)
+    # Instantiate the compliance checklist + workflow tasks from matching templates.
+    try:
+        await compliance_checklist.instantiate_for_transaction(tx)
+        await workflow.generate_stage_tasks(tx, tx.get("stage") or "under_contract")
+    except sb.SupabaseError:
+        pass  # best-effort at creation; both can be (re)built later
+    return tx
 
 
 @router.get("")
 async def list_all(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> list[dict[str, Any]]:
-    return await sb.list_transactions(brokerage["id"])
+    txs = await sb.list_transactions(brokerage["id"])
+    ids = [t["id"] for t in txs]
+    pct = await compliance_checklist.pct_for_transactions(ids)
+    # Overdue pending-task counts per transaction (one query).
+    today = date.today()
+    overdue: dict[str, int] = {}
+    for row in await sb.transaction_tasks_in(ids):
+        due = row.get("due_date")
+        try:
+            if due and date.fromisoformat(str(due)[:10]) < today:
+                overdue[row["transaction_id"]] = overdue.get(row["transaction_id"], 0) + 1
+        except ValueError:
+            pass
+    for t in txs:
+        t["checklist_pct"] = pct.get(t["id"], 0)
+        t["overdue_tasks"] = overdue.get(t["id"], 0)
+    return txs
 
 
 @router.get("/{transaction_id}")
@@ -114,6 +156,8 @@ async def get_one(
     tx = await sb.get_transaction(brokerage["id"], transaction_id)
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    items = await sb.list_checklist_items(transaction_id)
+    tx["checklist_pct"] = compliance_checklist.pct_from_items(items)["pct"]
     return tx
 
 
@@ -124,9 +168,25 @@ async def update_one(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
     data = body.model_dump(exclude_unset=True)
+    prev = await sb.get_transaction(brokerage["id"], transaction_id)
+    if prev is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    # Stamp closed_at on the transition into 'closed' (clear it if reopened).
+    new_stage = data.get("stage")
+    if new_stage and new_stage != prev.get("stage"):
+        if new_stage == "closed":
+            data["closed_at"] = datetime.now(timezone.utc).isoformat()
+        elif prev.get("stage") == "closed":
+            data["closed_at"] = None
     tx = await sb.update_transaction(brokerage["id"], transaction_id, data)
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    # On a stage transition, generate the new stage's workflow tasks.
+    if new_stage and new_stage != prev.get("stage"):
+        try:
+            await workflow.generate_stage_tasks(tx, new_stage)
+        except sb.SupabaseError:
+            pass
     return tx
 
 
@@ -139,6 +199,8 @@ class DraftDocumentIn(BaseModel):
     doc_type: str = "status_update"
     recipient: str | None = None
     instructions: str | None = None
+    # When set, layer this agent's confirmed style rules on top of the brokerage's.
+    agent_id: str | None = None
 
 
 class SendDocumentIn(BaseModel):
@@ -158,7 +220,8 @@ async def draft_document(
     tx = await sb.get_transaction(brokerage["id"], transaction_id)
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-    rules = await sb.get_confirmed_knowledge_rules(brokerage["id"])
+    agent_id = body.agent_id or tx.get("agent_id")
+    rules = await sb.get_confirmed_knowledge_rules(brokerage["id"], agent_id)
     try:
         draft = await doc_generate.generate_document(
             transaction=tx,
@@ -208,12 +271,29 @@ async def send_document(
         subject=body.subject,
         html=html_body,
         plain=body.body,
+        reply_to=email_client.reply_to_address(transaction_id),
+        disclosure=email_client.disclosure_text(brokerage),
     )
     if not sent:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Could not send — email isn't configured or the send failed.",
         )
+    try:
+        await sb.insert_transaction_email(
+            {
+                "transaction_id": transaction_id,
+                "direction": "outbound",
+                "sender_email": email_client.from_email(),
+                "recipient_emails": recipients,
+                "subject": body.subject,
+                "body_text": body.body,
+                "body_html": html_body,
+                "read": True,
+            }
+        )
+    except sb.SupabaseError:
+        pass  # logging is best-effort
     return {"sent": True, "recipients": recipients}
 
 
@@ -300,3 +380,100 @@ async def comparable_sales(
         )
     except rentcast.RentcastError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
+# --------------------------------------------------------------------------- #
+# Earnest money deposit receipt (PRD V2 Section 5) — receipt tracking only.
+# Scalar EMD fields are set via the generic PATCH; this endpoint handles the
+# optional receipt-document upload and marks the deposit received.
+# --------------------------------------------------------------------------- #
+
+@router.post("/{transaction_id}/emd-receipt")
+async def upload_emd_receipt(
+    transaction_id: str,
+    file: UploadFile = File(...),
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if len(content) > MAX_PDF_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File exceeds the 25 MB limit",
+        )
+    await _ensure_compliance_bucket()
+    ext = (file.filename or "file").rsplit(".", 1)[-1][:8] if "." in (file.filename or "") else "bin"
+    path = f"{brokerage['id']}/{transaction_id}/emd-{uuid.uuid4()}.{ext}"
+    try:
+        await sb.upload_object(
+            COMPLIANCE_BUCKET, path, content, file.content_type or "application/octet-stream"
+        )
+    except sb.SupabaseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=f"Upload failed: {exc.detail}")
+    updated = await sb.update_transaction(
+        brokerage["id"], transaction_id, {"emd_receipt_document_url": path, "emd_received": True}
+    )
+    return {"emd_receipt_document_url": path, "emd_received": True, "transaction": updated}
+
+
+# --------------------------------------------------------------------------- #
+# DocuSign e-signature (PRD V2 Section 8) — behind a seam. Confirm-gated, but
+# reports "not connected" until DocuSign credentials/partner review exist.
+# --------------------------------------------------------------------------- #
+
+class DocuSignSigner(BaseModel):
+    name: str
+    email: str
+    role: str | None = None
+
+
+class DocuSignSendIn(BaseModel):
+    document_url: str | None = None  # storage path; defaults to the contract PDF
+    signers: list[DocuSignSigner] = []
+    email_subject: str | None = None
+    message: str | None = None
+    confirmed: bool = False
+
+
+@router.get("/{transaction_id}/docusign/status")
+async def docusign_status(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return docusign_provider.status(brokerage)
+
+
+@router.post("/{transaction_id}/docusign/send")
+async def docusign_send(
+    transaction_id: str,
+    body: DocuSignSendIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required before sending for signature.",
+        )
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    document_url = body.document_url or tx.get("contract_pdf_url")
+    if not document_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No document to send — upload or extract the contract first.",
+        )
+    return await docusign_provider.send_envelope(
+        brokerage,
+        document_url=document_url,
+        signers=[s.model_dump() for s in body.signers],
+        email_subject=body.email_subject or f"Please sign: {tx.get('address') or 'document'}",
+        message=body.message or "",
+    )

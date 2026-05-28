@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
+import Agents from './pages/Agents'
+import ComplianceSettings from './pages/ComplianceSettings'
 import Dashboard from './pages/Dashboard'
 import Knowledge from './pages/Knowledge'
 import ListingDetail from './pages/ListingDetail'
@@ -7,6 +9,8 @@ import Listings from './pages/Listings'
 import Login from './pages/Login'
 import NewTransaction from './pages/NewTransaction'
 import Onboarding from './pages/Onboarding'
+import Reports from './pages/Reports'
+import ReviewQueue from './pages/ReviewQueue'
 import Signup from './pages/Signup'
 import TransactionDetail from './pages/TransactionDetail'
 import WhatsAppSettings from './pages/WhatsAppSettings'
@@ -72,6 +76,38 @@ export default function App() {
         element={
           <ProtectedRoute>
             {onboarded ? <Listings /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agents"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <Agents /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/review"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <ReviewQueue /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/compliance"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <ComplianceSettings /> : <Navigate to="/onboarding" replace />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            {onboarded ? <Reports /> : <Navigate to="/onboarding" replace />}
           </ProtectedRoute>
         }
       />

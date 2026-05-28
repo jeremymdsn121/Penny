@@ -154,6 +154,16 @@ export interface Transaction {
   contract_pdf_url?: string | null
   compliance_status?: string | null
   agent_id?: string | null
+  transaction_type?: string | null
+  checklist_pct?: number
+  overdue_tasks?: number
+  emd_amount?: number | null
+  emd_due_date?: string | null
+  emd_received?: boolean | null
+  emd_received_date?: string | null
+  emd_receipt_document_url?: string | null
+  emd_held_by?: string | null
+  emd_notes?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -175,6 +185,8 @@ export interface WhatsAppContact {
   brokerage_id: string
   phone_number: string
   display_name?: string | null
+  channel?: string | null
+  agent_id?: string | null
   created_at: string
 }
 
@@ -186,12 +198,28 @@ export interface WhatsAppConfig {
 export const whatsappApi = {
   config: () => api.get<WhatsAppConfig>('/whatsapp/config').then((r) => r.data),
   listContacts: () => api.get<WhatsAppContact[]>('/whatsapp/contacts').then((r) => r.data),
-  addContact: (phone_number: string, display_name?: string) =>
+  addContact: (phone_number: string, display_name?: string, agent_id?: string) =>
     api
-      .post<WhatsAppContact>('/whatsapp/contacts', { phone_number, display_name })
+      .post<WhatsAppContact>('/whatsapp/contacts', { phone_number, display_name, agent_id })
       .then((r) => r.data),
   removeContact: (phone_number: string) =>
     api.delete(`/whatsapp/contacts/${encodeURIComponent(phone_number)}`),
+}
+
+export interface SmsConfig {
+  penny_sms_number: string | null
+  configured: boolean
+}
+
+export const smsApi = {
+  config: () => api.get<SmsConfig>('/sms/config').then((r) => r.data),
+  listContacts: () => api.get<WhatsAppContact[]>('/sms/contacts').then((r) => r.data),
+  addContact: (phone_number: string, display_name?: string, agent_id?: string) =>
+    api
+      .post<WhatsAppContact>('/sms/contacts', { phone_number, display_name, agent_id })
+      .then((r) => r.data),
+  removeContact: (phone_number: string) =>
+    api.delete(`/sms/contacts/${encodeURIComponent(phone_number)}`),
 }
 
 export const transactionsApi = {
@@ -253,6 +281,278 @@ export const transactionsApi = {
       .then((r) => r.data),
   comps: (id: string) =>
     api.post<CompsResult>(`/transactions/${id}/comps`).then((r) => r.data),
+  docusignStatus: (id: string) =>
+    api
+      .get<{ connected: boolean; provider: string | null }>(`/transactions/${id}/docusign/status`)
+      .then((r) => r.data),
+  docusignSend: (
+    id: string,
+    data: {
+      signers: { name: string; email: string; role?: string }[]
+      confirmed: boolean
+      document_url?: string
+      email_subject?: string
+      message?: string
+    },
+  ) =>
+    api
+      .post<{ sent: boolean; envelope_id: string | null; reason: string }>(
+        `/transactions/${id}/docusign/send`,
+        data,
+      )
+      .then((r) => r.data),
+  uploadEmdReceipt: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`/api/v1/transactions/${id}/emd-receipt`, {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<{
+        emd_receipt_document_url: string
+        emd_received: boolean
+        transaction: Transaction
+      }>
+    })
+  },
+}
+
+// --------------------------------------------------------------------------- //
+// Compliance checklist (V2 Section 2A)
+// --------------------------------------------------------------------------- //
+
+export interface ChecklistItem {
+  id: string
+  transaction_id: string
+  template_item_id?: string | null
+  label: string
+  required: boolean
+  document_required: boolean
+  status: 'pending' | 'complete' | 'waived' | 'not_applicable'
+  completed_at?: string | null
+  completed_by?: string | null
+  document_url?: string | null
+  waiver_note?: string | null
+  sort_order?: number
+}
+
+export const checklistApi = {
+  get: (txId: string) =>
+    api.get<ChecklistItem[]>(`/transactions/${txId}/checklist`).then((r) => r.data),
+  addItem: (
+    txId: string,
+    data: { label: string; required?: boolean; document_required?: boolean },
+  ) =>
+    api
+      .post<ChecklistItem>(`/transactions/${txId}/checklist/items`, data)
+      .then((r) => r.data),
+  patchItem: (
+    txId: string,
+    itemId: string,
+    data: { status?: string; waiver_note?: string; document_url?: string },
+  ) =>
+    api
+      .patch<ChecklistItem>(`/transactions/${txId}/checklist/items/${itemId}`, data)
+      .then((r) => r.data),
+  deleteItem: (txId: string, itemId: string) =>
+    api.delete(`/transactions/${txId}/checklist/items/${itemId}`),
+  uploadDocument: (txId: string, itemId: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`/api/v1/transactions/${txId}/checklist/items/${itemId}/document`, {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<ChecklistItem>
+    })
+  },
+}
+
+// --------------------------------------------------------------------------- //
+// Transaction emails — Communications thread (V2 Section 4)
+// --------------------------------------------------------------------------- //
+
+export interface TransactionEmail {
+  id: string
+  transaction_id: string
+  direction: 'outbound' | 'inbound'
+  sender_email?: string | null
+  sender_name?: string | null
+  recipient_emails?: string[] | null
+  subject?: string | null
+  body_text?: string | null
+  body_html?: string | null
+  read: boolean
+  received_at: string
+}
+
+export const emailsApi = {
+  list: (txId: string) =>
+    api.get<TransactionEmail[]>(`/transactions/${txId}/emails`).then((r) => r.data),
+  markRead: (txId: string) =>
+    api.post<{ ok: boolean }>(`/transactions/${txId}/emails/read`).then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
+// Workflow tasks (V2 Section 3)
+// --------------------------------------------------------------------------- //
+
+export interface TransactionTask {
+  id: string
+  transaction_id: string
+  step_id?: string | null
+  label: string
+  description?: string | null
+  due_date?: string | null
+  assigned_to_role?: string | null
+  status: 'pending' | 'complete' | 'skipped'
+  completed_at?: string | null
+  skip_reason?: string | null
+}
+
+export const tasksApi = {
+  list: (txId: string) =>
+    api.get<TransactionTask[]>(`/transactions/${txId}/tasks`).then((r) => r.data),
+  add: (
+    txId: string,
+    data: { label: string; description?: string; due_date?: string; assigned_to_role?: string },
+  ) => api.post<TransactionTask>(`/transactions/${txId}/tasks`, data).then((r) => r.data),
+  patch: (
+    txId: string,
+    taskId: string,
+    data: { status?: string; skip_reason?: string; due_date?: string; label?: string },
+  ) =>
+    api
+      .patch<TransactionTask>(`/transactions/${txId}/tasks/${taskId}`, data)
+      .then((r) => r.data),
+  remove: (txId: string, taskId: string) =>
+    api.delete(`/transactions/${txId}/tasks/${taskId}`),
+}
+
+// --------------------------------------------------------------------------- //
+// Broker review queue (V2 Section 2B)
+// --------------------------------------------------------------------------- //
+
+export interface ReviewItem {
+  id: string
+  address?: string | null
+  buyer_name?: string | null
+  closing_date?: string | null
+  stage?: string | null
+  checklist_pct: number
+  agent_name?: string | null
+  reason: string
+}
+
+export interface ReviewQueue {
+  compliance_attention: ReviewItem[]
+  closing_soon_incomplete: ReviewItem[]
+  overdue_deadlines: ReviewItem[]
+  emd_overdue: ReviewItem[]
+  stale_transactions: ReviewItem[]
+  total: number
+}
+
+export const brokerApi = {
+  reviewQueue: () => api.get<ReviewQueue>('/broker/review-queue').then((r) => r.data),
+  addReviewNote: (txId: string, note: string) =>
+    api
+      .post<{ notes: string | null }>(`/broker/transactions/${txId}/review-note`, { note })
+      .then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
+// Broker reporting (V2 Section 7)
+// --------------------------------------------------------------------------- //
+
+export interface BrokerSummary {
+  period: string
+  pipeline: {
+    active_transactions: number
+    active_volume: number
+    by_stage: Record<string, number>
+    closing_this_month: number
+    closing_this_month_volume: number
+  }
+  at_risk: {
+    overdue_deadlines: number
+    closing_soon_incomplete: number
+    stale_transactions: number
+  }
+  production: {
+    closed_count: number
+    closed_volume: number
+    avg_days_to_close: number
+    agent_breakdown: { agent_name: string; closed: number; volume: number }[]
+  }
+  compliance: {
+    avg_checklist_completion_at_close: number
+    open_compliance_items_total: number
+    needs_attention: number
+  }
+}
+
+export const reportsApi = {
+  summary: (period: string) =>
+    api
+      .get<BrokerSummary>('/reports/broker-summary', { params: { period } })
+      .then((r) => r.data),
+  downloadExport: async (period: string) => {
+    const res = await fetch(`/api/v1/reports/transactions-export?period=${period}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    })
+    if (!res.ok) throw new Error('export failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `penny-closed-${period}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
+}
+
+// --------------------------------------------------------------------------- //
+// Compliance settings + party consents (V2 Section 6)
+// --------------------------------------------------------------------------- //
+
+export interface ComplianceSettings {
+  ai_disclosure_enabled?: boolean | null
+  ai_disclosure_text?: string | null
+  request_ai_consent?: boolean | null
+}
+
+export interface PartyConsent {
+  id: string
+  transaction_id: string
+  party_role: string
+  email: string
+  consented_at?: string | null
+  consent_method?: string | null
+}
+
+export const complianceSettingsApi = {
+  get: () => api.get<ComplianceSettings>('/compliance-settings').then((r) => r.data),
+  update: (data: ComplianceSettings) =>
+    api.put<ComplianceSettings>('/compliance-settings', data).then((r) => r.data),
+  consents: (txId: string) =>
+    api.get<PartyConsent[]>(`/transactions/${txId}/consents`).then((r) => r.data),
 }
 
 // --------------------------------------------------------------------------- //
@@ -573,4 +873,48 @@ export const knowledgeApi = {
     data: { confirmed?: boolean; category?: string; rule?: string },
   ) => api.patch<KnowledgeRule>(`/knowledge/rules/${id}`, data).then((r) => r.data),
   deleteRule: (id: string) => api.delete(`/knowledge/rules/${id}`),
+}
+
+// --------------------------------------------------------------------------- //
+// Agents — roster + per-agent style profiles (V2 Section 1B)
+// --------------------------------------------------------------------------- //
+
+export interface Agent {
+  id: string
+  brokerage_id: string
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+  license_number?: string | null
+  role?: string | null
+  style_rule_count?: number
+  created_at?: string
+}
+
+export const agentsApi = {
+  list: () => api.get<Agent[]>('/agents').then((r) => r.data),
+  create: (data: Partial<Agent>) => api.post<Agent>('/agents', data).then((r) => r.data),
+  update: (id: string, data: Partial<Agent>) =>
+    api.patch<Agent>(`/agents/${id}`, data).then((r) => r.data),
+  remove: (id: string) => api.delete(`/agents/${id}`),
+  listStyleRules: (id: string) =>
+    api.get<KnowledgeRule[]>(`/agents/${id}/style-rules`).then((r) => r.data),
+  uploadStyleDocument: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`/api/v1/agents/${id}/style-documents`, {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err: { response: { status: number; data: unknown } } = {
+          response: { status: res.status, data: await res.json().catch(() => null) },
+        }
+        throw err
+      }
+      return res.json() as Promise<KnowledgeUploadResult>
+    })
+  },
+  deleteStyleProfile: (id: string) => api.delete(`/agents/${id}/style-profile`),
 }

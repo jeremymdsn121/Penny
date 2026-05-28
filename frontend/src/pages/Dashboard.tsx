@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
-import { deadlinesApi, transactionsApi, type Transaction } from '../lib/api'
+import { brokerApi, deadlinesApi, transactionsApi, type Transaction } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 
 const STAGE_LABELS: Record<string, string> = {
@@ -41,6 +41,7 @@ export default function Dashboard() {
   const [txLoading, setTxLoading] = useState(true)
   const [reminderBusy, setReminderBusy] = useState(false)
   const [reminderNote, setReminderNote] = useState<string | null>(null)
+  const [reviewCount, setReviewCount] = useState(0)
 
   useEffect(() => {
     transactionsApi
@@ -48,6 +49,10 @@ export default function Dashboard() {
       .then(setTransactions)
       .catch(() => {/* silently degrade */})
       .finally(() => setTxLoading(false))
+    brokerApi
+      .reviewQueue()
+      .then((q) => setReviewCount(q.total))
+      .catch(() => {/* review banner is best-effort */})
   }, [])
 
   const onLogout = async () => {
@@ -99,6 +104,25 @@ export default function Dashboard() {
             ⏰ Run reminders
           </button>
           <button
+            onClick={() => navigate('/reports')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Reports"
+          >
+            📊 Reports
+          </button>
+          <button
+            onClick={() => navigate('/review')}
+            className="relative text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Needs Review"
+          >
+            🚨 Review
+            {reviewCount > 0 && (
+              <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
+                {reviewCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => navigate('/listings')}
             className="text-sm font-medium text-gray-500 hover:text-gray-900"
             title="Listings"
@@ -113,11 +137,25 @@ export default function Dashboard() {
             📄 Brand &amp; Style
           </button>
           <button
+            onClick={() => navigate('/agents')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Team & Style"
+          >
+            👥 Team
+          </button>
+          <button
             onClick={() => navigate('/settings/whatsapp')}
             className="text-sm font-medium text-gray-500 hover:text-gray-900"
-            title="WhatsApp Settings"
+            title="Messaging"
           >
-            📱 WhatsApp
+            📱 Messaging
+          </button>
+          <button
+            onClick={() => navigate('/settings/compliance')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-900"
+            title="Compliance Settings"
+          >
+            ⚖️ Compliance
           </button>
           <button onClick={onLogout} className="text-sm font-medium text-gray-500 hover:text-gray-900">
             Log out
@@ -132,6 +170,16 @@ export default function Dashboard() {
           <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-800">
             {reminderNote}
           </div>
+        )}
+
+        {reviewCount > 0 && (
+          <button
+            onClick={() => navigate('/review')}
+            className="flex w-full items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            <span>🚨 {reviewCount} item{reviewCount !== 1 ? 's' : ''} need your review</span>
+            <span className="text-xs">View →</span>
+          </button>
         )}
 
         {/* Brokerage info */}
@@ -190,9 +238,22 @@ export default function Dashboard() {
                       <p className="mt-0.5 truncate text-xs text-gray-400">
                         {tx.buyer_name ? `Buyer: ${tx.buyer_name}` : ''}
                         {tx.closing_date ? `  ·  Closes ${tx.closing_date}` : ''}
+                        {typeof tx.checklist_pct === 'number'
+                          ? `  ·  File ${tx.checklist_pct}%`
+                          : ''}
                       </p>
                     </div>
-                    <StageBadge stage={tx.stage} />
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!!tx.overdue_tasks && tx.overdue_tasks > 0 && (
+                        <span
+                          className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
+                          title="Overdue tasks"
+                        >
+                          {tx.overdue_tasks} overdue
+                        </span>
+                      )}
+                      <StageBadge stage={tx.stage} />
+                    </div>
                   </button>
                 </li>
               ))}
