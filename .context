@@ -4,6 +4,11 @@ Single working spec for V2 build. Source of truth is PENNY_V2_CLAUDE_CODE.md;
 this is the navigational digest for future sessions. Read the full doc before
 implementing any section.
 
+> **Post-V2 note:** web-app work was layered on after V2 (Ask Penny web chat,
+> chat-forward home + UI redesign, agent-targeted reply nudges + optional reply
+> forwarding, migration 016). That work is **not** in this digest or the V2 spec —
+> see the "Web app (post-V2)" and "Inbound email threading (4)" sections of CLAUDE.md.
+
 ## Mission
 
 Virtual TC for small brokerages (2–10 agents) replacing Gmail + shared Sheet +

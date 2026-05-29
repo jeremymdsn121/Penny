@@ -33,6 +33,12 @@ API at http://localhost:8000 (docs `/docs`, health `/health`). All routes under
 `/api/v1`; auth routes public, everything else needs `Authorization: Bearer <jwt>`.
 `.env` is loaded **relative to the working dir**, so always run from `backend/`.
 
+On Windows in the agent harness, prefer running uvicorn **without `--reload`** and
+restart manually after edits: the `--reload` supervisor spawns a multiprocessing
+worker that, when its parent is killed, can be orphaned and keep port 8000 bound
+(`taskkill` may not see it). Free it with PowerShell:
+`Get-NetTCPConnection -LocalPort 8000 -State Listen | %{ Stop-Process -Id $_.OwningProcess -Force }`.
+
 **Frontend** (from `frontend/`):
 ```bash
 npm install   # first time
@@ -220,10 +226,19 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (DNS: `reply.penny.app` MX → `mx.sendgrid.net`, configured in `DEPLOYMENT.md`).
   `POST /api/v1/email/inbound` (public, validates SendGrid Inbound Parse signature
   via `SENDGRID_WEBHOOK_KEY`) extracts the transaction_id from the recipient address,
-  verifies brokerage ownership, stores the message, and WhatsApp-nudges the admin
-  with a 120-char preview. All existing SendGrid sends now log to `transaction_emails`
-  with `direction='outbound'`. Reply UX: the Communications tab opens a draft via the
-  doc-generation flow — human reviews and confirms send. **Never auto-reply.**
+  verifies brokerage ownership, stores the message, and WhatsApp-nudges **the deal's
+  agent** — `transactions.agent_id` → the matching `agent_channels` contact (falls
+  back to the brokerage's contacts only when the deal is unassigned; an agent with no
+  registered number simply isn't nudged). **Reply routing is a brokerage setting**
+  (`brokerages.forward_replies_to_agent`, migration 016, default off, edited on the
+  Messaging page's "Reply Handling" card via `GET`/`PUT /whatsapp/settings`): when on,
+  each inbound reply is also forwarded to the agent's email (`agents.email`, falling
+  back to the deal's `listing_agent_email`/`selling_agent_email`) with `Reply-To` set
+  to the per-transaction address so the agent can reply from their inbox and Penny
+  still logs the thread (the agent's own replies aren't echoed back). All existing
+  SendGrid sends log to `transaction_emails` with `direction='outbound'`. Reply UX: the
+  Communications tab opens a draft via the doc-generation flow — human reviews and
+  confirms send. **Never auto-reply.**
 - **EMD tracking (5):** Columns added to `transactions` (migration 013) —
   `emd_amount`, `emd_due_date`, `emd_received`, `emd_received_date`,
   `emd_receipt_document_url`, `emd_held_by` ∈ {title, brokerage, escrow, other},
@@ -293,10 +308,26 @@ V2 (sections 1A–7 in `PENNY_V2_CLAUDE_CODE.md`):
   (Section 6)
 - `015_reporting.sql` — `transactions.closed_at` set on stage → closed (Section 7)
 
-**Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist).
-If a paste fails with `relation "X" does not exist`, the most likely cause is a
-skipped earlier migration — `create table if not exists` + `add column if not
-exists` guards make it safe to re-paste 004/005 if you're unsure they ran.
+Post-V2 (web-app work):
+- `016_reply_forwarding.sql` — `brokerages.forward_replies_to_agent` boolean
+  (default false): forward inbound email replies to the deal's agent. See the
+  Inbound email threading (4) bullet.
+
+**Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
+008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
+fails with `relation "X" does not exist`, the most likely cause is a skipped earlier
+migration — `create table if not exists` + `add column if not exists` guards make it
+safe to re-paste 004/005 if you're unsure they ran.
+
+**Gotcha (learned the hard way with 008):** if the SQL editor reports *success* but a
+table is still missing — PostgREST returns `PGRST205 ... "Could not find the table
+'public.X' in the schema cache"` — a statement *after* the `create table` in that file
+likely errored and the editor's single transaction rolled the whole thing back (the
+error can scroll off). Confirm with `select to_regclass('public.X');` (returns `NULL`
+when truly absent). Fix: run the bare `create table …` on its own, then the
+indexes/insert/RLS in a second run so a later failure can't undo the table. Supabase
+auto-reloads PostgREST's cache on DDL; if it lags, run `NOTIFY pgrst, 'reload schema';`
+(the dashboard no longer has a reload button).
 
 Deadline tracking + reminders themselves need **no new migration** — the
 `deadlines` table (with `due_date`, `responsible_parties`, and the
@@ -353,6 +384,33 @@ WhatsApp specifics:
   arrive. See `BLOCKERS.md` for the business/legal blockers.
 
 ## Status & next up
+
+### Web app (post-V2) — shipped to `master`, live-verified
+
+A round of web-app work on top of V1+V2, all merged to `master` and exercised
+against live services in the dev brokerage:
+
+- **"Ask Penny" web chat** — `app/api/v1/routes/chat.py` (`POST /chat`) reuses the
+  `penny_agent` tool-use loop over the browser (`channel="web"`, plain-text tone;
+  same tools + confirmation gates). Stateless, no migration. Verified end-to-end
+  (real deal pulled across multiple tools).
+- **Chat-forward home (`/`, `Home.tsx`)** — greeting + live briefing, chat hero with
+  browser-native voice input (Web Speech API), an animated typewriter placeholder
+  cycling **contextual** suggestions built client-side from the loaded transactions
+  (EMD-due / what's-missing / status / closing-countdown + capability prompts), a
+  "Jump to" pill grid, and a staggered fade-up entrance (`animate-fade-up` in
+  `index.css`, 150px / 1.7s, `prefers-reduced-motion`-aware). The sidebar is hidden
+  on the bare launcher (pills are the nav; `useUiStore.chatStarted` gates it in
+  `AppShell`) and returns once a chat starts or you open any page. `/dashboard` is
+  unchanged and one click away.
+- **UI redesign** — dark-default theme + token system (`index.css`, `tailwind.config.js`),
+  left sidebar shell (`AppShell.tsx`, lucide icons), transaction-page section nav
+  (`SectionNav.tsx`).
+- **Reply routing** — inbound email replies now nudge the deal's agent (not the whole
+  brokerage) and can optionally forward to the agent's inbox. See Inbound email
+  threading (4) + migration 016. Verified: toggle saves; nudge targeting needs the
+  agent's number linked to their agent record (`agent_channels.agent_id`) and the deal
+  assigned (`transactions.agent_id`) to resolve a specific recipient.
 
 ### V1 (Phases 1–3)
 
@@ -432,13 +490,15 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
 
 ### Outstanding setup (all on Jeremy's side)
 
-Apply migrations 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012 → 013 →
-014 → 015 in order via the Supabase SQL editor (paste each file's contents).
-Set new env vars where their feature is being exercised: `TWILIO_SMS_FROM` (1C),
-`SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6). V1 keys (`ANTHROPIC_API_KEY`,
-`SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most V2 sections too. DNS
-for `reply.penny.app` is the long-lead item — kick that off early if Section 4
-is on the verification list.
+Migrations **001 → 016 are all applied in the dev brokerage** (008 and 016 were
+applied during the post-V2 web-app work). For a fresh environment, apply them in
+order via the Supabase SQL editor (paste each file's contents) — mind the 008
+caveat in the Database section. Set new env vars where their feature is being
+exercised: `TWILIO_SMS_FROM` (1C), `SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6).
+V1 keys (`ANTHROPIC_API_KEY`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most
+V2 sections too. DNS for `reply.penny.app` is the long-lead item — it's the gating
+step for Section 4 inbound replies **and** for the reply-forwarding toggle actually
+firing (forwarding only runs on a real inbound reply).
 
 ### Deferred (built behind seams, do not build blind)
 
@@ -464,5 +524,8 @@ Commercialization (planned, post-build): pricing model decided — all features,
 per-seat, no tiers, small base, recurring. GTM next. See memory for details.
 
 Dev note: the only onboarded test brokerage is **"Test"**
-(`b8bfa04b-e94a-4495-82d5-68f5f70830a1`); registered WhatsApp test contact is
-`+14054139444` ("Jeremy").
+(`b8bfa04b-e94a-4495-82d5-68f5f70830a1`); registered WhatsApp/SMS test contact is
+`+14054139444` ("Jeremy", not yet linked to an agent record). The brokerage admin
+login is `jeremymdsn@gmail.com`; its password can be (re)set via the Supabase admin
+API with the service-role key (`PUT /auth/v1/admin/users/{id}`) — the current dev
+password is in agent memory, not committed here.
