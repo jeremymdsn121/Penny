@@ -80,27 +80,28 @@ function buildSuggestions(txs: Transaction[]): string[] {
     return da - db
   })
 
+  // Several angles per deal so the rotation stays varied even with a thin
+  // pipeline; each prompt only appears when it's actually relevant.
   const out: string[] = []
   for (const t of ranked.slice(0, 3)) {
     const addr = shortAddress(t.address)
-    if (t.emd_amount && !t.emd_received) {
-      out.push(`When is earnest money due for ${addr}?`)
-    } else if (typeof t.checklist_pct === 'number' && t.checklist_pct < 100) {
+    if (t.emd_amount && !t.emd_received) out.push(`When is earnest money due for ${addr}?`)
+    if (typeof t.checklist_pct === 'number' && t.checklist_pct < 100) {
       out.push(`What's missing on ${addr}?`)
-    } else {
-      out.push(`What's the status of ${addr}?`)
     }
+    const d = daysUntil(t.closing_date)
+    if (d !== null && d >= 0 && d <= 14) out.push(`What's left before ${addr} closes?`)
+    out.push(`What's the status of ${addr}?`)
+    out.push(`Draft a status update for ${addr}`)
   }
 
-  // A closing-countdown prompt for the soonest deal, if it's actually near.
-  const soonest = ranked[0]
-  const d = daysUntil(soonest?.closing_date)
-  if (d !== null && d >= 0 && d <= 10) {
-    out.push(`What's left before ${shortAddress(soonest.address)} closes?`)
-  }
-
-  out.push('Show me my pipeline')
-  return Array.from(new Set(out)).slice(0, 5)
+  // Always-useful capability prompts, blended in after the contextual ones.
+  out.push(
+    'What needs my attention today?',
+    'Which deals are closing this week?',
+    'Show me my pipeline',
+  )
+  return Array.from(new Set(out)).slice(0, 8)
 }
 
 // --------------------------------------------------------------------------- //
