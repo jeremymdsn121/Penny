@@ -123,7 +123,13 @@ first thing to check (ngrok inspector: http://localhost:4040).
   returns the estimate + comps (read-only, nothing persisted). Agent tool
   `get_comparable_sales` takes a free-form address (works for any property, not
   just one on file). 503 without `RENTCAST_API_KEY`. Web UI: a Comparable sales
-  panel on the transaction page.
+  panel on the transaction page. A second read-only call,
+  `POST /transactions/{id}/property-record` (`rentcast.get_property_record` over
+  Rentcast `/properties`), returns the public record — last sale, structure, and
+  assessed-value / property-tax **history** by year (county assessor data). It's
+  a **separate** Rentcast request from comps (own button in the panel) to keep
+  the free-tier request quota honest. Assessed value ≠ market value — the UI says
+  so. Nothing persisted; same 503/502 degradation as comps.
 - **Scheduling (appointments):** `app/services/scheduling.py` (pure slot math:
   state→IANA tz map + `propose_slots` over working hours/buffer, filtering
   conflicts) + `app/api/v1/routes/appointments.py`. `appointments` table, scoped

@@ -17,6 +17,7 @@ import {
   type ComplianceReview,
   type Deadline,
   type ProposeResult,
+  type PropertyRecord,
   type Transaction,
 } from '../lib/api'
 
@@ -235,6 +236,10 @@ export default function TransactionDetail() {
   const [comps, setComps] = useState<CompsResult | null>(null)
   const [compsLoading, setCompsLoading] = useState(false)
   const [compsError, setCompsError] = useState<string | null>(null)
+  // Property record + tax history (separate Rentcast call, quota-friendly)
+  const [propRecord, setPropRecord] = useState<PropertyRecord | null>(null)
+  const [propLoading, setPropLoading] = useState(false)
+  const [propError, setPropError] = useState<string | null>(null)
 
   // Scheduling
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -369,6 +374,20 @@ export default function TransactionDetail() {
       setCompsError(detail ?? 'Could not pull comparable sales.')
     } finally {
       setCompsLoading(false)
+    }
+  }
+
+  async function handlePropertyRecord() {
+    if (!tx) return
+    setPropLoading(true)
+    setPropError(null)
+    try {
+      setPropRecord(await transactionsApi.propertyRecord(tx.id))
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setPropError(detail ?? 'Could not pull the property record.')
+    } finally {
+      setPropLoading(false)
     }
   }
 
@@ -1177,6 +1196,130 @@ export default function TransactionDetail() {
                 )}
               </div>
             )}
+
+            {/* Property record + tax history (separate Rentcast call) */}
+            <div className="mt-6 border-t border-gray-100 pt-5">
+              <p className="mb-3 text-xs text-gray-400">
+                Pull the public record — last sale, structure, and assessed-value / property-tax
+                history from the county assessor.
+              </p>
+
+              {propError && (
+                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                  {propError}
+                </div>
+              )}
+
+              <button
+                onClick={handlePropertyRecord}
+                disabled={propLoading}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {propLoading && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                )}
+                {propLoading
+                  ? 'Loading record…'
+                  : propRecord
+                    ? 'Refresh property & tax history'
+                    : 'Property & tax history'}
+              </button>
+
+              {propRecord && (
+                <div className="mt-5 space-y-5">
+                  <dl className="grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Last sale</dt>
+                      <dd className="text-gray-700">
+                        {propRecord.last_sale_price != null
+                          ? fmtMoney(propRecord.last_sale_price)
+                          : '—'}
+                        {propRecord.last_sale_date
+                          ? ` · ${propRecord.last_sale_date.slice(0, 10)}`
+                          : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Year built</dt>
+                      <dd className="text-gray-700">{propRecord.year_built ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Sqft</dt>
+                      <dd className="text-gray-700">
+                        {propRecord.square_footage != null
+                          ? propRecord.square_footage.toLocaleString()
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Lot size</dt>
+                      <dd className="text-gray-700">
+                        {propRecord.lot_size != null
+                          ? `${propRecord.lot_size.toLocaleString()} sqft`
+                          : '—'}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Assessed values are set by the county for tax purposes and are{' '}
+                    <strong>not market value</strong> — use the estimate above for valuation.
+                  </p>
+
+                  {propRecord.tax_assessments.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Assessment history
+                      </p>
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="text-xs uppercase tracking-wide text-gray-400">
+                            <th className="pb-2 pr-3 font-medium">Year</th>
+                            <th className="pb-2 pr-3 font-medium">Assessed</th>
+                            <th className="pb-2 pr-3 font-medium">Land</th>
+                            <th className="pb-2 font-medium">Improvements</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {propRecord.tax_assessments.map((a, i) => (
+                            <tr key={i} className="text-gray-700">
+                              <td className="py-2 pr-3 text-gray-500">{a.year ?? '—'}</td>
+                              <td className="py-2 pr-3 font-medium">{fmtMoney(a.value)}</td>
+                              <td className="py-2 pr-3 text-gray-500">{fmtMoney(a.land)}</td>
+                              <td className="py-2 text-gray-500">{fmtMoney(a.improvements)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {propRecord.property_taxes.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Property tax history
+                      </p>
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="text-xs uppercase tracking-wide text-gray-400">
+                            <th className="pb-2 pr-3 font-medium">Year</th>
+                            <th className="pb-2 font-medium">Annual tax</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {propRecord.property_taxes.map((t, i) => (
+                            <tr key={i} className="text-gray-700">
+                              <td className="py-2 pr-3 text-gray-500">{t.year ?? '—'}</td>
+                              <td className="py-2 font-medium">{fmtMoney(t.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

@@ -382,6 +382,32 @@ async def comparable_sales(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
 
+@router.post("/{transaction_id}/property-record")
+async def property_record(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Public-record property profile + tax/assessment history (read-only)."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    address = rentcast.compose_address(tx)
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This transaction has no property address to look up.",
+        )
+    try:
+        return await rentcast.get_property_record(address)
+    except rentcast.RentcastNotConfigured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Property records aren't configured yet — set RENTCAST_API_KEY on the backend.",
+        )
+    except rentcast.RentcastError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
 # --------------------------------------------------------------------------- #
 # Earnest money deposit receipt (PRD V2 Section 5) — receipt tracking only.
 # Scalar EMD fields are set via the generic PATCH; this endpoint handles the

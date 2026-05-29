@@ -281,6 +281,8 @@ export const transactionsApi = {
       .then((r) => r.data),
   comps: (id: string) =>
     api.post<CompsResult>(`/transactions/${id}/comps`).then((r) => r.data),
+  propertyRecord: (id: string) =>
+    api.post<PropertyRecord>(`/transactions/${id}/property-record`).then((r) => r.data),
   docusignStatus: (id: string) =>
     api
       .get<{ connected: boolean; provider: string | null }>(`/transactions/${id}/docusign/status`)
@@ -579,6 +581,33 @@ export interface CompsResult {
   range_low?: number | null
   range_high?: number | null
   comparables: Comparable[]
+}
+
+export interface TaxAssessment {
+  year?: number | null
+  value?: number | null
+  land?: number | null
+  improvements?: number | null
+}
+
+export interface PropertyTax {
+  year?: number | null
+  total?: number | null
+}
+
+export interface PropertyRecord {
+  subject_address: string
+  year_built?: number | null
+  lot_size?: number | null
+  square_footage?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  property_type?: string | null
+  owner_occupied?: boolean | null
+  last_sale_price?: number | null
+  last_sale_date?: string | null
+  tax_assessments: TaxAssessment[]
+  property_taxes: PropertyTax[]
 }
 
 // --------------------------------------------------------------------------- //
