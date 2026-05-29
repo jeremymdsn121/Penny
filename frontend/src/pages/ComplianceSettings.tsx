@@ -39,15 +39,15 @@ export default function ComplianceSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Compliance Settings</h1>
+        <h1 className="text-sm font-semibold text-ink">Compliance Settings</h1>
         <div className="w-28" />
       </header>
 
@@ -74,7 +74,7 @@ export default function ComplianceSettingsPage() {
             <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
           </div>
         ) : (
-          <section className="space-y-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <section className="space-y-5 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
             <label className="flex items-start gap-3">
               <input
                 type="checkbox"
@@ -84,14 +84,14 @@ export default function ComplianceSettingsPage() {
                 }
                 className="mt-0.5"
               />
-              <span className="text-sm text-gray-800">
+              <span className="text-sm text-ink">
                 Include AI disclosure in all outbound emails
-                <span className="block text-xs text-gray-400">On by default.</span>
+                <span className="block text-xs text-ink-subtle">On by default.</span>
               </span>
             </label>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
+              <label className="mb-1 block text-xs font-medium text-ink-muted">
                 Disclosure text
               </label>
               <textarea
@@ -117,9 +117,9 @@ export default function ComplianceSettingsPage() {
                 }
                 className="mt-0.5"
               />
-              <span className="text-sm text-gray-800">
+              <span className="text-sm text-ink">
                 Request explicit consent from transaction parties
-                <span className="block text-xs text-gray-400">
+                <span className="block text-xs text-ink-subtle">
                   Adds a one-time acknowledgment link to intro emails. Off by default.
                 </span>
               </span>

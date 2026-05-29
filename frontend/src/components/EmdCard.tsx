@@ -96,9 +96,9 @@ export default function EmdCard({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
       <div className="mb-1 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
           EMD Receipt Tracking
         </h3>
         {tx.emd_received ? (
@@ -111,7 +111,7 @@ export default function EmdCard({
           </span>
         )}
       </div>
-      <p className="mb-4 text-xs text-gray-400">
+      <p className="mb-4 text-xs text-ink-subtle">
         Receipt tracking only — no trust-account math or disbursements.
       </p>
 
@@ -125,7 +125,7 @@ export default function EmdCard({
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Amount</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Amount</label>
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -134,11 +134,11 @@ export default function EmdCard({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Due date</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Due date</label>
               <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="input" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Held by</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Held by</label>
               <select value={heldBy} onChange={(e) => setHeldBy(e.target.value)} className="input">
                 <option value="">—</option>
                 {HELD_OPTIONS.map((o) => (
@@ -149,7 +149,7 @@ export default function EmdCard({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Notes</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Notes</label>
               <input value={notes} onChange={(e) => setNotes(e.target.value)} className="input" />
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function EmdCard({
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="text-sm font-medium text-gray-500 hover:text-gray-900"
+              className="text-sm font-medium text-ink-muted hover:text-ink"
             >
               Cancel
             </button>
@@ -168,21 +168,21 @@ export default function EmdCard({
       ) : (
         <>
           <dl className="grid gap-y-2 sm:grid-cols-2">
-            <dt className="text-xs font-medium text-gray-500">Amount</dt>
-            <dd className="text-sm text-gray-900">{fmtMoney(tx.emd_amount)}</dd>
-            <dt className="text-xs font-medium text-gray-500">Due date</dt>
-            <dd className="text-sm text-gray-900">{tx.emd_due_date || '—'}</dd>
-            <dt className="text-xs font-medium text-gray-500">Held by</dt>
-            <dd className="text-sm capitalize text-gray-900">{tx.emd_held_by || '—'}</dd>
+            <dt className="text-xs font-medium text-ink-muted">Amount</dt>
+            <dd className="text-sm text-ink">{fmtMoney(tx.emd_amount)}</dd>
+            <dt className="text-xs font-medium text-ink-muted">Due date</dt>
+            <dd className="text-sm text-ink">{tx.emd_due_date || '—'}</dd>
+            <dt className="text-xs font-medium text-ink-muted">Held by</dt>
+            <dd className="text-sm capitalize text-ink">{tx.emd_held_by || '—'}</dd>
             {tx.emd_receipt_document_url && (
               <>
-                <dt className="text-xs font-medium text-gray-500">Receipt</dt>
+                <dt className="text-xs font-medium text-ink-muted">Receipt</dt>
                 <dd className="truncate text-xs text-violet-600">on file</dd>
               </>
             )}
           </dl>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hairline pt-4">
             <button
               onClick={() => setEditing(true)}
               className="text-sm font-medium text-penny hover:underline"
@@ -203,7 +203,7 @@ export default function EmdCard({
                   </button>
                   <button
                     onClick={() => setMarking(false)}
-                    className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                    className="text-sm font-medium text-ink-muted hover:text-ink"
                   >
                     Cancel
                   </button>
@@ -218,7 +218,7 @@ export default function EmdCard({
               )
             ) : unmarking ? (
               <span className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Clear received status?</span>
+                <span className="text-sm text-ink-muted">Clear received status?</span>
                 <button
                   onClick={markNotReceived}
                   disabled={busy}
@@ -228,7 +228,7 @@ export default function EmdCard({
                 </button>
                 <button
                   onClick={() => setUnmarking(false)}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                  className="text-sm font-medium text-ink-muted hover:text-ink"
                 >
                   Cancel
                 </button>
@@ -237,7 +237,7 @@ export default function EmdCard({
               <button
                 onClick={() => setUnmarking(true)}
                 disabled={busy}
-                className="text-sm font-medium text-gray-400 hover:text-gray-700"
+                className="text-sm font-medium text-ink-subtle hover:text-ink"
               >
                 Mark not received
               </button>
@@ -245,7 +245,7 @@ export default function EmdCard({
             <button
               onClick={() => fileInput.current?.click()}
               disabled={busy}
-              className="text-sm font-medium text-gray-500 hover:text-gray-900"
+              className="text-sm font-medium text-ink-muted hover:text-ink"
             >
               Upload receipt
             </button>

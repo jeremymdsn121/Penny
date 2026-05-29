@@ -4,6 +4,7 @@ import Communications from '../components/Communications'
 import ComplianceChecklist from '../components/ComplianceChecklist'
 import EmdCard from '../components/EmdCard'
 import PennyBubble from '../components/PennyBubble'
+import SectionNav, { type SectionNavItem } from '../components/SectionNav'
 import SignaturesCard from '../components/SignaturesCard'
 import TaskPanel from '../components/TaskPanel'
 import type { TransactionEmail } from '../lib/api'
@@ -20,6 +21,21 @@ import {
   type PropertyRecord,
   type Transaction,
 } from '../lib/api'
+
+const SECTION_NAV: SectionNavItem[] = [
+  { id: 'details', label: 'Details' },
+  { id: 'deadlines', label: 'Deadlines' },
+  { id: 'scheduling', label: 'Scheduling' },
+  { id: 'emd', label: 'Earnest Money' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'checklist', label: 'Compliance File' },
+  { id: 'compliance', label: 'Compliance Review' },
+  { id: 'comps', label: 'Comparable Sales' },
+  { id: 'comms', label: 'Communications' },
+  { id: 'draft', label: 'Draft Document' },
+  { id: 'signatures', label: 'Signatures' },
+  { id: 'contract', label: 'Contract' },
+]
 
 function fmtMoney(v?: number | null): string {
   return typeof v === 'number' ? `$${Math.round(v).toLocaleString()}` : '—'
@@ -118,26 +134,26 @@ const STAGE_COLORS: Record<string, string> = {
   under_contract: 'bg-blue-100 text-blue-700',
   pending: 'bg-yellow-100 text-yellow-700',
   closed: 'bg-green-100 text-green-700',
-  cancelled: 'bg-gray-100 text-gray-600',
+  cancelled: 'bg-surface-3 text-ink-muted',
 }
 
 const COMPLIANCE_STATUS: Record<string, { label: string; cls: string }> = {
   approved: { label: 'Approved', cls: 'bg-green-100 text-green-700' },
   needs_attention: { label: 'Needs attention', cls: 'bg-red-100 text-red-700' },
-  not_reviewed: { label: 'Not reviewed', cls: 'bg-gray-100 text-gray-600' },
+  not_reviewed: { label: 'Not reviewed', cls: 'bg-surface-3 text-ink-muted' },
 }
 
 const SEVERITY_CLS: Record<string, string> = {
   issue: 'bg-red-100 text-red-700',
   warning: 'bg-yellow-100 text-yellow-700',
-  info: 'bg-gray-100 text-gray-600',
+  info: 'bg-surface-3 text-ink-muted',
 }
 
 const AI_STATUS_CLS: Record<string, string> = {
   satisfied: 'bg-green-100 text-green-700',
   missing: 'bg-red-100 text-red-700',
   unclear: 'bg-yellow-100 text-yellow-700',
-  not_reviewed: 'bg-gray-100 text-gray-500',
+  not_reviewed: 'bg-surface-3 text-ink-muted',
 }
 
 function StageBadge({ stage }: { stage?: string | null }) {
@@ -145,7 +161,7 @@ function StageBadge({ stage }: { stage?: string | null }) {
   return (
     <span
       className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
-        STAGE_COLORS[s] ?? 'bg-gray-100 text-gray-600'
+        STAGE_COLORS[s] ?? 'bg-surface-3 text-ink-muted'
       }`}
     >
       {STAGE_LABELS[s] ?? s}
@@ -539,7 +555,7 @@ export default function TransactionDetail() {
   // ---------- loading / error ----------
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-surface-2">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
       </div>
     )
@@ -547,8 +563,8 @@ export default function TransactionDetail() {
 
   if (error || !tx) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50 text-center">
-        <p className="text-sm text-gray-600">{error ?? 'Transaction not found.'}</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-2 text-center">
+        <p className="text-sm text-ink-muted">{error ?? 'Transaction not found.'}</p>
         <button
           onClick={() => navigate('/dashboard')}
           className="text-sm font-medium text-penny hover:underline"
@@ -562,24 +578,19 @@ export default function TransactionDetail() {
   const title = tx.address || 'Transaction'
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
-        >
-          ← Dashboard
-        </button>
-        <div className="flex items-center gap-3">
-          <h1 className="max-w-xs truncate text-sm font-semibold text-gray-900">{title}</h1>
+    <div className="mx-auto max-w-6xl px-8 py-8">
+      {/* Page header */}
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="truncate text-xl font-semibold tracking-tight text-ink">{title}</h1>
           {!editMode && <StageBadge stage={tx.stage} />}
         </div>
-        <div>
+        <div className="shrink-0">
           {editMode ? (
             <div className="flex items-center gap-3">
               <button
                 onClick={handleCancel}
-                className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                className="text-sm font-medium text-ink-muted hover:text-ink"
               >
                 Cancel
               </button>
@@ -595,17 +606,16 @@ export default function TransactionDetail() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setEditMode(true)}
-              className="text-sm font-medium text-penny hover:underline"
-            >
+            <button onClick={() => setEditMode(true)} className="btn-secondary">
               Edit
             </button>
           )}
         </div>
-      </header>
+      </div>
 
-      <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
+      <div className="flex gap-8">
+        {!editMode && <SectionNav items={SECTION_NAV} />}
+        <div className="min-w-0 flex-1 space-y-6">
         {!editMode && (
           <PennyBubble>
             {tx.closing_date
@@ -622,8 +632,8 @@ export default function TransactionDetail() {
 
         {/* Stage (edit mode only) */}
         {editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Stage</h3>
+          <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Stage</h3>
             <select
               value={values.stage ?? 'under_contract'}
               onChange={(e) => setValues((p) => ({ ...p, stage: e.target.value }))}
@@ -638,19 +648,20 @@ export default function TransactionDetail() {
         )}
 
         {/* Field groups */}
+        <section id="details" data-section className="space-y-6">
         {FIELD_GROUPS.map((group) => (
           <div
             key={group.label}
-            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm"
           >
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               {group.label}
             </h3>
             {editMode ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 {group.fields.map(({ key, label }) => (
                   <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+                    <label className="mb-1 block text-xs font-medium text-ink-muted">{label}</label>
                     <input
                       type="text"
                       value={values[key] ?? ''}
@@ -667,8 +678,8 @@ export default function TransactionDetail() {
                   const display = v != null && v !== '' ? String(v) : '—'
                   return (
                     <div key={key} className="sm:contents">
-                      <dt className="text-xs font-medium text-gray-500">{label}</dt>
-                      <dd className="text-sm text-gray-900">{display}</dd>
+                      <dt className="text-xs font-medium text-ink-muted">{label}</dt>
+                      <dd className="text-sm text-ink">{display}</dd>
                     </div>
                   )
                 })}
@@ -676,14 +687,15 @@ export default function TransactionDetail() {
             )}
           </div>
         ))}
+        </section>
 
         {/* Deadlines */}
         {!editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <div id="deadlines" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               Deadlines
             </h3>
-            <p className="mb-4 text-xs text-gray-400">
+            <p className="mb-4 text-xs text-ink-subtle">
               Penny reminds you at the 5-day, 2-day, and day-of marks. Responsible parties
               are notified automatically only if you've made deadline reminders autonomous —
               otherwise use “Notify parties” to confirm and send.
@@ -701,9 +713,9 @@ export default function TransactionDetail() {
             )}
 
             {deadlines.length === 0 ? (
-              <p className="mb-4 text-sm text-gray-400">No deadlines tracked yet.</p>
+              <p className="mb-4 text-sm text-ink-subtle">No deadlines tracked yet.</p>
             ) : (
-              <ul className="mb-5 divide-y divide-gray-100">
+              <ul className="mb-5 divide-y divide-hairline">
                 {deadlines.map((d) => {
                   const sent = [
                     d.reminder_5day_sent && '5-day',
@@ -717,8 +729,8 @@ export default function TransactionDetail() {
                     <li key={d.id} className="py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900">{d.label}</p>
-                          <p className="mt-0.5 text-xs text-gray-500">
+                          <p className="text-sm font-medium text-ink">{d.label}</p>
+                          <p className="mt-0.5 text-xs text-ink-muted">
                             Due {d.due_date || '—'}
                             {parties.length > 0 && <> · Parties: {parties.join(', ')}</>}
                           </p>
@@ -741,7 +753,7 @@ export default function TransactionDetail() {
                                 </button>
                                 <button
                                   onClick={() => setConfirmNotifyId(null)}
-                                  className="text-xs font-medium text-gray-400 hover:text-gray-700"
+                                  className="text-xs font-medium text-ink-subtle hover:text-ink"
                                 >
                                   Cancel
                                 </button>
@@ -756,7 +768,7 @@ export default function TransactionDetail() {
                             ))}
                           <button
                             onClick={() => handleDeleteDeadline(d.id)}
-                            className="text-xs font-medium text-gray-400 hover:text-red-600"
+                            className="text-xs font-medium text-ink-subtle hover:text-red-600"
                           >
                             Delete
                           </button>
@@ -768,10 +780,10 @@ export default function TransactionDetail() {
               </ul>
             )}
 
-            <div className="border-t border-gray-100 pt-4">
+            <div className="border-t border-hairline pt-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Label</label>
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">Label</label>
                   <input
                     type="text"
                     value={dlLabel}
@@ -781,7 +793,7 @@ export default function TransactionDetail() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Due date</label>
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">Due date</label>
                   <input
                     type="date"
                     value={dlDue}
@@ -791,7 +803,7 @@ export default function TransactionDetail() {
                 </div>
               </div>
               <div className="mt-3">
-                <label className="mb-1 block text-xs font-medium text-gray-600">
+                <label className="mb-1 block text-xs font-medium text-ink-muted">
                   Responsible parties (optional)
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -805,7 +817,7 @@ export default function TransactionDetail() {
                         className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                           on
                             ? 'border-violet-300 bg-violet-50 text-violet-700'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                            : 'border-hairline text-ink-muted hover:border-hairline'
                         }`}
                       >
                         {r.label}
@@ -830,11 +842,11 @@ export default function TransactionDetail() {
 
         {/* Scheduling */}
         {!editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <div id="scheduling" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               Scheduling
             </h3>
-            <p className="mb-4 text-xs text-gray-400">
+            <p className="mb-4 text-xs text-ink-subtle">
               Penny proposes open times from your working hours and books showings or
               inspections. Calendar sync isn’t connected yet — times reflect your hours and
               existing appointments.
@@ -852,21 +864,21 @@ export default function TransactionDetail() {
             )}
 
             {appointments.length > 0 && (
-              <ul className="mb-5 divide-y divide-gray-100">
+              <ul className="mb-5 divide-y divide-hairline">
                 {appointments.map((a) => (
                   <li key={a.id} className="flex items-center justify-between py-3">
                     <div>
-                      <p className="text-sm font-medium capitalize text-gray-900">
+                      <p className="text-sm font-medium capitalize text-ink">
                         {(a.type ?? 'appointment').replace('_', ' ')}
                       </p>
-                      <p className="mt-0.5 text-xs text-gray-500">
+                      <p className="mt-0.5 text-xs text-ink-muted">
                         {a.scheduled_at ? fmtSlot(a.scheduled_at) : 'Time TBD'}
                         {a.calendar_event_id ? ' · on calendar' : ''}
                       </p>
                     </div>
                     <button
                       onClick={() => handleCancelAppointment(a.id)}
-                      className="text-xs font-medium text-gray-400 hover:text-red-600"
+                      className="text-xs font-medium text-ink-subtle hover:text-red-600"
                     >
                       Cancel
                     </button>
@@ -887,14 +899,14 @@ export default function TransactionDetail() {
             </button>
 
             {proposal && (
-              <div className="mt-5 border-t border-gray-100 pt-5">
+              <div className="mt-5 border-t border-hairline pt-5">
                 {proposal.slots.length === 0 ? (
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-ink-subtle">
                     No open times in your working hours over the next week.
                   </p>
                 ) : (
                   <>
-                    <p className="mb-2 text-xs font-medium text-gray-600">
+                    <p className="mb-2 text-xs font-medium text-ink-muted">
                       Pick a time ({proposal.timezone}):
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -905,7 +917,7 @@ export default function TransactionDetail() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                             selectedSlot === slot
                               ? 'border-violet-300 bg-violet-50 text-violet-700'
-                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                              : 'border-hairline text-ink-muted hover:border-hairline'
                           }`}
                         >
                           {fmtSlot(slot, proposal.timezone)}
@@ -930,7 +942,7 @@ export default function TransactionDetail() {
                         </button>
                         <button
                           onClick={() => setSelectedSlot(null)}
-                          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                          className="text-sm font-medium text-ink-muted hover:text-ink"
                         >
                           Cancel
                         </button>
@@ -944,19 +956,31 @@ export default function TransactionDetail() {
         )}
 
         {/* Earnest money deposit */}
-        {!editMode && tx && <EmdCard tx={tx} onChange={setTx} />}
+        {!editMode && tx && (
+          <section id="emd" data-section>
+            <EmdCard tx={tx} onChange={setTx} />
+          </section>
+        )}
 
         {/* Tasks (workflow) */}
-        {!editMode && tx && <TaskPanel txId={tx.id} />}
+        {!editMode && tx && (
+          <section id="tasks" data-section>
+            <TaskPanel txId={tx.id} />
+          </section>
+        )}
 
         {/* Compliance File (document checklist) */}
-        {!editMode && tx && <ComplianceChecklist txId={tx.id} />}
+        {!editMode && tx && (
+          <section id="checklist" data-section>
+            <ComplianceChecklist txId={tx.id} />
+          </section>
+        )}
 
         {/* Compliance review */}
         {!editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div id="compliance" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Compliance review
               </h3>
               {(() => {
@@ -969,7 +993,7 @@ export default function TransactionDetail() {
                 )
               })()}
             </div>
-            <p className="mb-4 text-xs text-gray-400">
+            <p className="mb-4 text-xs text-ink-subtle">
               Penny surfaces findings to verify — she never approves compliance. A human
               must review and sign off below.
             </p>
@@ -992,8 +1016,8 @@ export default function TransactionDetail() {
             </button>
 
             {review && (
-              <div className="mt-5 space-y-5 border-t border-gray-100 pt-5">
-                <p className="text-sm text-gray-600">
+              <div className="mt-5 space-y-5 border-t border-hairline pt-5">
+                <p className="text-sm text-ink-muted">
                   <strong>{review.counts.issue}</strong> issue
                   {review.counts.issue !== 1 ? 's' : ''}, <strong>{review.counts.warning}</strong>{' '}
                   warning{review.counts.warning !== 1 ? 's' : ''} · {review.ruleset_state} checklist
@@ -1010,7 +1034,7 @@ export default function TransactionDetail() {
                 {/* Findings */}
                 {review.findings.length > 0 && (
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
                       Findings
                     </h4>
                     <ul className="space-y-2">
@@ -1028,7 +1052,7 @@ export default function TransactionDetail() {
                             >
                               {f.severity}
                             </span>
-                            <span className="text-gray-700">{f.message}</span>
+                            <span className="text-ink">{f.message}</span>
                           </li>
                         ))}
                     </ul>
@@ -1037,7 +1061,7 @@ export default function TransactionDetail() {
 
                 {/* State checklist */}
                 <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
                     {review.ruleset_state} checklist
                   </h4>
                   <ul className="space-y-2">
@@ -1050,10 +1074,10 @@ export default function TransactionDetail() {
                         >
                           {item.ai_status.replace('_', ' ')}
                         </span>
-                        <span className="text-gray-700">
+                        <span className="text-ink">
                           {item.requirement}
                           {item.ai_note && (
-                            <span className="text-gray-400"> — {item.ai_note}</span>
+                            <span className="text-ink-subtle"> — {item.ai_note}</span>
                           )}
                         </span>
                       </li>
@@ -1061,13 +1085,13 @@ export default function TransactionDetail() {
                   </ul>
                 </div>
 
-                <p className="text-xs text-gray-400">{review.disclaimer}</p>
+                <p className="text-xs text-ink-subtle">{review.disclaimer}</p>
 
                 {/* Human decision */}
-                <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+                <div className="flex flex-wrap items-center gap-3 border-t border-hairline pt-4">
                   {confirmDecision ? (
                     <>
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-ink">
                         Set compliance to{' '}
                         <strong>
                           {COMPLIANCE_STATUS[confirmDecision]?.label ?? confirmDecision}
@@ -1086,7 +1110,7 @@ export default function TransactionDetail() {
                       </button>
                       <button
                         onClick={() => setConfirmDecision(null)}
-                        className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                        className="text-sm font-medium text-ink-muted hover:text-ink"
                       >
                         Cancel
                       </button>
@@ -1115,11 +1139,11 @@ export default function TransactionDetail() {
 
         {/* Comparable sales */}
         {!editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <div id="comps" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               Comparable sales
             </h3>
-            <p className="mb-4 text-xs text-gray-400">
+            <p className="mb-4 text-xs text-ink-subtle">
               Penny pulls recent comps and an estimated value for this property. Figures are
               estimates from Rentcast.
             </p>
@@ -1142,14 +1166,14 @@ export default function TransactionDetail() {
             </button>
 
             {comps && (
-              <div className="mt-5 space-y-4 border-t border-gray-100 pt-5">
+              <div className="mt-5 space-y-4 border-t border-hairline pt-5">
                 {comps.estimate != null && (
                   <div>
-                    <p className="text-2xl font-semibold text-gray-900">
+                    <p className="text-2xl font-semibold text-ink">
                       {fmtMoney(comps.estimate)}
                     </p>
                     {comps.range_low != null && comps.range_high != null && (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-ink-subtle">
                         Estimated range {fmtMoney(comps.range_low)} – {fmtMoney(comps.range_high)}
                       </p>
                     )}
@@ -1157,14 +1181,14 @@ export default function TransactionDetail() {
                 )}
 
                 {comps.comparables.length === 0 ? (
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-ink-subtle">
                     No comparable properties came back for this address.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="text-xs uppercase tracking-wide text-gray-400">
+                        <tr className="text-xs uppercase tracking-wide text-ink-subtle">
                           <th className="pb-2 pr-3 font-medium">Address</th>
                           <th className="pb-2 pr-3 font-medium">Price</th>
                           <th className="pb-2 pr-3 font-medium">Bd/Ba</th>
@@ -1172,20 +1196,20 @@ export default function TransactionDetail() {
                           <th className="pb-2 font-medium">Dist.</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-hairline">
                         {comps.comparables.map((c, i) => (
-                          <tr key={i} className="text-gray-700">
+                          <tr key={i} className="text-ink">
                             <td className="py-2 pr-3">{c.address ?? '—'}</td>
                             <td className="py-2 pr-3 font-medium">{fmtMoney(c.price)}</td>
-                            <td className="py-2 pr-3 text-gray-500">
+                            <td className="py-2 pr-3 text-ink-muted">
                               {c.bedrooms ?? '—'}/{c.bathrooms ?? '—'}
                             </td>
-                            <td className="py-2 pr-3 text-gray-500">
+                            <td className="py-2 pr-3 text-ink-muted">
                               {c.square_footage != null
                                 ? c.square_footage.toLocaleString()
                                 : '—'}
                             </td>
-                            <td className="py-2 text-gray-500">
+                            <td className="py-2 text-ink-muted">
                               {c.distance != null ? `${c.distance.toFixed(1)} mi` : '—'}
                             </td>
                           </tr>
@@ -1198,8 +1222,8 @@ export default function TransactionDetail() {
             )}
 
             {/* Property record + tax history (separate Rentcast call) */}
-            <div className="mt-6 border-t border-gray-100 pt-5">
-              <p className="mb-3 text-xs text-gray-400">
+            <div className="mt-6 border-t border-hairline pt-5">
+              <p className="mb-3 text-xs text-ink-subtle">
                 Pull the public record — last sale, structure, and assessed-value / property-tax
                 history from the county assessor.
               </p>
@@ -1213,10 +1237,10 @@ export default function TransactionDetail() {
               <button
                 onClick={handlePropertyRecord}
                 disabled={propLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-surface-3 disabled:opacity-50"
               >
                 {propLoading && (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-subtle border-t-transparent" />
                 )}
                 {propLoading
                   ? 'Loading record…'
@@ -1229,8 +1253,8 @@ export default function TransactionDetail() {
                 <div className="mt-5 space-y-5">
                   <dl className="grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-gray-400">Last sale</dt>
-                      <dd className="text-gray-700">
+                      <dt className="text-xs uppercase tracking-wide text-ink-subtle">Last sale</dt>
+                      <dd className="text-ink">
                         {propRecord.last_sale_price != null
                           ? fmtMoney(propRecord.last_sale_price)
                           : '—'}
@@ -1240,20 +1264,20 @@ export default function TransactionDetail() {
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-gray-400">Year built</dt>
-                      <dd className="text-gray-700">{propRecord.year_built ?? '—'}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-ink-subtle">Year built</dt>
+                      <dd className="text-ink">{propRecord.year_built ?? '—'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-gray-400">Sqft</dt>
-                      <dd className="text-gray-700">
+                      <dt className="text-xs uppercase tracking-wide text-ink-subtle">Sqft</dt>
+                      <dd className="text-ink">
                         {propRecord.square_footage != null
                           ? propRecord.square_footage.toLocaleString()
                           : '—'}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-gray-400">Lot size</dt>
-                      <dd className="text-gray-700">
+                      <dt className="text-xs uppercase tracking-wide text-ink-subtle">Lot size</dt>
+                      <dd className="text-ink">
                         {propRecord.lot_size != null
                           ? `${propRecord.lot_size.toLocaleString()} sqft`
                           : '—'}
@@ -1268,25 +1292,25 @@ export default function TransactionDetail() {
 
                   {propRecord.tax_assessments.length > 0 && (
                     <div className="overflow-x-auto">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                         Assessment history
                       </p>
                       <table className="w-full text-left text-sm">
                         <thead>
-                          <tr className="text-xs uppercase tracking-wide text-gray-400">
+                          <tr className="text-xs uppercase tracking-wide text-ink-subtle">
                             <th className="pb-2 pr-3 font-medium">Year</th>
                             <th className="pb-2 pr-3 font-medium">Assessed</th>
                             <th className="pb-2 pr-3 font-medium">Land</th>
                             <th className="pb-2 font-medium">Improvements</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-hairline">
                           {propRecord.tax_assessments.map((a, i) => (
-                            <tr key={i} className="text-gray-700">
-                              <td className="py-2 pr-3 text-gray-500">{a.year ?? '—'}</td>
+                            <tr key={i} className="text-ink">
+                              <td className="py-2 pr-3 text-ink-muted">{a.year ?? '—'}</td>
                               <td className="py-2 pr-3 font-medium">{fmtMoney(a.value)}</td>
-                              <td className="py-2 pr-3 text-gray-500">{fmtMoney(a.land)}</td>
-                              <td className="py-2 text-gray-500">{fmtMoney(a.improvements)}</td>
+                              <td className="py-2 pr-3 text-ink-muted">{fmtMoney(a.land)}</td>
+                              <td className="py-2 text-ink-muted">{fmtMoney(a.improvements)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1296,20 +1320,20 @@ export default function TransactionDetail() {
 
                   {propRecord.property_taxes.length > 0 && (
                     <div className="overflow-x-auto">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                         Property tax history
                       </p>
                       <table className="w-full text-left text-sm">
                         <thead>
-                          <tr className="text-xs uppercase tracking-wide text-gray-400">
+                          <tr className="text-xs uppercase tracking-wide text-ink-subtle">
                             <th className="pb-2 pr-3 font-medium">Year</th>
                             <th className="pb-2 font-medium">Annual tax</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-hairline">
                           {propRecord.property_taxes.map((t, i) => (
-                            <tr key={i} className="text-gray-700">
-                              <td className="py-2 pr-3 text-gray-500">{t.year ?? '—'}</td>
+                            <tr key={i} className="text-ink">
+                              <td className="py-2 pr-3 text-ink-muted">{t.year ?? '—'}</td>
                               <td className="py-2 font-medium">{fmtMoney(t.total)}</td>
                             </tr>
                           ))}
@@ -1325,16 +1349,18 @@ export default function TransactionDetail() {
 
         {/* Communications (email thread) */}
         {!editMode && tx && (
-          <Communications txId={tx.id} onReply={handleReplyToEmail} />
+          <section id="comms" data-section>
+            <Communications txId={tx.id} onReply={handleReplyToEmail} />
+          </section>
         )}
 
         {/* Draft a document */}
         {!editMode && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <div id="draft" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
               Draft a document
             </h3>
-            <p className="mb-4 text-xs text-gray-400">
+            <p className="mb-4 text-xs text-ink-subtle">
               Penny drafts in your brand voice using your confirmed Brand &amp; Style rules.
               Review before sending.
             </p>
@@ -1352,7 +1378,7 @@ export default function TransactionDetail() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Type</label>
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Type</label>
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
@@ -1366,7 +1392,7 @@ export default function TransactionDetail() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
+                <label className="mb-1 block text-xs font-medium text-ink-muted">
                   Recipient (optional)
                 </label>
                 <input
@@ -1379,7 +1405,7 @@ export default function TransactionDetail() {
               </div>
             </div>
             <div className="mt-3">
-              <label className="mb-1 block text-xs font-medium text-gray-600">
+              <label className="mb-1 block text-xs font-medium text-ink-muted">
                 Instructions (optional)
               </label>
               <textarea
@@ -1402,15 +1428,15 @@ export default function TransactionDetail() {
             </button>
 
             {hasDraft && (
-              <div className="mt-5 border-t border-gray-100 pt-5">
-                <label className="mb-1 block text-xs font-medium text-gray-600">Subject</label>
+              <div className="mt-5 border-t border-hairline pt-5">
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Subject</label>
                 <input
                   type="text"
                   value={draftSubject}
                   onChange={(e) => setDraftSubject(e.target.value)}
                   className="input"
                 />
-                <label className="mb-1 mt-3 block text-xs font-medium text-gray-600">Body</label>
+                <label className="mb-1 mt-3 block text-xs font-medium text-ink-muted">Body</label>
                 <textarea
                   value={draftBody}
                   onChange={(e) => setDraftBody(e.target.value)}
@@ -1418,7 +1444,7 @@ export default function TransactionDetail() {
                   className="input text-sm"
                 />
                 <div className="mt-4 max-w-sm">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">
                     Send to (email)
                   </label>
                   <input
@@ -1454,7 +1480,7 @@ export default function TransactionDetail() {
                     </button>
                     <button
                       onClick={() => setConfirmingSend(false)}
-                      className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                      className="text-sm font-medium text-ink-muted hover:text-ink"
                     >
                       Cancel
                     </button>
@@ -1466,18 +1492,23 @@ export default function TransactionDetail() {
         )}
 
         {/* Signatures (DocuSign seam) */}
-        {!editMode && tx && <SignaturesCard tx={tx} />}
+        {!editMode && tx && (
+          <section id="signatures" data-section>
+            <SignaturesCard tx={tx} />
+          </section>
+        )}
 
         {/* Contract PDF */}
         {tx.contract_pdf_url && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Contract</h3>
-            <p className="truncate text-xs text-gray-400">{tx.contract_pdf_url}</p>
+          <div id="contract" data-section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-muted">Contract</h3>
+            <p className="truncate text-xs text-ink-subtle">{tx.contract_pdf_url}</p>
           </div>
         )}
 
-        <div className="pb-10" />
-      </main>
+          <div className="pb-10" />
+        </div>
+      </div>
     </div>
   )
 }

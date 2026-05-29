@@ -4,11 +4,11 @@ import PennyBubble from '../components/PennyBubble'
 import { listingsApi, type Listing } from '../lib/api'
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
+  draft: 'bg-surface-3 text-ink-muted',
   active: 'bg-green-100 text-green-700',
   pending: 'bg-yellow-100 text-yellow-700',
   sold: 'bg-blue-100 text-blue-700',
-  withdrawn: 'bg-gray-100 text-gray-500',
+  withdrawn: 'bg-surface-3 text-ink-muted',
 }
 
 function StatusBadge({ status }: { status?: string | null }) {
@@ -16,7 +16,7 @@ function StatusBadge({ status }: { status?: string | null }) {
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-        STATUS_COLORS[s] ?? 'bg-gray-100 text-gray-600'
+        STATUS_COLORS[s] ?? 'bg-surface-3 text-ink-muted'
       }`}
     >
       {s}
@@ -66,15 +66,15 @@ export default function Listings() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Listings</h1>
+        <h1 className="text-sm font-semibold text-ink">Listings</h1>
         <div className="w-20" />
       </header>
 
@@ -95,24 +95,24 @@ export default function Listings() {
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0] ?? null) }}
-          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-8 py-12 text-center transition-colors ${
-            dragOver ? 'border-penny bg-penny-light' : 'border-gray-300'
+          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-surface px-8 py-12 text-center transition-colors ${
+            dragOver ? 'border-penny bg-penny-light' : 'border-hairline'
           }`}
         >
           {extracting ? (
             <>
               <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
-              <p className="text-sm font-medium text-gray-700">Reading the packet…</p>
-              <p className="mt-1 text-xs text-gray-400">This usually takes 10–20 seconds.</p>
+              <p className="text-sm font-medium text-ink">Reading the packet…</p>
+              <p className="mt-1 text-xs text-ink-subtle">This usually takes 10–20 seconds.</p>
             </>
           ) : (
             <>
-              <p className="mb-1 text-sm font-medium text-gray-700">Drag &amp; drop a listing packet</p>
-              <p className="mb-4 text-xs text-gray-400">or</p>
+              <p className="mb-1 text-sm font-medium text-ink">Drag &amp; drop a listing packet</p>
+              <p className="mb-4 text-xs text-ink-subtle">or</p>
               <button onClick={() => fileRef.current?.click()} className="btn-primary">
                 Browse file
               </button>
-              <p className="mt-3 text-xs text-gray-400">Max 25 MB · PDF only</p>
+              <p className="mt-3 text-xs text-ink-subtle">Max 25 MB · PDF only</p>
               <input
                 ref={fileRef}
                 type="file"
@@ -125,32 +125,32 @@ export default function Listings() {
         </div>
 
         {/* Existing listings */}
-        <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Your listings</h2>
+        <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+          <div className="border-b border-hairline px-6 py-4">
+            <h2 className="text-lg font-semibold text-ink">Your listings</h2>
           </div>
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
             </div>
           ) : listings.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-gray-400">
+            <p className="px-6 py-10 text-center text-sm text-ink-subtle">
               No listings yet. Upload a packet to prepare one.
             </p>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-hairline">
               {listings.map((l) => (
                 <li key={l.id}>
                   <button
                     onClick={() => navigate(`/listings/${l.id}`)}
-                    className="flex w-full items-start justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-gray-50"
+                    className="flex w-full items-start justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-surface-3"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
+                      <p className="truncate text-sm font-medium text-ink">
                         {l.address || 'Address not set'}
                         {l.city ? `, ${l.city}` : ''}
                       </p>
-                      <p className="mt-0.5 text-xs text-gray-400">
+                      <p className="mt-0.5 text-xs text-ink-subtle">
                         {l.list_price != null ? `$${Math.round(l.list_price).toLocaleString()}` : 'No price'}
                         {l.bedrooms != null ? `  ·  ${l.bedrooms} bd` : ''}
                         {l.bathrooms != null ? ` / ${l.bathrooms} ba` : ''}

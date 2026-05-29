@@ -1,13 +1,81 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ *
+ * Design tokens. Light values on :root, dark overrides under .dark.
+ * Tailwind reads these via the surface/content/hairline color tokens.
+ * ------------------------------------------------------------------ */
+:root {
+  --app: 247 248 250;
+  --surface: 255 255 255;
+  --surface-2: 255 255 255;
+  --surface-3: 241 243 247;
+  --content: 17 19 24;
+  --content-muted: 91 97 112;
+  --content-subtle: 137 143 158;
+  --hairline: 230 232 238;
+}
+
+.dark {
+  --app: 11 13 18;
+  --surface: 20 22 29;
+  --surface-2: 27 30 39;
+  --surface-3: 35 39 50;
+  --content: 232 234 240;
+  --content-muted: 160 164 178;
+  --content-subtle: 107 112 128;
+  --hairline: 38 42 53;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-[rgb(var(--app))] text-ink antialiased;
+  }
+
+  /* Anchored sections sit clear of any sticky header when scrolled to. */
+  [data-section] {
+    scroll-margin-top: 1.5rem;
+  }
+
+  ::selection {
+    @apply bg-penny/30;
+  }
+}
+
 @layer components {
+  .card {
+    @apply rounded-2xl border border-hairline bg-surface shadow-soft;
+  }
+
   .input {
-    @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-penny focus:ring-1 focus:ring-penny;
+    @apply w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink
+      shadow-sm outline-none transition-colors placeholder:text-ink-subtle
+      focus:border-penny focus:ring-1 focus:ring-penny;
   }
 
   .btn-primary {
-    @apply rounded-lg bg-penny px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-lg bg-penny px-4 py-2 text-sm font-medium text-white transition-colors
+      hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-lg border border-hairline bg-surface px-4 py-2
+      text-sm font-medium text-ink transition-colors hover:bg-surface-3
+      disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-muted
+      transition-colors hover:bg-surface-3 hover:text-ink;
+  }
+
+  .nav-item-active {
+    @apply bg-penny/10 text-penny dark:bg-penny/15 dark:text-penny-bright;
   }
 }

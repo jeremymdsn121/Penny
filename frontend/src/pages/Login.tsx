@@ -34,15 +34,15 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
       <div className="w-full max-w-md space-y-6">
         <PennyBubble>Welcome back — log in and I&rsquo;ll pick up where we left off.</PennyBubble>
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+          className="space-y-4 rounded-2xl border border-hairline bg-surface p-6 shadow-sm"
         >
-          <h1 className="text-xl font-semibold text-gray-900">Log in</h1>
+          <h1 className="text-xl font-semibold text-ink">Log in</h1>
 
           <Field label="Email" error={errors.email?.message}>
             <input
@@ -68,7 +68,7 @@ export default function Login() {
             {isSubmitting ? 'Logging in…' : 'Log in'}
           </button>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-ink-muted">
             New brokerage?{' '}
             <Link to="/signup" className="font-medium text-penny hover:underline">
               Create an account
@@ -91,7 +91,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
       {children}
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
     </label>

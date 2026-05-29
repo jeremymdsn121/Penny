@@ -8,7 +8,7 @@ const SECTIONS: { key: keyof ReviewQueue; title: string; tone: string }[] = [
   { key: 'compliance_attention', title: 'Compliance needs attention', tone: 'text-red-700' },
   { key: 'closing_soon_incomplete', title: 'Closing soon, file incomplete', tone: 'text-yellow-700' },
   { key: 'overdue_deadlines', title: 'Overdue deadlines', tone: 'text-yellow-700' },
-  { key: 'stale_transactions', title: 'Stale transactions', tone: 'text-gray-700' },
+  { key: 'stale_transactions', title: 'Stale transactions', tone: 'text-ink' },
 ]
 
 function ReviewRow({ item }: { item: ReviewItem }) {
@@ -38,11 +38,11 @@ function ReviewRow({ item }: { item: ReviewItem }) {
           onClick={() => navigate(`/transactions/${item.id}`)}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="truncate text-sm font-medium text-gray-900 hover:text-penny">
+          <p className="truncate text-sm font-medium text-ink hover:text-penny">
             {item.address || 'Address not set'}
           </p>
-          <p className="mt-0.5 truncate text-xs text-gray-500">{item.reason}</p>
-          <p className="mt-0.5 truncate text-xs text-gray-400">
+          <p className="mt-0.5 truncate text-xs text-ink-muted">{item.reason}</p>
+          <p className="mt-0.5 truncate text-xs text-ink-subtle">
             {item.buyer_name ? `Buyer: ${item.buyer_name}` : ''}
             {item.closing_date ? `  ·  Closes ${item.closing_date}` : ''}
             {item.agent_name ? `  ·  ${item.agent_name}` : ''}
@@ -99,18 +99,18 @@ export default function ReviewQueue() {
   }, [load])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Needs Review</h1>
+        <h1 className="text-sm font-semibold text-ink">Needs Review</h1>
         <button
           onClick={load}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           Refresh
         </button>
@@ -140,11 +140,11 @@ export default function ReviewQueue() {
             return (
               <section
                 key={key}
-                className="rounded-2xl border border-gray-100 bg-white shadow-sm"
+                className="rounded-2xl border border-hairline bg-surface shadow-sm"
               >
-                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                <div className="flex items-center justify-between border-b border-hairline px-6 py-4">
                   <h2 className={`text-sm font-semibold ${tone}`}>{title}</h2>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  <span className="rounded-full bg-surface-3 px-2.5 py-0.5 text-xs font-medium text-ink-muted">
                     {items.length}
                   </span>
                 </div>
@@ -153,7 +153,7 @@ export default function ReviewQueue() {
                     No transactions need attention here.
                   </p>
                 ) : (
-                  <ul className="divide-y divide-gray-50">
+                  <ul className="divide-y divide-hairline">
                     {items.map((item) => (
                       <ReviewRow key={`${key}-${item.id}`} item={item} />
                     ))}

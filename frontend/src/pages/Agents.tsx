@@ -68,10 +68,10 @@ function StyleProfile({ agent }: { agent: Agent }) {
   const confirmed = rules.filter((r) => r.confirmed)
 
   return (
-    <div className="space-y-4 border-t border-gray-100 bg-gray-50/50 px-6 py-5">
+    <div className="space-y-4 border-t border-hairline bg-surface-2/50 px-6 py-5">
       <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">My Style</h3>
-        <p className="mt-1 text-xs text-gray-400">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">My Style</h3>
+        <p className="mt-1 text-xs text-ink-subtle">
           Upload a sample email or letter in {agent.name || 'this agent'}’s voice. Confirmed
           rules layer on top of the brokerage style for their documents only.
         </p>
@@ -90,7 +90,7 @@ function StyleProfile({ agent }: { agent: Agent }) {
           type="file"
           accept="application/pdf,image/*,.pdf,.docx"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-xs file:font-medium file:text-gray-700 hover:file:bg-gray-200"
+          className="block text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-2 file:text-xs file:font-medium file:text-ink hover:file:bg-surface-3"
         />
         <button
           onClick={handleUpload}
@@ -105,23 +105,23 @@ function StyleProfile({ agent }: { agent: Agent }) {
       </div>
 
       {loading ? (
-        <p className="text-xs text-gray-400">Loading…</p>
+        <p className="text-xs text-ink-subtle">Loading…</p>
       ) : (
         <>
           {pending.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold text-gray-600">Proposed — needs review</p>
+              <p className="mb-1.5 text-xs font-semibold text-ink-muted">Proposed — needs review</p>
               <ul className="space-y-1.5">
                 {pending.map((r) => (
                   <li
                     key={r.id}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2"
+                    className="flex items-start justify-between gap-3 rounded-lg border border-hairline bg-surface px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
                       <span className="inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
                         {cap(r.category)}
                       </span>
-                      <p className="mt-1 text-xs text-gray-800">{r.rule}</p>
+                      <p className="mt-1 text-xs text-ink">{r.rule}</p>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button
@@ -144,21 +144,21 @@ function StyleProfile({ agent }: { agent: Agent }) {
           )}
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold text-gray-600">Confirmed rules</p>
+            <p className="mb-1.5 text-xs font-semibold text-ink-muted">Confirmed rules</p>
             {confirmed.length === 0 ? (
-              <p className="text-xs text-gray-400">No confirmed rules yet.</p>
+              <p className="text-xs text-ink-subtle">No confirmed rules yet.</p>
             ) : (
               <ul className="space-y-1.5">
                 {confirmed.map((r) => (
                   <li
                     key={r.id}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2"
+                    className="flex items-start justify-between gap-3 rounded-lg border border-hairline bg-surface px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
                       <span className="inline-block rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
                         {cap(r.category)}
                       </span>
-                      <p className="mt-1 text-xs text-gray-800">{r.rule}</p>
+                      <p className="mt-1 text-xs text-ink">{r.rule}</p>
                     </div>
                     <button
                       onClick={() => removeRule(r.id)}
@@ -223,15 +223,15 @@ export default function Agents() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Team &amp; Style</h1>
+        <h1 className="text-sm font-semibold text-ink">Team &amp; Style</h1>
         <div className="w-28" />
       </header>
 
@@ -248,8 +248,8 @@ export default function Agents() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Add an agent
           </h2>
           <div className="flex flex-wrap items-center gap-3">
@@ -257,13 +257,13 @@ export default function Agents() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Name"
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="flex-1 rounded-lg border border-hairline px-3 py-2 text-sm"
             />
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email (optional)"
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="flex-1 rounded-lg border border-hairline px-3 py-2 text-sm"
             />
             <button
               onClick={addAgent}
@@ -275,24 +275,24 @@ export default function Agents() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Agents</h2>
+        <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+          <div className="border-b border-hairline px-6 py-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Agents</h2>
           </div>
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
             </div>
           ) : agents.length === 0 ? (
-            <p className="px-6 py-8 text-center text-sm text-gray-400">No agents yet.</p>
+            <p className="px-6 py-8 text-center text-sm text-ink-subtle">No agents yet.</p>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-hairline">
               {agents.map((a) => (
                 <li key={a.id}>
                   <div className="flex items-center justify-between gap-4 px-6 py-4">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">{a.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                      <p className="truncate text-sm font-medium text-ink">{a.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-subtle">
                         {a.email || 'no email'}
                         {a.style_rule_count ? `  ·  ${a.style_rule_count} style rule(s)` : '  ·  no style profile'}
                       </p>

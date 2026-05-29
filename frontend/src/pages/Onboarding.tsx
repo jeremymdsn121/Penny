@@ -112,18 +112,18 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10">
+    <div className="min-h-screen bg-surface-2 px-4 py-10">
       <div className="mx-auto w-full max-w-lg space-y-6">
         <Stepper step={step} />
         <PennyBubble>{bubble}</PennyBubble>
 
-        <div className="space-y-5 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          {!options && !error && <p className="text-sm text-gray-500">Loading…</p>}
+        <div className="space-y-5 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          {!options && !error && <p className="text-sm text-ink-muted">Loading…</p>}
 
           {step === 0 && options && (
             <div className="space-y-3">
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">State</span>
+                <span className="mb-1 block text-sm font-medium text-ink">State</span>
                 <select className="input" value={state} onChange={(e) => setState(e.target.value)}>
                   <option value="">Select a state…</option>
                   {options.states.map((s) => (
@@ -134,7 +134,7 @@ export default function Onboarding() {
                 </select>
               </label>
               {state && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-ink-muted">
                   {isDetailedState
                     ? `I have detailed compliance rules for ${state}.`
                     : `I'll use my default compliance checklist for ${state} — verify state-specific addenda.`}
@@ -175,7 +175,7 @@ export default function Onboarding() {
                   placeholder="deals@yourbrokerage.com"
                 />
               )}
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-muted">
                 I&rsquo;ll connect to the live mailbox when we set up scheduling — for now this just records how you want it to work.
               </p>
             </div>
@@ -184,13 +184,13 @@ export default function Onboarding() {
           {step === 3 && options && (
             <div className="space-y-4">
               <div>
-                <span className="mb-1 block text-sm font-medium text-gray-700">Calendar</span>
+                <span className="mb-1 block text-sm font-medium text-ink">Calendar</span>
                 <div className="grid grid-cols-3 gap-2">
                   <ChoicePill label="Google" active={calendarProvider === 'google'} onClick={() => setCalendarProvider('google')} />
                   <ChoicePill label="Outlook" active={calendarProvider === 'outlook'} onClick={() => setCalendarProvider('outlook')} />
                   <ChoicePill label="Decide later" active={calendarProvider === ''} onClick={() => setCalendarProvider('')} />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-muted">
                   I&rsquo;ll connect your calendar account when we turn on scheduling.
                 </p>
               </div>
@@ -201,7 +201,7 @@ export default function Onboarding() {
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">Buffer between appointments</span>
+                <span className="mb-1 block text-sm font-medium text-ink">Buffer between appointments</span>
                 <select
                   className="input"
                   value={bufferMinutes}
@@ -216,13 +216,13 @@ export default function Onboarding() {
               </label>
 
               <div>
-                <span className="mb-1 block text-sm font-medium text-gray-700">How showings get booked</span>
+                <span className="mb-1 block text-sm font-medium text-ink">How showings get booked</span>
                 <div className="grid grid-cols-2 gap-2">
                   <ChoicePill label="Email-based" active={showingMethod === 'email'} onClick={() => setShowingMethod('email')} />
                   <ChoicePill label="ShowingTime" active={showingMethod === 'showingtime'} onClick={() => setShowingMethod('showingtime')} />
                 </div>
                 {showingMethod === 'showingtime' && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-ink-muted">
                     ShowingTime handles the booking itself. I step in afterward — confirming the showing and reminding everyone.
                   </p>
                 )}
@@ -250,7 +250,7 @@ export default function Onboarding() {
               type="button"
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
-              className="text-sm font-medium text-gray-500 hover:text-gray-900 disabled:invisible"
+              className="text-sm font-medium text-ink-muted hover:text-ink disabled:invisible"
             >
               Back
             </button>
@@ -282,15 +282,15 @@ function Stepper({ step }: { step: number }) {
         <div key={label} className="flex items-center gap-1.5">
           <div
             className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-              i <= step ? 'bg-penny text-white' : 'bg-gray-200 text-gray-500'
+              i <= step ? 'bg-penny text-white' : 'bg-surface-3 text-ink-muted'
             }`}
           >
             {i + 1}
           </div>
-          <span className={`text-sm ${i === step ? 'font-medium text-gray-900' : 'text-gray-400'}`}>
+          <span className={`text-sm ${i === step ? 'font-medium text-ink' : 'text-ink-subtle'}`}>
             {label}
           </span>
-          {i < STEPS.length - 1 && <span className="mx-1 h-px w-4 bg-gray-200" />}
+          {i < STEPS.length - 1 && <span className="mx-1 h-px w-4 bg-surface-3" />}
         </div>
       ))}
     </div>
@@ -312,7 +312,7 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
       <input
         className="input"
         type={type}
@@ -340,11 +340,11 @@ function OptionCard({
       type="button"
       onClick={onClick}
       className={`w-full rounded-lg border p-3 text-left transition-colors ${
-        selected ? 'border-penny bg-penny-light' : 'border-gray-200 hover:border-gray-300'
+        selected ? 'border-penny bg-penny-light' : 'border-hairline hover:border-hairline'
       }`}
     >
-      <p className="text-sm font-medium text-gray-900">{title}</p>
-      <p className="text-xs text-gray-500">{desc}</p>
+      <p className="text-sm font-medium text-ink">{title}</p>
+      <p className="text-xs text-ink-muted">{desc}</p>
     </button>
   )
 }
@@ -363,7 +363,7 @@ function ChoicePill({
       type="button"
       onClick={onClick}
       className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-        active ? 'border-penny bg-penny-light font-medium text-penny-dark' : 'border-gray-200 text-gray-700 hover:border-gray-300'
+        active ? 'border-penny bg-penny-light font-medium text-penny-dark' : 'border-hairline text-ink hover:border-hairline'
       }`}
     >
       {label}
@@ -381,14 +381,14 @@ function TaskToggle({
   onChange: (v: boolean) => void
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-100 p-3">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-hairline p-3">
       <div>
-        <p className="text-sm font-medium text-gray-900">{task.label}</p>
-        <p className="text-xs text-gray-500">{task.description}</p>
+        <p className="text-sm font-medium text-ink">{task.label}</p>
+        <p className="text-xs text-ink-muted">{task.description}</p>
         <span
           className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
             task.locked
-              ? 'bg-gray-100 text-gray-500'
+              ? 'bg-surface-3 text-ink-muted'
               : value
                 ? 'bg-penny-light text-penny-dark'
                 : 'bg-blue-50 text-blue-700'
@@ -405,11 +405,11 @@ function TaskToggle({
         disabled={task.locked}
         onClick={() => onChange(!value)}
         className={`mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          task.locked ? 'cursor-not-allowed bg-gray-200' : value ? 'bg-penny' : 'bg-gray-300'
+          task.locked ? 'cursor-not-allowed bg-surface-3' : value ? 'bg-penny' : 'bg-surface-3'
         }`}
       >
         <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+          className={`inline-block h-5 w-5 transform rounded-full bg-surface transition-transform ${
             value ? 'translate-x-5' : 'translate-x-0.5'
           }`}
         />

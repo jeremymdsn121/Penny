@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import Agents from './pages/Agents'
 import ComplianceSettings from './pages/ComplianceSettings'
@@ -16,6 +17,17 @@ import TransactionDetail from './pages/TransactionDetail'
 import WhatsAppSettings from './pages/WhatsAppSettings'
 import { useAuthStore } from './store/auth'
 
+// Layout for authenticated + onboarded pages: gates access, then renders the
+// shared sidebar shell with the matched page in its <Outlet/>.
+function AppLayout() {
+  const onboarded = useAuthStore((s) => !!s.brokerage?.onboarding_completed)
+  return (
+    <ProtectedRoute>
+      {onboarded ? <AppShell /> : <Navigate to="/onboarding" replace />}
+    </ProtectedRoute>
+  )
+}
+
 export default function App() {
   const onboarded = useAuthStore((s) => !!s.brokerage?.onboarding_completed)
 
@@ -31,94 +43,22 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <Dashboard /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/transactions/new"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <NewTransaction /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/transactions/:transaction_id"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <TransactionDetail /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings/whatsapp"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <WhatsAppSettings /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/knowledge"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <Knowledge /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/listings"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <Listings /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/agents"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <Agents /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/review"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <ReviewQueue /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings/compliance"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <ComplianceSettings /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <Reports /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/listings/:listing_id"
-        element={
-          <ProtectedRoute>
-            {onboarded ? <ListingDetail /> : <Navigate to="/onboarding" replace />}
-          </ProtectedRoute>
-        }
-      />
+
+      {/* All onboarded app pages share the sidebar shell. */}
+      <Route element={<AppLayout />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/transactions/new" element={<NewTransaction />} />
+        <Route path="/transactions/:transaction_id" element={<TransactionDetail />} />
+        <Route path="/settings/whatsapp" element={<WhatsAppSettings />} />
+        <Route path="/settings/compliance" element={<ComplianceSettings />} />
+        <Route path="/knowledge" element={<Knowledge />} />
+        <Route path="/listings" element={<Listings />} />
+        <Route path="/listings/:listing_id" element={<ListingDetail />} />
+        <Route path="/agents" element={<Agents />} />
+        <Route path="/review" element={<ReviewQueue />} />
+        <Route path="/reports" element={<Reports />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

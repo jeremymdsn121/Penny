@@ -58,23 +58,23 @@ function ItemRow({
               item.status === 'complete'
                 ? 'border-green-500 bg-green-500 text-white'
                 : done
-                  ? 'border-gray-300 bg-gray-200 text-gray-500'
-                  : 'border-gray-300'
+                  ? 'border-hairline bg-surface-3 text-ink-muted'
+                  : 'border-hairline'
             }`}
           >
             {item.status === 'complete' ? '✓' : done ? '–' : ''}
           </span>
           <p
             className={`text-sm ${
-              item.status === 'waived' ? 'text-gray-400 line-through' : 'text-gray-800'
+              item.status === 'waived' ? 'text-ink-subtle line-through' : 'text-ink'
             }`}
           >
             {item.label}
-            {!item.required && <span className="ml-1 text-xs text-gray-400">(optional)</span>}
+            {!item.required && <span className="ml-1 text-xs text-ink-subtle">(optional)</span>}
           </p>
         </div>
-        <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-400">
-          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500">
+        <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
+          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-ink-muted">
             {STATUS_LABEL[item.status]}
           </span>
           {item.completed_at && (
@@ -99,7 +99,7 @@ function ItemRow({
             <button
               onClick={() => fileInput.current?.click()}
               disabled={busy}
-              className="text-xs font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50"
+              className="text-xs font-medium text-ink-muted hover:text-ink disabled:opacity-50"
             >
               Upload
             </button>
@@ -118,7 +118,7 @@ function ItemRow({
           <button
             onClick={() => setStatus('waived')}
             disabled={busy}
-            className="text-xs font-medium text-gray-400 hover:text-gray-700 disabled:opacity-50"
+            className="text-xs font-medium text-ink-subtle hover:text-ink disabled:opacity-50"
           >
             Waive
           </button>
@@ -127,7 +127,7 @@ function ItemRow({
           <button
             onClick={() => setStatus('pending')}
             disabled={busy}
-            className="text-xs font-medium text-gray-400 hover:text-gray-700 disabled:opacity-50"
+            className="text-xs font-medium text-ink-subtle hover:text-ink disabled:opacity-50"
           >
             Reset
           </button>
@@ -185,19 +185,19 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
   const percent = pct(items)
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
       <div className="mb-1 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
           Compliance File
         </h3>
-        <span className="text-xs font-medium text-gray-500">{percent}% complete</span>
+        <span className="text-xs font-medium text-ink-muted">{percent}% complete</span>
       </div>
-      <p className="mb-3 text-xs text-gray-400">
+      <p className="mb-3 text-xs text-ink-subtle">
         Tracks whether the required documents are in the file — your audit-ready closed file.
       </p>
 
       {/* Progress bar */}
-      <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-surface-3">
         <div
           className="h-full rounded-full bg-penny transition-all"
           style={{ width: `${percent}%` }}
@@ -211,13 +211,13 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
       )}
 
       {loading ? (
-        <p className="py-4 text-sm text-gray-400">Loading…</p>
+        <p className="py-4 text-sm text-ink-subtle">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="py-4 text-sm text-gray-400">
+        <p className="py-4 text-sm text-ink-subtle">
           No checklist yet — it’s created from a template when a transaction is set up.
         </p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-hairline">
           {items.map((item) => (
             <li key={item.id} className="flex items-start">
               <div className="flex-1">
@@ -226,7 +226,7 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
               {!item.template_item_id && (
                 <button
                   onClick={() => removeItem(item.id)}
-                  className="mt-3 shrink-0 pl-2 text-xs font-medium text-gray-300 hover:text-red-600"
+                  className="mt-3 shrink-0 pl-2 text-xs font-medium text-ink-subtle hover:text-red-600"
                   title="Remove custom item"
                 >
                   ✕
@@ -238,7 +238,7 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
       )}
 
       {/* Add custom item */}
-      <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-4">
+      <div className="mt-4 flex items-center gap-2 border-t border-hairline pt-4">
         <input
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}

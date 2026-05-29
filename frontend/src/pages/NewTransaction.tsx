@@ -81,10 +81,10 @@ const EXTRACTED_KEYS = new Set([
   'mls_number',
 ])
 
-const BASE = 'w-full rounded-lg border px-3 py-2 text-sm text-gray-900 shadow-sm outline-none'
+const BASE = 'w-full rounded-lg border px-3 py-2 text-sm text-ink shadow-sm outline-none'
 const FOUND_CLS = `${BASE} border-green-400 focus:border-green-500 focus:ring-1 focus:ring-green-500`
 const MISSING_CLS = `${BASE} border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500`
-const NEUTRAL_CLS = `${BASE} border-gray-300 focus:border-penny focus:ring-1 focus:ring-penny`
+const NEUTRAL_CLS = `${BASE} border-hairline focus:border-penny focus:ring-1 focus:ring-penny`
 
 function fieldClass(key: string, notFound: string[]): string {
   if (!EXTRACTED_KEYS.has(key)) return NEUTRAL_CLS
@@ -195,15 +195,15 @@ export default function NewTransaction() {
 
   // ---------- render ----------
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">New Transaction</h1>
+        <h1 className="text-sm font-semibold text-ink">New Transaction</h1>
         <div className="w-20" />
       </header>
 
@@ -232,33 +232,33 @@ export default function NewTransaction() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
-            className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-8 py-16 text-center transition-colors ${
-              dragOver ? 'border-penny bg-penny-light' : 'border-gray-300'
+            className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-surface px-8 py-16 text-center transition-colors ${
+              dragOver ? 'border-penny bg-penny-light' : 'border-hairline'
             }`}
           >
             {phase === 'extracting' ? (
               <>
                 <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
-                <p className="text-sm font-medium text-gray-700">Extracting fields…</p>
-                <p className="mt-1 text-xs text-gray-400">This usually takes 10–20 seconds.</p>
+                <p className="text-sm font-medium text-ink">Extracting fields…</p>
+                <p className="mt-1 text-xs text-ink-subtle">This usually takes 10–20 seconds.</p>
               </>
             ) : (
               <>
-                <svg className="mb-4 h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="mb-4 h-12 w-12 text-ink-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="mb-1 text-sm font-medium text-gray-700">
+                <p className="mb-1 text-sm font-medium text-ink">
                   Drag &amp; drop a PDF here
                 </p>
-                <p className="mb-4 text-xs text-gray-400">or</p>
+                <p className="mb-4 text-xs text-ink-subtle">or</p>
                 <button
                   onClick={() => fileRef.current?.click()}
                   className="btn-primary"
                 >
                   Browse file
                 </button>
-                <p className="mt-3 text-xs text-gray-400">Max 25 MB · PDF only</p>
+                <p className="mt-3 text-xs text-ink-subtle">Max 25 MB · PDF only</p>
                 <input
                   ref={fileRef}
                   type="file"
@@ -275,7 +275,7 @@ export default function NewTransaction() {
         {(phase === 'review' || phase === 'creating') && extractResult && (
           <>
             {/* Summary bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-surface px-5 py-3 shadow-sm">
               <div className="flex items-center gap-4 text-sm">
                 <span className="flex items-center gap-1.5 font-medium text-green-600">
                   <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
@@ -287,8 +287,8 @@ export default function NewTransaction() {
                     {missingCount} need input
                   </span>
                 )}
-                <span className="text-gray-400">·</span>
-                <span className="text-gray-500">{extractResult.page_count} pages</span>
+                <span className="text-ink-subtle">·</span>
+                <span className="text-ink-muted">{extractResult.page_count} pages</span>
               </div>
               {extractResult.signed_url && (
                 <a
@@ -303,8 +303,8 @@ export default function NewTransaction() {
             </div>
 
             {/* Stage selector */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Stage
               </h3>
               <select
@@ -323,15 +323,15 @@ export default function NewTransaction() {
             {FIELD_GROUPS.map((group) => (
               <div
                 key={group.label}
-                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+                className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm"
               >
-                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   {group.label}
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {group.fields.map(({ key, label }) => (
                     <div key={key}>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">
+                      <label className="mb-1 block text-xs font-medium text-ink-muted">
                         {label}
                       </label>
                       <input
@@ -355,7 +355,7 @@ export default function NewTransaction() {
             <div className="flex items-center justify-between pb-10">
               <button
                 onClick={() => { setPhase('upload'); setExtractResult(null); setValues({}) }}
-                className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                className="text-sm font-medium text-ink-muted hover:text-ink"
               >
                 ← Upload a different PDF
               </button>

@@ -55,9 +55,9 @@ export default function Communications({
   const unread = emails.filter((e) => e.direction === 'inbound' && !e.read).length
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
       <div className="mb-1 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
           Communications
         </h3>
         {unread > 0 && (
@@ -66,7 +66,7 @@ export default function Communications({
           </span>
         )}
       </div>
-      <p className="mb-4 text-xs text-gray-400">
+      <p className="mb-4 text-xs text-ink-subtle">
         Emails Penny has sent, plus any replies routed back to this deal.
       </p>
 
@@ -77,11 +77,11 @@ export default function Communications({
       )}
 
       {loading ? (
-        <p className="py-2 text-sm text-gray-400">Loading…</p>
+        <p className="py-2 text-sm text-ink-subtle">Loading…</p>
       ) : emails.length === 0 ? (
-        <p className="py-2 text-sm text-gray-400">No emails yet for this transaction.</p>
+        <p className="py-2 text-sm text-ink-subtle">No emails yet for this transaction.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-hairline">
           {emails.map((e) => {
             const isInbound = e.direction === 'inbound'
             const who = isInbound
@@ -95,19 +95,19 @@ export default function Communications({
                   className="flex w-full items-start justify-between gap-3 px-1 py-3 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                    <p className="flex items-center gap-2 text-sm font-medium text-ink">
                       <span
                         className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                           isInbound
                             ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-600'
+                            : 'bg-surface-3 text-ink-muted'
                         }`}
                       >
                         {isInbound ? 'In' : 'Out'}
                       </span>
                       <span className="truncate">{e.subject || '(no subject)'}</span>
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-gray-400">
+                    <p className="mt-0.5 truncate text-xs text-ink-subtle">
                       {who} · {fmtWhen(e.received_at)}
                     </p>
                   </div>
@@ -115,7 +115,7 @@ export default function Communications({
                 </button>
                 {openId === e.id && (
                   <div className="px-1 pb-4">
-                    <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+                    <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-ink">
                       {e.body_text || '(no text body)'}
                     </pre>
                     {isInbound && onReply && (

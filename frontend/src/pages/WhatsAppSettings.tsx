@@ -95,15 +95,15 @@ export default function WhatsAppSettings() {
   const pennyNumber = config?.penny_whatsapp_number
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Messaging</h1>
+        <h1 className="text-sm font-semibold text-ink">Messaging</h1>
         <div className="w-28" />
       </header>
 
@@ -127,16 +127,16 @@ export default function WhatsAppSettings() {
         ) : (
           <>
             {/* ── Penny's number ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+              <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Penny's WhatsApp Number
               </h2>
               {pennyNumber ? (
                 <>
-                  <p className="mt-3 font-mono text-2xl font-semibold text-gray-900">
+                  <p className="mt-3 font-mono text-2xl font-semibold text-ink">
                     {pennyNumber}
                   </p>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-sm text-ink-muted">
                     Save this number as <strong>Penny</strong> in your phone's contacts,
                     then text or send a voice message to get started.
                   </p>
@@ -158,9 +158,9 @@ export default function WhatsAppSettings() {
                   </div>
                 </>
               ) : (
-                <p className="mt-3 text-sm text-gray-500">
+                <p className="mt-3 text-sm text-ink-muted">
                   Not configured yet. Set{' '}
-                  <code className="rounded bg-gray-100 px-1 font-mono text-xs">
+                  <code className="rounded bg-surface-3 px-1 font-mono text-xs">
                     TWILIO_WHATSAPP_FROM
                   </code>{' '}
                   on the backend to enable WhatsApp messaging.
@@ -169,11 +169,11 @@ export default function WhatsAppSettings() {
             </section>
 
             {/* ── What agents can do ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 What Agents Can Do via WhatsApp
               </h2>
-              <ul className="space-y-2 text-sm text-gray-700">
+              <ul className="space-y-2 text-sm text-ink">
                 {[
                   'Ask for a summary of all active transactions',
                   'Look up the status or details of a specific deal',
@@ -190,34 +190,34 @@ export default function WhatsAppSettings() {
             </section>
 
             {/* ── Registered contacts ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+              <div className="border-b border-hairline px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   Registered Agents
                 </h2>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-ink-subtle">
                   Only numbers listed here can message Penny. Unrecognised numbers are
                   politely rejected.
                 </p>
               </div>
 
               {contacts.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
                   No agents registered yet — add one below.
                 </p>
               ) : (
-                <ul className="divide-y divide-gray-50">
+                <ul className="divide-y divide-hairline">
                   {contacts.map((c) => (
                     <li
                       key={c.id}
                       className="flex items-center justify-between gap-4 px-6 py-3"
                     >
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-ink">
                           {c.display_name || c.phone_number}
                         </p>
                         {c.display_name && (
-                          <p className="text-xs text-gray-400">{c.phone_number}</p>
+                          <p className="text-xs text-ink-subtle">{c.phone_number}</p>
                         )}
                       </div>
                       <button
@@ -234,9 +234,9 @@ export default function WhatsAppSettings() {
               {/* Add contact form */}
               <form
                 onSubmit={handleAdd}
-                className="border-t border-gray-100 px-6 py-4"
+                className="border-t border-hairline px-6 py-4"
               >
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">
+                <h3 className="mb-3 text-sm font-semibold text-ink">
                   Add an agent
                 </h3>
                 {addError && (
@@ -244,7 +244,7 @@ export default function WhatsAppSettings() {
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-medium text-ink-muted">
                       WhatsApp number <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -257,7 +257,7 @@ export default function WhatsAppSettings() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-medium text-ink-muted">
                       Display name (optional)
                     </label>
                     <input
@@ -270,8 +270,8 @@ export default function WhatsAppSettings() {
                   </div>
                 </div>
                 <div className="mt-3">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
-                  <div className="flex gap-4 text-sm text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">Channel</label>
+                  <div className="flex gap-4 text-sm text-ink">
                     {(['whatsapp', 'sms', 'both'] as Channel[]).map((c) => (
                       <label key={c} className="flex items-center gap-1.5">
                         <input
@@ -300,39 +300,39 @@ export default function WhatsAppSettings() {
             </section>
 
             {/* ── SMS channel ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+              <div className="border-b border-hairline px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   SMS Channel
                 </h2>
                 {smsConfig?.penny_sms_number ? (
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-ink-subtle">
                     Penny’s SMS number:{' '}
-                    <span className="font-mono text-gray-700">{smsConfig.penny_sms_number}</span>.
+                    <span className="font-mono text-ink">{smsConfig.penny_sms_number}</span>.
                     Text-only — no voice memos or photos on this channel.
                   </p>
                 ) : (
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-ink-subtle">
                     Not configured — set{' '}
-                    <code className="rounded bg-gray-100 px-1 font-mono">TWILIO_SMS_FROM</code> on
+                    <code className="rounded bg-surface-3 px-1 font-mono">TWILIO_SMS_FROM</code> on
                     the backend to enable SMS.
                   </p>
                 )}
               </div>
               {smsContacts.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
                   No SMS agents registered yet.
                 </p>
               ) : (
-                <ul className="divide-y divide-gray-50">
+                <ul className="divide-y divide-hairline">
                   {smsContacts.map((c) => (
                     <li key={c.id} className="flex items-center justify-between gap-4 px-6 py-3">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-ink">
                           {c.display_name || c.phone_number}
                         </p>
                         {c.display_name && (
-                          <p className="text-xs text-gray-400">{c.phone_number}</p>
+                          <p className="text-xs text-ink-subtle">{c.phone_number}</p>
                         )}
                       </div>
                       <button

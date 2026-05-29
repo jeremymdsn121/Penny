@@ -35,18 +35,18 @@ export default function SignaturesCard({ tx }: { tx: Transaction }) {
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
       <div className="mb-1 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Signatures</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Signatures</h3>
         <span
           className={`rounded-full px-3 py-0.5 text-xs font-medium ${
-            connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+            connected ? 'bg-green-100 text-green-700' : 'bg-surface-3 text-ink-muted'
           }`}
         >
           {connected == null ? '…' : connected ? 'DocuSign connected' : 'Not connected'}
         </span>
       </div>
-      <p className="mb-4 text-xs text-gray-400">
+      <p className="mb-4 text-xs text-ink-subtle">
         Send the contract for e-signature via DocuSign. Connecting DocuSign needs an
         integration key and partner review (see BLOCKERS.md).
       </p>
@@ -58,7 +58,7 @@ export default function SignaturesCard({ tx }: { tx: Transaction }) {
       >
         {sending ? 'Sending…' : 'Send for signature'}
       </button>
-      {reason && <p className="mt-3 text-xs text-gray-500">{reason}</p>}
+      {reason && <p className="mt-3 text-xs text-ink-muted">{reason}</p>}
     </div>
   )
 }

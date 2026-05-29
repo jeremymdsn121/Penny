@@ -22,9 +22,9 @@ function money(v: number): string {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+    <div className="rounded-xl border border-hairline bg-surface p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-subtle">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-ink">{value}</p>
     </div>
   )
 }
@@ -49,15 +49,15 @@ export default function Reports() {
   const maxStage = Math.max(1, ...stageEntries.map(([, n]) => n))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Reports</h1>
+        <h1 className="text-sm font-semibold text-ink">Reports</h1>
         <button
           onClick={() => reportsApi.downloadExport(period).catch(() => setError('Export failed.'))}
           className="text-sm font-medium text-penny hover:underline"
@@ -77,7 +77,7 @@ export default function Reports() {
               className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
                 period === p.key
                   ? 'border-violet-300 bg-violet-50 text-violet-700'
-                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  : 'border-hairline text-ink-muted hover:border-hairline'
               }`}
             >
               {p.label}
@@ -99,7 +99,7 @@ export default function Reports() {
           <>
             {/* Pipeline */}
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Pipeline
               </h2>
               <div className="grid grid-cols-3 gap-3">
@@ -107,20 +107,20 @@ export default function Reports() {
                 <Stat label="Active volume" value={money(data.pipeline.active_volume)} />
                 <Stat label="Closing this month" value={String(data.pipeline.closing_this_month)} />
               </div>
-              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">
+              <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-subtle">
                   By stage
                 </p>
                 {stageEntries.length === 0 ? (
-                  <p className="text-sm text-gray-400">No active deals.</p>
+                  <p className="text-sm text-ink-subtle">No active deals.</p>
                 ) : (
                   <div className="space-y-2">
                     {stageEntries.map(([stage, n]) => (
                       <div key={stage} className="flex items-center gap-3">
-                        <span className="w-28 shrink-0 text-xs text-gray-500">
+                        <span className="w-28 shrink-0 text-xs text-ink-muted">
                           {STAGE_LABEL[stage] ?? stage}
                         </span>
-                        <div className="h-5 flex-1 overflow-hidden rounded bg-gray-100">
+                        <div className="h-5 flex-1 overflow-hidden rounded bg-surface-3">
                           <div
                             className="flex h-full items-center justify-end rounded bg-penny px-2 text-[10px] font-semibold text-white"
                             style={{ width: `${(n / maxStage) * 100}%` }}
@@ -137,7 +137,7 @@ export default function Reports() {
 
             {/* Production */}
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Production
               </h2>
               <div className="grid grid-cols-3 gap-3">
@@ -145,22 +145,22 @@ export default function Reports() {
                 <Stat label="Closed volume" value={money(data.production.closed_volume)} />
                 <Stat label="Avg days to close" value={String(data.production.avg_days_to_close)} />
               </div>
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-                <div className="border-b border-gray-100 px-6 py-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+              <div className="rounded-2xl border border-hairline bg-surface shadow-sm">
+                <div className="border-b border-hairline px-6 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-subtle">
                     Agent leaderboard
                   </p>
                 </div>
                 {data.production.agent_breakdown.length === 0 ? (
-                  <p className="px-6 py-6 text-sm text-gray-400">No closings in this period.</p>
+                  <p className="px-6 py-6 text-sm text-ink-subtle">No closings in this period.</p>
                 ) : (
                   <table className="w-full text-left text-sm">
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-hairline">
                       {data.production.agent_breakdown.map((a) => (
                         <tr key={a.agent_name}>
-                          <td className="px-6 py-3 text-gray-900">{a.agent_name}</td>
-                          <td className="px-6 py-3 text-right text-gray-500">{a.closed} closed</td>
-                          <td className="px-6 py-3 text-right font-medium text-gray-900">
+                          <td className="px-6 py-3 text-ink">{a.agent_name}</td>
+                          <td className="px-6 py-3 text-right text-ink-muted">{a.closed} closed</td>
+                          <td className="px-6 py-3 text-right font-medium text-ink">
                             {money(a.volume)}
                           </td>
                         </tr>
@@ -173,7 +173,7 @@ export default function Reports() {
 
             {/* Compliance health */}
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 Compliance Health
               </h2>
               <div className="grid grid-cols-3 gap-3">

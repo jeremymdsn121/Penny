@@ -149,7 +149,7 @@ export default function ListingDetail() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-surface-2">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
       </div>
     )
@@ -157,8 +157,8 @@ export default function ListingDetail() {
 
   if (error && !listing) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50 text-center">
-        <p className="text-sm text-gray-600">{error}</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-2 text-center">
+        <p className="text-sm text-ink-muted">{error}</p>
         <button onClick={() => navigate('/listings')} className="text-sm font-medium text-penny hover:underline">
           Back to Listings
         </button>
@@ -167,12 +167,12 @@ export default function ListingDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-        <button onClick={() => navigate('/listings')} className="text-sm font-medium text-gray-500 hover:text-gray-900">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
+        <button onClick={() => navigate('/listings')} className="text-sm font-medium text-ink-muted hover:text-ink">
           ← Listings
         </button>
-        <h1 className="max-w-xs truncate text-sm font-semibold text-gray-900">
+        <h1 className="max-w-xs truncate text-sm font-semibold text-ink">
           {listing?.address || 'Listing'}
         </h1>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
@@ -195,16 +195,16 @@ export default function ListingDetail() {
         )}
 
         {/* Status + type */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Status</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Status</label>
               <select value={values.status ?? 'draft'} onChange={(e) => set('status', e.target.value)} className="input">
                 {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Property type</label>
+              <label className="mb-1 block text-xs font-medium text-ink-muted">Property type</label>
               <select value={values.property_type ?? ''} onChange={(e) => set('property_type', e.target.value)} className="input">
                 <option value="">—</option>
                 {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
@@ -214,8 +214,8 @@ export default function ListingDetail() {
         </div>
 
         {/* Property + details */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Property</h3>
+        <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Property</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {TEXT_FIELDS.map(({ key, label }) => (
               <Field key={key} label={label} value={values[key] ?? ''} onChange={(v) => set(key, v)} />
@@ -227,27 +227,27 @@ export default function ListingDetail() {
         </div>
 
         {/* Misc */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Details</h3>
+        <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-muted">Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {MISC_TEXT_FIELDS.map(({ key, label }) => (
               <Field key={key} label={label} value={values[key] ?? ''} onChange={(v) => set(key, v)} />
             ))}
           </div>
           <div className="mt-4">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Features (comma-separated)</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">Features (comma-separated)</label>
             <input type="text" value={values.features ?? ''} onChange={(e) => set('features', e.target.value)} className="input" />
           </div>
           <div className="mt-4">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Public remarks</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">Public remarks</label>
             <textarea value={values.public_remarks ?? ''} onChange={(e) => set('public_remarks', e.target.value)} rows={5} className="input" />
           </div>
         </div>
 
         {/* Push to MLS */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">Publish to MLS</h3>
-          <p className="mb-4 text-xs text-gray-400">
+        <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Publish to MLS</h3>
+          <p className="mb-4 text-xs text-ink-subtle">
             Direct MLS publishing is a per-market add-on and isn't connected yet — for now this
             prepares the data to enter into your MLS.
           </p>
@@ -259,18 +259,18 @@ export default function ListingDetail() {
           {!confirmPush ? (
             <button
               onClick={() => setConfirmPush(true)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-300"
+              className="rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-ink hover:border-hairline"
             >
               Push to MLS
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-gray-700">Attempt to publish this listing to the MLS?</span>
+              <span className="text-sm text-ink">Attempt to publish this listing to the MLS?</span>
               <button onClick={handlePush} disabled={pushing} className="btn-primary flex items-center gap-2">
                 {pushing && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                 Confirm
               </button>
-              <button onClick={() => setConfirmPush(false)} className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              <button onClick={() => setConfirmPush(false)} className="text-sm font-medium text-ink-muted hover:text-ink">
                 Cancel
               </button>
             </div>
@@ -279,7 +279,7 @@ export default function ListingDetail() {
 
         {/* Delete */}
         <div className="flex justify-end pb-10">
-          <button onClick={handleDelete} className="text-sm font-medium text-gray-400 hover:text-red-600">
+          <button onClick={handleDelete} className="text-sm font-medium text-ink-subtle hover:text-red-600">
             Delete listing
           </button>
         </div>
@@ -291,7 +291,7 @@ export default function ListingDetail() {
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-ink-muted">{label}</label>
       <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="input" />
     </div>
   )

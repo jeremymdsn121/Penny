@@ -17,7 +17,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600'
+        STATUS_STYLES[status] ?? 'bg-surface-3 text-ink-muted'
       }`}
     >
       {status}
@@ -122,15 +122,15 @@ export default function Knowledge() {
   const confirmed = rules.filter((r) => r.confirmed)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+    <div className="min-h-screen bg-surface-2">
+      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-4">
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900"
+          className="text-sm font-medium text-ink-muted hover:text-ink"
         >
           ← Dashboard
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Brand &amp; Style</h1>
+        <h1 className="text-sm font-semibold text-ink">Brand &amp; Style</h1>
         <div className="w-28" />
       </header>
 
@@ -148,8 +148,8 @@ export default function Knowledge() {
         )}
 
         {/* ── Upload ── */}
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Upload a style document
           </h2>
           {uploadError && <p className="mb-3 text-xs text-red-600">{uploadError}</p>}
@@ -164,7 +164,7 @@ export default function Knowledge() {
               type="file"
               accept="application/pdf,image/*,.pdf,.docx"
               onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-              className="block text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
+              className="block text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink hover:file:bg-surface-3"
             />
             <button
               onClick={handleUpload}
@@ -177,7 +177,7 @@ export default function Knowledge() {
               {uploading ? 'Analyzing…' : 'Upload & analyze'}
             </button>
           </div>
-          <p className="mt-2 text-xs text-gray-400">PDF, image, or Word (.docx) — up to 25 MB.</p>
+          <p className="mt-2 text-xs text-ink-subtle">PDF, image, or Word (.docx) — up to 25 MB.</p>
         </section>
 
         {loading ? (
@@ -187,30 +187,30 @@ export default function Knowledge() {
         ) : (
           <>
             {/* ── Pending review ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+              <div className="border-b border-hairline px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   Proposed rules — needs review
                 </h2>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-ink-subtle">
                   Confirm the rules that match your brand. Only confirmed rules guide Penny.
                 </p>
               </div>
               {pending.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
                   Nothing to review. Upload a document to get suggestions.
                 </p>
               ) : (
-                <ul className="divide-y divide-gray-50">
+                <ul className="divide-y divide-hairline">
                   {pending.map((r) => (
                     <li key={r.id} className="flex items-start justify-between gap-4 px-6 py-4">
                       <div className="min-w-0 flex-1">
                         <span className="inline-block rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
                           {cap(r.category)}
                         </span>
-                        <p className="mt-1.5 text-sm text-gray-800">{r.rule}</p>
+                        <p className="mt-1.5 text-sm text-ink">{r.rule}</p>
                         {r.source_document && (
-                          <p className="mt-1 text-xs text-gray-400">from {r.source_document}</p>
+                          <p className="mt-1 text-xs text-ink-subtle">from {r.source_document}</p>
                         )}
                       </div>
                       <div className="flex shrink-0 gap-3">
@@ -234,28 +234,28 @@ export default function Knowledge() {
             </section>
 
             {/* ── Confirmed rules ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+              <div className="border-b border-hairline px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   Confirmed style rules
                 </h2>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-ink-subtle">
                   These are injected into Penny's prompts so she stays on brand.
                 </p>
               </div>
               {confirmed.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
                   No confirmed rules yet.
                 </p>
               ) : (
-                <ul className="divide-y divide-gray-50">
+                <ul className="divide-y divide-hairline">
                   {confirmed.map((r) => (
                     <li key={r.id} className="flex items-start justify-between gap-4 px-6 py-4">
                       <div className="min-w-0 flex-1">
                         <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                           {cap(r.category)}
                         </span>
-                        <p className="mt-1.5 text-sm text-gray-800">{r.rule}</p>
+                        <p className="mt-1.5 text-sm text-ink">{r.rule}</p>
                       </div>
                       <button
                         onClick={() => removeRule(r.id)}
@@ -270,22 +270,22 @@ export default function Knowledge() {
             </section>
 
             {/* ── Uploaded documents ── */}
-            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <section className="rounded-2xl border border-hairline bg-surface shadow-sm">
+              <div className="border-b border-hairline px-6 py-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   Uploaded documents
                 </h2>
               </div>
               {documents.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
                   No documents uploaded yet.
                 </p>
               ) : (
-                <ul className="divide-y divide-gray-50">
+                <ul className="divide-y divide-hairline">
                   {documents.map((d) => (
                     <li key={d.id} className="flex items-center justify-between gap-4 px-6 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">{d.filename}</p>
+                        <p className="truncate text-sm font-medium text-ink">{d.filename}</p>
                         {d.error && <p className="mt-0.5 truncate text-xs text-red-500">{d.error}</p>}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
