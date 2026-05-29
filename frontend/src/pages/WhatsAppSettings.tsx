@@ -16,7 +16,7 @@ const WA_GREEN = '#25D366'
 // Grouped capability summary (not the full ~20-tool list) — keep it skimmable.
 const CAPABILITIES: { title: string; detail: string }[] = [
   { title: 'Manage deals', detail: 'pipeline summary, look up any deal, update its stage, add notes' },
-  { title: 'Set up a deal from a contract', detail: 'text a PDF or photo — Penny extracts the details and creates it' },
+  { title: 'Set up a deal from a contract', detail: 'text a PDF or photo; Penny extracts the details and creates it' },
   { title: 'Deadlines & next steps', detail: 'add deadlines (with automatic reminders) and see what’s due' },
   { title: 'Check the file', detail: 'what’s missing for compliance, run a review, track earnest money' },
   { title: 'Comps & scheduling', detail: 'a value estimate and comps for any address; propose and book showings' },
@@ -144,7 +144,7 @@ export default function WhatsAppSettings() {
         <PennyBubble>
           Register your agents so they can reach me from the field. WhatsApp adds voice
           memos and contract photos; plain SMS works for anyone without WhatsApp. Pick the
-          channel each agent prefers — or both.
+          channel each agent prefers, or both.
         </PennyBubble>
 
         {error && (
@@ -222,7 +222,7 @@ export default function WhatsAppSettings() {
                 <span className="text-sm text-ink">
                   Forward email replies to the agent's inbox
                   <span className="mt-0.5 block text-xs text-ink-subtle">
-                    The agent can reply straight from their email — Penny still logs the thread on
+                    The agent can reply straight from their email. Penny still logs the thread on
                     the transaction.
                   </span>
                 </span>
@@ -247,8 +247,8 @@ export default function WhatsAppSettings() {
               </ul>
               <p className="mt-4 text-xs text-ink-subtle">
                 Send a voice memo for any of these and Penny transcribes it. Anything that
-                sends or changes something asks you to confirm first — unless you’ve set it to
-                run automatically (e.g. intro emails, chosen during onboarding).
+                sends or changes something asks you to confirm first, unless you’ve set it to
+                run automatically (e.g. intro emails, in Automation settings).
               </p>
             </section>
 
@@ -266,7 +266,7 @@ export default function WhatsAppSettings() {
 
               {contacts.length === 0 ? (
                 <p className="px-6 py-8 text-center text-sm text-ink-subtle">
-                  No agents registered yet — add one below.
+                  No agents registered yet. Add one below.
                 </p>
               ) : (
                 <ul className="divide-y divide-hairline">
@@ -325,7 +325,7 @@ export default function WhatsAppSettings() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Sarah — Listing Agent"
+                      placeholder="e.g. Sarah, Listing Agent"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       className="input"
@@ -372,11 +372,11 @@ export default function WhatsAppSettings() {
                   <p className="mt-1 text-xs text-ink-subtle">
                     Penny’s SMS number:{' '}
                     <span className="font-mono text-ink">{smsConfig.penny_sms_number}</span>.
-                    Text-only — no voice memos or photos on this channel.
+                    Text-only. No voice memos or photos on this channel.
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-ink-subtle">
-                    Not configured — set{' '}
+                    Not configured. Set{' '}
                     <code className="rounded bg-surface-3 px-1 font-mono">TWILIO_SMS_FROM</code> on
                     the backend to enable SMS.
                   </p>

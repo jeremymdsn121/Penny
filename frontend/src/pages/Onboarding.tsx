@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
+import TaskToggle from '../components/TaskToggle'
 import {
   onboardingApi,
   type OnboardingOptions,
-  type TaskDefinition,
 } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 
@@ -26,8 +26,7 @@ export default function Onboarding() {
 
   // Step 1 — State
   const [state, setState] = useState(brokerage?.state ?? '')
-  // Step 2 — Identity
-  const [assistantName, setAssistantName] = useState(brokerage?.assistant_name || 'Penny')
+  // Step 2 — Identity (assistant is always "Penny"; not user-editable)
   const [name, setName] = useState(brokerage?.name ?? '')
   const [email, setEmail] = useState(brokerage?.email ?? '')
   const [phone, setPhone] = useState(brokerage?.phone ?? '')
@@ -55,7 +54,7 @@ export default function Onboarding() {
       .catch(() => setError('Could not load setup options. Is the backend running?'))
   }, [])
 
-  const assistant = assistantName || 'Penny'
+  const assistant = 'Penny'
   const isDetailedState = useMemo(
     () => !!state && (options?.detailed_ruleset_states.includes(state) ?? false),
     [state, options],
@@ -72,11 +71,11 @@ export default function Onboarding() {
           : true
 
   const bubble = [
-    'First — which state do you operate in? It sets your compliance rules.',
+    'First, which state do you operate in? It sets your compliance rules.',
     "Let's get my details right. This is how I'll introduce myself to clients.",
-    'How should I handle email — have my own address, or watch an inbox you already use?',
+    'How should I handle email? I can have my own address, or watch an inbox you already use.',
     'When can I schedule things, and how do showings get booked?',
-    'Last step — decide what I handle on my own versus draft for your approval.',
+    'Last step. Decide what I handle on my own versus draft for your approval.',
   ][step]
 
   const onFinish = async () => {
@@ -137,7 +136,7 @@ export default function Onboarding() {
                 <p className="text-xs text-ink-muted">
                   {isDetailedState
                     ? `I have detailed compliance rules for ${state}.`
-                    : `I'll use my default compliance checklist for ${state} — verify state-specific addenda.`}
+                    : `I'll use my default compliance checklist for ${state}. Verify state-specific addenda.`}
                 </p>
               )}
             </div>
@@ -145,7 +144,6 @@ export default function Onboarding() {
 
           {step === 1 && options && (
             <div className="space-y-4">
-              <TextField label="Assistant name" value={assistantName} onChange={setAssistantName} />
               <TextField label="Brokerage name" value={name} onChange={setName} />
               <TextField label="Email" type="email" value={email} onChange={setEmail} placeholder="penny@yourbrokerage.com" />
               <TextField label="Phone" value={phone} onChange={setPhone} placeholder="(512) 555-0100" />
@@ -176,7 +174,7 @@ export default function Onboarding() {
                 />
               )}
               <p className="text-xs text-ink-muted">
-                I&rsquo;ll connect to the live mailbox when we set up scheduling — for now this just records how you want it to work.
+                I&rsquo;ll connect to the live mailbox when we set up scheduling. For now this just records how you want it to work.
               </p>
             </div>
           )}
@@ -223,7 +221,7 @@ export default function Onboarding() {
                 </div>
                 {showingMethod === 'showingtime' && (
                   <p className="mt-1 text-xs text-ink-muted">
-                    ShowingTime handles the booking itself. I step in afterward — confirming the showing and reminding everyone.
+                    ShowingTime handles the booking itself. I step in afterward, confirming the showing and reminding everyone.
                   </p>
                 )}
               </div>
@@ -371,49 +369,3 @@ function ChoicePill({
   )
 }
 
-function TaskToggle({
-  task,
-  value,
-  onChange,
-}: {
-  task: TaskDefinition
-  value: boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-hairline p-3">
-      <div>
-        <p className="text-sm font-medium text-ink">{task.label}</p>
-        <p className="text-xs text-ink-muted">{task.description}</p>
-        <span
-          className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            task.locked
-              ? 'bg-surface-3 text-ink-muted'
-              : value
-                ? 'bg-penny-light text-penny-dark'
-                : 'bg-blue-50 text-blue-700'
-          }`}
-        >
-          {task.locked ? 'Always needs approval' : value ? 'Autonomous' : 'Needs approval'}
-        </span>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={value}
-        aria-label={task.label}
-        disabled={task.locked}
-        onClick={() => onChange(!value)}
-        className={`mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          task.locked ? 'cursor-not-allowed bg-surface-3' : value ? 'bg-penny' : 'bg-surface-3'
-        }`}
-      >
-        <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-surface transition-transform ${
-            value ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  )
-}

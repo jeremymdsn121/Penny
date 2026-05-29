@@ -71,7 +71,7 @@ TASK_DEFINITIONS: list[dict] = [
     {
         "task_id": "compliance",
         "label": "Compliance review",
-        "description": "Compliance review always requires human approval — this cannot be automated.",
+        "description": "Compliance review always requires human approval. This cannot be automated.",
         "default_autonomous": False,
         "locked": True,
     },

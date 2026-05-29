@@ -60,7 +60,7 @@ async def submit(
         brokerage["id"],
         {
             "name": body.name,
-            "assistant_name": body.assistant_name,
+            "assistant_name": "Penny",  # fixed product name; not user-editable
             "state": state,
             "email": body.email,
             "phone": body.phone,

@@ -117,6 +117,17 @@ export const onboardingApi = {
     api.post<Brokerage>('/onboarding', data).then((r) => r.data),
 }
 
+// A task definition joined with this brokerage's current autonomy flag.
+export interface TaskAutonomy extends TaskDefinition {
+  autonomous: boolean
+}
+
+export const autonomyApi = {
+  get: () => api.get<{ tasks: TaskAutonomy[] }>('/autonomy').then((r) => r.data),
+  update: (tasks: { task_id: string; autonomous: boolean }[]) =>
+    api.put<{ tasks: TaskAutonomy[] }>('/autonomy', { tasks }).then((r) => r.data),
+}
+
 // --------------------------------------------------------------------------- //
 // Transactions
 // --------------------------------------------------------------------------- //

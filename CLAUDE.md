@@ -378,6 +378,10 @@ WhatsApp specifics:
   Penny is not accounting software. UI label is "EMD Receipt Tracking."
 - Never auto-reply to inbound emails — Penny drafts on request, human reviews and sends.
 - Build phases in spec order (V1 = Phases 1–3, V2 = sections 1A–8); resist scope creep.
+- **Penny's name is fixed** ("Penny", not user-editable) and Penny is referred to as
+  **she/her** in copy, never "it".
+- **Copy style:** em dashes are allowed only as a headline→description separator (e.g.
+  "Manage deals — pipeline summary…"); keep them out of body prose. Reword instead.
 - When inspecting `.env`, show only key names + char counts, never the secret values.
 - Deferred integrations (calendar OAuth, MLS publishing, DocuSign) live behind
   seams — don't wire them blind. Only the seam bodies change when credentials
@@ -411,6 +415,14 @@ against live services in the dev brokerage:
   threading (4) + migration 016. Verified: toggle saves; nudge targeting needs the
   agent's number linked to their agent record (`agent_channels.agent_id`) and the deal
   assigned (`transactions.agent_id`) to resolve a specific recipient.
+- **Automation settings page** (`/settings/autonomy`, `AutonomySettings.tsx`) —
+  post-onboarding editing of the task-autonomy toggles (`GET`/`PUT /autonomy` in
+  `routes/autonomy.py`, same `task_autonomy` table + rules as onboarding; compliance
+  stays locked off). `TaskToggle` was extracted to `components/TaskToggle.tsx` and is
+  shared with the onboarding wizard. The `intro-email` executor now honours autonomy at
+  the executor level (no longer prompt-only). Verified: load + save round-trip.
+- **Assistant name is fixed to "Penny"** — the onboarding rename field was removed and
+  the backend hardcodes `assistant_name="Penny"`. Refer to Penny as she/her in copy.
 
 ### V1 (Phases 1–3)
 

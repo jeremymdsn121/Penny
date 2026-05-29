@@ -14,6 +14,7 @@ import {
   Sparkles,
   Sun,
   Users,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { brokerApi } from '../lib/api'
@@ -38,6 +39,7 @@ const NAV: NavItem[] = [
   { to: '/agents', label: 'Team', icon: Users },
   { to: '/settings/whatsapp', label: 'Messaging', icon: MessageSquare },
   { to: '/settings/compliance', label: 'Compliance', icon: Scale },
+  { to: '/settings/autonomy', label: 'Automation', icon: Zap },
 ]
 
 export default function AppShell() {

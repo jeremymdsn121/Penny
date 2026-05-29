@@ -4,6 +4,7 @@ from app.api.v1.routes import (
     agents,
     appointments,
     auth,
+    autonomy,
     broker,
     chat,
     checklist,
@@ -38,3 +39,4 @@ api_router.include_router(email.router)
 api_router.include_router(consent.router)
 api_router.include_router(reports.router)
 api_router.include_router(chat.router)
+api_router.include_router(autonomy.router)
