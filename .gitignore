@@ -23,3 +23,9 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Local agent/runtime artifacts
+.claude/*.lock
+
+# Personal test artifacts (not part of the project)
+Sample Contract.pdf
