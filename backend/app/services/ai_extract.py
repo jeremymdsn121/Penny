@@ -195,7 +195,11 @@ async def parse_correction(
         updates = _parse_json(raw)
     except AIExtractionError:
         return {}
-    return {k: _clean(k, v) for k, v in updates.items() if k in CONTRACT_FIELDS}
+    # Keep only fields that cleaned to a real value. A correction that fails to
+    # parse (e.g. a date the model didn't return as YYYY-MM-DD) must NOT be
+    # written back as None — that would erase the value the user is correcting.
+    cleaned = {k: _clean(k, v) for k, v in updates.items() if k in CONTRACT_FIELDS}
+    return {k: v for k, v in cleaned.items() if v is not None}
 
 
 async def extract_contract_fields(

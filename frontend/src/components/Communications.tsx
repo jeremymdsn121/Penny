@@ -27,11 +27,14 @@ export default function Communications({
   const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
+    let ignore = false
+    setLoading(true)
     emailsApi
       .list(txId)
-      .then(setEmails)
-      .catch(() => setError('Could not load communications.'))
-      .finally(() => setLoading(false))
+      .then((d) => { if (!ignore) setEmails(d) })
+      .catch(() => { if (!ignore) setError('Could not load communications.') })
+      .finally(() => { if (!ignore) setLoading(false) })
+    return () => { ignore = true }
   }, [txId])
 
   async function expand(email: TransactionEmail) {

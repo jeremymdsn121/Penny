@@ -25,6 +25,7 @@ export default function EmdCard({
   )
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState(false)
+  const [unmarking, setUnmarking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function saveDetails() {
@@ -65,12 +66,16 @@ export default function EmdCard({
 
   async function markNotReceived() {
     setBusy(true)
+    setError(null)
     try {
       const updated = await transactionsApi.update(tx.id, {
         emd_received: false,
         emd_received_date: null,
       })
       onChange(updated)
+      setUnmarking(false)
+    } catch {
+      setError('Could not update EMD status.')
     } finally {
       setBusy(false)
     }
@@ -211,9 +216,26 @@ export default function EmdCard({
                   Mark received
                 </button>
               )
+            ) : unmarking ? (
+              <span className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Clear received status?</span>
+                <button
+                  onClick={markNotReceived}
+                  disabled={busy}
+                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setUnmarking(false)}
+                  className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                >
+                  Cancel
+                </button>
+              </span>
             ) : (
               <button
-                onClick={markNotReceived}
+                onClick={() => setUnmarking(true)}
                 disabled={busy}
                 className="text-sm font-medium text-gray-400 hover:text-gray-700"
               >

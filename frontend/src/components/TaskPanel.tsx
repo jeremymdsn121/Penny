@@ -24,11 +24,14 @@ export default function TaskPanel({ txId }: { txId: string }) {
   const [adding, setAdding] = useState(false)
 
   useEffect(() => {
+    let ignore = false
+    setLoading(true)
     tasksApi
       .list(txId)
-      .then(setTasks)
-      .catch(() => setError('Could not load tasks.'))
-      .finally(() => setLoading(false))
+      .then((d) => { if (!ignore) setTasks(d) })
+      .catch(() => { if (!ignore) setError('Could not load tasks.') })
+      .finally(() => { if (!ignore) setLoading(false) })
+    return () => { ignore = true }
   }, [txId])
 
   async function setStatus(task: TransactionTask, status: string) {

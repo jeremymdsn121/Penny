@@ -45,7 +45,7 @@ async def acknowledge(
 ) -> HTMLResponse:
     """Public: record a party's AI-disclosure acknowledgment from a signed link."""
     if not email or not consent_svc.verify_token(transaction_id, party_role, email, token):
-        return _page("This acknowledgment link is invalid or has expired.")
+        return _page("This acknowledgment link is invalid.")
 
     tx = await sb.get_transaction_by_id(transaction_id)
     if tx is None:

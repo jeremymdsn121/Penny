@@ -93,7 +93,7 @@ def format_extraction_summary(
     parts = [
         fields.get("address") or "",
         fields.get("city") or "",
-        (fields.get("state") or "") + (" " + (fields.get("zip") or "")).strip(),
+        ((fields.get("state") or "") + " " + (fields.get("zip") or "")).strip(),
     ]
     property_line = ", ".join(p for p in parts if p.strip())
     if property_line:

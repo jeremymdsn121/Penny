@@ -48,14 +48,20 @@ class AppointmentUpdate(BaseModel):
     confirmed: bool | None = None
 
 
-def _parse_dt(value: str) -> datetime:
+def _parse_dt(value: str, tz=None) -> datetime:
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="scheduled_at must be an ISO 8601 datetime.",
         )
+    # A naive datetime stored into a timestamptz column is assumed-UTC by
+    # Postgres, silently shifting the local time. Anchor it to the brokerage
+    # timezone when the caller supplied no offset.
+    if parsed.tzinfo is None and tz is not None:
+        parsed = parsed.replace(tzinfo=tz)
+    return parsed
 
 
 async def _require_owned_transaction(brokerage_id: str, transaction_id: str) -> dict[str, Any]:
@@ -160,7 +166,8 @@ async def book(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confirmation required before booking.",
         )
-    start = _parse_dt(body.scheduled_at)
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
+    start = _parse_dt(body.scheduled_at, tz)
     end = start + timedelta(minutes=body.duration_minutes)
     address = (tx.get("address") or "the property").strip()
     summary = f"{body.type.replace('_', ' ').title()} — {address}"
@@ -203,7 +210,8 @@ async def update(
     await _scoped_appointment(brokerage["id"], appointment_id)
     data = body.model_dump(exclude_unset=True)
     if "scheduled_at" in data and data["scheduled_at"]:
-        data["scheduled_at"] = _parse_dt(data["scheduled_at"]).isoformat()
+        tz = scheduling.resolve_timezone(brokerage.get("state"))
+        data["scheduled_at"] = _parse_dt(data["scheduled_at"], tz).isoformat()
     updated = await sb.update_appointment(appointment_id, data)
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")

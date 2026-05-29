@@ -50,7 +50,7 @@ function ItemRow({
   }
 
   return (
-    <li className="flex items-start justify-between gap-3 py-3">
+    <div className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span
@@ -133,7 +133,7 @@ function ItemRow({
           </button>
         )}
       </div>
-    </li>
+    </div>
   )
 }
 
@@ -145,11 +145,14 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
   const [adding, setAdding] = useState(false)
 
   useEffect(() => {
+    let ignore = false
+    setLoading(true)
     checklistApi
       .get(txId)
-      .then(setItems)
-      .catch(() => setError('Could not load the compliance file.'))
-      .finally(() => setLoading(false))
+      .then((d) => { if (!ignore) setItems(d) })
+      .catch(() => { if (!ignore) setError('Could not load the compliance file.') })
+      .finally(() => { if (!ignore) setLoading(false) })
+    return () => { ignore = true }
   }, [txId])
 
   function applyUpdate(updated: ChecklistItem) {
@@ -216,7 +219,7 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
       ) : (
         <ul className="divide-y divide-gray-100">
           {items.map((item) => (
-            <div key={item.id} className="flex items-start">
+            <li key={item.id} className="flex items-start">
               <div className="flex-1">
                 <ItemRow item={item} txId={txId} onChange={applyUpdate} />
               </div>
@@ -229,7 +232,7 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
                   ✕
                 </button>
               )}
-            </div>
+            </li>
           ))}
         </ul>
       )}

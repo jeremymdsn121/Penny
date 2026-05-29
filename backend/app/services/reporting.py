@@ -131,9 +131,12 @@ async def build_summary(
     }
 
     # --- Compliance ---
+    # Average only over closed deals that actually have a checklist; a deal with
+    # no checklist items must not be counted as 0% and drag the metric down.
+    _closed_with_checklist = [closed_pct[i] for i in closed_ids if i in closed_pct]
     avg_at_close = (
-        round(sum(closed_pct.get(i, 0) for i in closed_ids) / len(closed_ids))
-        if closed_ids
+        round(sum(_closed_with_checklist) / len(_closed_with_checklist))
+        if _closed_with_checklist
         else 0
     )
     compliance = {
@@ -180,6 +183,12 @@ def build_export_rows(
     pct_map: dict[str, int],
 ) -> list[list[str]]:
     """Rows (incl. header) of closed transactions for CSV export."""
+    def _csv_safe(v: str) -> str:
+        # Neutralize spreadsheet formula injection: a cell starting with =, +, -,
+        # @ (or tab/CR) is executed as a formula by Excel/Sheets. These columns
+        # carry AI-extracted / user-entered text, so guard them.
+        return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
     rows = [
         [
             "Address",
@@ -198,12 +207,12 @@ def build_export_rows(
         days = (closed.date() - created.date()).days if created and closed else ""
         rows.append(
             [
-                t.get("address") or "",
-                t.get("buyer_name") or "",
-                t.get("seller_name") or "",
+                _csv_safe(t.get("address") or ""),
+                _csv_safe(t.get("buyer_name") or ""),
+                _csv_safe(t.get("seller_name") or ""),
                 str(int(_deal_volume(t))) if _deal_volume(t) else "",
                 (str(t.get("closed_at"))[:10] if t.get("closed_at") else ""),
-                agents.get(t.get("agent_id")) or "",
+                _csv_safe(agents.get(t.get("agent_id")) or ""),
                 str(days),
                 str(pct_map.get(t["id"], 0)),
             ]

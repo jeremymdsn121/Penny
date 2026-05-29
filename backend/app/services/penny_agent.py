@@ -989,6 +989,10 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
     except ValueError:
         return "I need the time as an ISO 8601 datetime (e.g. 2026-06-01T14:30:00-05:00)."
     brokerage = await sb.get_brokerage(brokerage_id) or {}
+    # Anchor a naive time to the brokerage tz; a timestamptz column would
+    # otherwise treat an offset-less time as UTC and shift it.
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=scheduling.resolve_timezone(brokerage.get("state")))
     appt_type = (inputs.get("type") or "showing").strip()
     attendees = [a for a in (inputs.get("attendees") or []) if a and a.strip()]
     end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
