@@ -6,6 +6,7 @@ import AutonomySettings from './pages/AutonomySettings'
 import ComplianceSettings from './pages/ComplianceSettings'
 import Dashboard from './pages/Dashboard'
 import Home from './pages/Home'
+import ImportTransactions from './pages/ImportTransactions'
 import Knowledge from './pages/Knowledge'
 import ListingDetail from './pages/ListingDetail'
 import Listings from './pages/Listings'
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/transactions/new" element={<NewTransaction />} />
+        <Route path="/transactions/import" element={<ImportTransactions />} />
         <Route path="/transactions/:transaction_id" element={<TransactionDetail />} />
         <Route path="/settings/whatsapp" element={<WhatsAppSettings />} />
         <Route path="/settings/compliance" element={<ComplianceSettings />} />

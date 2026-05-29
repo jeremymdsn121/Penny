@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 
 from app.core import supabase_client as sb
@@ -14,6 +14,7 @@ from app.services import (
     ai_extract,
     compliance,
     compliance_checklist,
+    csv_import,
     docusign_provider,
     doc_generate,
     doc_routing,
@@ -117,18 +118,24 @@ async def create(
     data["brokerage_id"] = brokerage["id"]
     data.setdefault("stage", "under_contract")
     tx = await sb.insert_transaction(data)
-    # Instantiate the compliance checklist + workflow tasks from matching templates.
+    await _run_post_create_hooks(tx)
+    return tx
+
+
+async def _run_post_create_hooks(tx: dict[str, Any]) -> None:
+    """Instantiate the compliance checklist + workflow tasks and fire document
+    routing for a freshly created deal. Best-effort and idempotent so it's safe
+    to share between single create and bulk CSV import."""
+    stage = tx.get("stage") or "under_contract"
     try:
         await compliance_checklist.instantiate_for_transaction(tx)
-        await workflow.generate_stage_tasks(tx, tx.get("stage") or "under_contract")
+        await workflow.generate_stage_tasks(tx, stage)
     except sb.SupabaseError:
-        pass  # best-effort at creation; both can be (re)built later
-    # Fire document-routing rules for the deal's initial stage (best-effort).
+        pass  # both can be (re)built later
     try:
-        await doc_routing.run_stage_routing(tx, tx.get("stage") or "under_contract")
+        await doc_routing.run_stage_routing(tx, stage)
     except sb.SupabaseError:
         pass
-    return tx
 
 
 @router.get("")
@@ -152,6 +159,92 @@ async def list_all(
         t["checklist_pct"] = pct.get(t["id"], 0)
         t["overdue_tasks"] = overdue.get(t["id"], 0)
     return txs
+
+
+# --------------------------------------------------------------------------- #
+# CSV import — migration path for brokerages with existing deals (Dotloop /
+# SkySlope / spreadsheet exports). Parse + preview, then confirm to commit.
+# --------------------------------------------------------------------------- #
+
+MAX_CSV_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.get("/import/template")
+async def import_template(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> Response:
+    """Download a CSV template with the expected headers and one example row."""
+    return Response(
+        content=csv_import.template_csv(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="penny-transactions-template.csv"'},
+    )
+
+
+@router.post("/import/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Parse a CSV and return a validated preview. Writes nothing."""
+    name = (file.filename or "").lower()
+    if not name.endswith(".csv") and (file.content_type or "") not in (
+        "text/csv", "application/vnd.ms-excel", "application/csv", "text/plain",
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a CSV")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if len(content) > MAX_CSV_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="CSV exceeds the 5 MB limit",
+        )
+    existing = {
+        csv_import._norm_address(t.get("address", ""))
+        for t in await sb.list_transactions(brokerage["id"])
+        if t.get("address")
+    }
+    return csv_import.build_preview(content, existing)
+
+
+class ImportCommitIn(BaseModel):
+    rows: list[dict[str, Any]]
+
+
+@router.post("/import")
+async def import_commit(
+    body: ImportCommitIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Insert the confirmed rows. Each goes through the normal create hooks so an
+    imported deal gets its checklist, workflow tasks, and routing."""
+    if not body.rows:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No rows to import")
+    if len(body.rows) > csv_import.MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many rows (limit {csv_import.MAX_ROWS}).",
+        )
+
+    allowed = set(TransactionCreate.model_fields)
+    created = 0
+    failed: list[dict[str, Any]] = []
+    for i, raw in enumerate(body.rows):
+        data = {k: v for k, v in raw.items() if k in allowed and v not in (None, "")}
+        if not data.get("address"):
+            failed.append({"index": i, "reason": "Missing address"})
+            continue
+        data["brokerage_id"] = brokerage["id"]
+        data.setdefault("stage", "under_contract")
+        try:
+            tx = await sb.insert_transaction(data)
+            await _run_post_create_hooks(tx)
+            created += 1
+        except sb.SupabaseError as exc:
+            failed.append({"index": i, "reason": str(exc)})
+
+    return {"created": created, "failed": failed}
 
 
 @router.get("/{transaction_id}")

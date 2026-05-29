@@ -243,6 +243,28 @@ export interface ExtractResult {
   not_found: string[]
 }
 
+export interface ImportPreviewRow {
+  row_number: number
+  data: Record<string, string | number>
+  errors: string[]
+  warnings: string[]
+  duplicate: boolean
+  importable: boolean
+}
+
+export interface ImportPreview {
+  rows: ImportPreviewRow[]
+  recognized_columns: string[]
+  unmapped_columns: string[]
+  summary: { total: number; ready: number; errors: number; duplicates: number }
+  error?: string
+}
+
+export interface ImportResult {
+  created: number
+  failed: { index: number; reason: string }[]
+}
+
 // --------------------------------------------------------------------------- //
 // WhatsApp
 // --------------------------------------------------------------------------- //
@@ -322,6 +344,38 @@ export const transactionsApi = {
   get: (id: string) => api.get<Transaction>(`/transactions/${id}`).then((r) => r.data),
   update: (id: string, data: Partial<Transaction>) =>
     api.patch<Transaction>(`/transactions/${id}`, data).then((r) => r.data),
+
+  // CSV import — migration path for brokerages with existing deals.
+  importPreview: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch('/api/v1/transactions/import/preview', {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.detail ?? 'Could not read that file')
+      }
+      return res.json() as Promise<ImportPreview>
+    })
+  },
+  importCommit: (rows: Record<string, unknown>[]) =>
+    api.post<ImportResult>('/transactions/import', { rows }).then((r) => r.data),
+  downloadTemplate: async () => {
+    const res = await fetch('/api/v1/transactions/import/template', {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    })
+    if (!res.ok) throw new Error('Could not download template')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'penny-transactions-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
   draftDocument: (
     id: string,
     data: { doc_type: string; recipient?: string; instructions?: string },

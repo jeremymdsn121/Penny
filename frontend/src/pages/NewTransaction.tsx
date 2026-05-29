@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
 import { transactionsApi, type ExtractResult } from '../lib/api'
 
@@ -269,6 +269,16 @@ export default function NewTransaction() {
               </>
             )}
           </div>
+        )}
+
+        {/* Bulk on-ramp for brokerages moving from another tool */}
+        {phase === 'upload' && (
+          <p className="text-center text-sm text-ink-subtle">
+            Moving from another tool?{' '}
+            <Link to="/transactions/import" className="font-medium text-penny hover:underline">
+              Import existing deals from CSV
+            </Link>
+          </p>
         )}
 
         {/* ── Review phase ── */}
