@@ -687,7 +687,17 @@ async def _exec_preview_intro_email(brokerage_id: str, inputs: dict) -> str:
 
 
 async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
-    if not inputs.get("confirmed"):
+    # Intro emails may be sent autonomously when the brokerage has opted in
+    # (the `intro-email` task autonomy toggle); otherwise a human must confirm.
+    autonomous = False
+    try:
+        autonomy = await sb.get_task_autonomy(brokerage_id)
+        autonomous = any(
+            r.get("task_id") == "intro-email" and r.get("autonomous") for r in autonomy
+        )
+    except Exception:
+        autonomous = False
+    if not inputs.get("confirmed") and not autonomous:
         return (
             "Not sent — I need explicit confirmation first. Show the agent the "
             "preview (preview_intro_email) and ask them to confirm, then call this "

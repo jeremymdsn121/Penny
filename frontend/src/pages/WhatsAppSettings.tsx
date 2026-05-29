@@ -13,6 +13,16 @@ import {
 // WhatsApp green used only on this page for brand context
 const WA_GREEN = '#25D366'
 
+// Grouped capability summary (not the full ~20-tool list) — keep it skimmable.
+const CAPABILITIES: { title: string; detail: string }[] = [
+  { title: 'Manage deals', detail: 'pipeline summary, look up any deal, update its stage, add notes' },
+  { title: 'Set up a deal from a contract', detail: 'text a PDF or photo — Penny extracts the details and creates it' },
+  { title: 'Deadlines & next steps', detail: 'add deadlines (with automatic reminders) and see what’s due' },
+  { title: 'Check the file', detail: 'what’s missing for compliance, run a review, track earnest money' },
+  { title: 'Comps & scheduling', detail: 'a value estimate and comps for any address; propose and book showings' },
+  { title: 'Write for you', detail: 'draft a letter or email in your voice, or send the intro email to all parties' },
+]
+
 type Channel = 'whatsapp' | 'sms' | 'both'
 
 export default function WhatsAppSettings() {
@@ -224,20 +234,22 @@ export default function WhatsAppSettings() {
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
                 What Agents Can Do via WhatsApp
               </h2>
-              <ul className="space-y-2 text-sm text-ink">
-                {[
-                  'Ask for a summary of all active transactions',
-                  'Look up the status or details of a specific deal',
-                  'Update a transaction\'s stage (e.g. "Move Oak Street to Pending")',
-                  'Add notes to a transaction',
-                  'Send a voice memo — Penny transcribes it automatically',
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2">
+              <ul className="space-y-2.5 text-sm text-ink">
+                {CAPABILITIES.map((c) => (
+                  <li key={c.title} className="flex items-start gap-2">
                     <span style={{ color: WA_GREEN }} className="mt-0.5 text-base leading-none">✓</span>
-                    {item}
+                    <span>
+                      <span className="font-medium">{c.title}</span>
+                      <span className="text-ink-muted"> — {c.detail}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
+              <p className="mt-4 text-xs text-ink-subtle">
+                Send a voice memo for any of these and Penny transcribes it. Anything that
+                sends or changes something asks you to confirm first — unless you’ve set it to
+                run automatically (e.g. intro emails, chosen during onboarding).
+              </p>
             </section>
 
             {/* ── Registered contacts ── */}
