@@ -83,7 +83,6 @@ export default function AppShell() {
           <PennyMark size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
-            <p className="text-xs text-ink-subtle">Virtual coordinator</p>
           </div>
         </Link>
 
