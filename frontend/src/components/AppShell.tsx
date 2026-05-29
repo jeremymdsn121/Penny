@@ -19,6 +19,7 @@ import {
 import { brokerApi } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 import { useThemeStore } from '../store/theme'
+import { useUiStore } from '../store/ui'
 
 interface NavItem {
   to: string
@@ -46,7 +47,12 @@ export default function AppShell() {
   const logout = useAuthStore((s) => s.logout)
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggle)
+  const chatStarted = useUiStore((s) => s.chatStarted)
   const [reviewCount, setReviewCount] = useState(0)
+
+  // The home launcher ('/') uses its own pill grid for nav, so the sidebar is
+  // redundant there — hide it until the user advances (into a page or a chat).
+  const onLanding = location.pathname === '/' && !chatStarted
 
   const name = brokerage?.name ?? 'Penny'
   const assistant = brokerage?.assistant_name || 'Penny'
@@ -68,6 +74,7 @@ export default function AppShell() {
 
   return (
     <div className="flex min-h-screen">
+      {!onLanding && (
       <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-hairline bg-surface-2">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
@@ -134,6 +141,26 @@ export default function AppShell() {
           </div>
         </div>
       </aside>
+      )}
+
+      {onLanding && (
+        <div className="fixed right-4 top-4 z-20 flex items-center gap-1">
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            className="rounded-md p-2 text-ink-subtle transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button
+            onClick={onLogout}
+            title="Log out"
+            className="rounded-md p-2 text-ink-subtle transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Main */}
       <main className="min-w-0 flex-1">

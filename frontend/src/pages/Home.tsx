@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { brokerApi, chatApi, transactionsApi, type ChatTurn, type Transaction } from '../lib/api'
 import { useAuthStore } from '../store/auth'
+import { useUiStore } from '../store/ui'
 
 const ACTIVE_STAGES = new Set(['under_contract', 'pending'])
 
@@ -214,6 +215,14 @@ export default function Home() {
   }, [messages, sending])
 
   const started = messages.length > 0
+
+  // Tell the shell when we've advanced past the bare landing, so it can show
+  // the sidebar (and hide it again on the launcher, where pills are the nav).
+  const setChatStarted = useUiStore((s) => s.setChatStarted)
+  useEffect(() => {
+    setChatStarted(started)
+    return () => setChatStarted(false)
+  }, [started, setChatStarted])
 
   // Animate the placeholder only on the empty landing, while the field is idle.
   const animatePlaceholder = !started && !focused && !input && !listening && !reduceMotion
