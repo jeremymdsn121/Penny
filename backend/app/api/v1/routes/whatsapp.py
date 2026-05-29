@@ -523,3 +523,40 @@ async def whatsapp_config(
         "penny_whatsapp_number": penny_number,
         "configured": penny_number is not None,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Brokerage messaging settings (reply routing) — protected
+# --------------------------------------------------------------------------- #
+
+# Brokerage-level toggles that govern how Penny routes communications. Kept here
+# (with the Messaging page's other APIs) rather than under compliance settings.
+_MESSAGING_SETTINGS_FIELDS = ("forward_replies_to_agent",)
+
+
+class MessagingSettingsIn(BaseModel):
+    # Forward each inbound email reply to the deal's agent inbox (opt-in).
+    forward_replies_to_agent: bool | None = None
+
+
+@router.get("/settings")
+async def get_messaging_settings(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Return the brokerage's messaging/reply-routing settings."""
+    return {k: brokerage.get(k) for k in _MESSAGING_SETTINGS_FIELDS}
+
+
+@router.put("/settings")
+async def update_messaging_settings(
+    body: MessagingSettingsIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Update the brokerage's messaging/reply-routing settings."""
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Nothing to update"
+        )
+    updated = await sb.update_brokerage(brokerage["id"], data)
+    return {k: updated.get(k) for k in _MESSAGING_SETTINGS_FIELDS}

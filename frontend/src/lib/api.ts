@@ -195,6 +195,10 @@ export interface WhatsAppConfig {
   configured: boolean
 }
 
+export interface MessagingSettings {
+  forward_replies_to_agent?: boolean | null
+}
+
 export const whatsappApi = {
   config: () => api.get<WhatsAppConfig>('/whatsapp/config').then((r) => r.data),
   listContacts: () => api.get<WhatsAppContact[]>('/whatsapp/contacts').then((r) => r.data),
@@ -204,6 +208,9 @@ export const whatsappApi = {
       .then((r) => r.data),
   removeContact: (phone_number: string) =>
     api.delete(`/whatsapp/contacts/${encodeURIComponent(phone_number)}`),
+  getSettings: () => api.get<MessagingSettings>('/whatsapp/settings').then((r) => r.data),
+  updateSettings: (data: MessagingSettings) =>
+    api.put<MessagingSettings>('/whatsapp/settings', data).then((r) => r.data),
 }
 
 export interface SmsConfig {

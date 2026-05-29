@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.config import settings
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import twilio_client
+from app.services import email_client, twilio_client
 
 router = APIRouter(tags=["email"])
 
@@ -40,6 +40,42 @@ def _split_sender(from_field: str) -> tuple[str | None, str | None]:
         name = raw[: addr.start()].strip().strip('"').strip() or None
         return name, email
     return None, raw or None
+
+
+def _forward_html(
+    address: str, who: str, sender_email: str | None, subject: str | None,
+    body_html: str | None, body_text: str,
+) -> str:
+    """Body for a reply forwarded to the deal's agent."""
+    import html as _h
+
+    inner = body_html or f"<p>{_h.escape(body_text).replace(chr(10), '<br/>')}</p>"
+    frm = _h.escape(f"{who} <{sender_email}>" if sender_email else who)
+    subj = _h.escape(subject or "(no subject)")
+    return (
+        '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;">'
+        '<p style="font-size:13px;color:#6B7280;">Penny forwarded a reply on '
+        f'<strong>{_h.escape(address)}</strong>. Reply to this email to continue the '
+        'thread — Penny will log your response on the transaction.</p>'
+        '<hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;"/>'
+        f'<p style="font-size:13px;color:#6B7280;margin:0 0 4px;"><strong>From:</strong> {frm}</p>'
+        f'<p style="font-size:13px;color:#6B7280;margin:0 0 12px;"><strong>Subject:</strong> {subj}</p>'
+        f'{inner}</div>'
+    )
+
+
+def _forward_plain(
+    address: str, who: str, sender_email: str | None, subject: str | None, body_text: str,
+) -> str:
+    frm = f"{who} <{sender_email}>" if sender_email else who
+    return (
+        f"Penny forwarded a reply on {address}. Reply to this email to continue the "
+        "thread — Penny will log your response on the transaction.\n\n"
+        f"From: {frm}\n"
+        f"Subject: {subject or '(no subject)'}\n"
+        f"{'-' * 40}\n"
+        f"{body_text}"
+    )
 
 
 @router.post("/email/inbound")
@@ -81,10 +117,44 @@ async def inbound_email(request: Request) -> Any:
         }
     )
 
-    # Nudge the brokerage's WhatsApp contacts with a short preview.
+    # Resolve the deal's agent — used to target the nudge and (optionally)
+    # forward the reply to their inbox.
+    brokerage = await sb.get_brokerage(tx["brokerage_id"])
+    agent_id = tx.get("agent_id")
+    agent: dict[str, Any] | None = None
+    if agent_id:
+        try:
+            agent = await sb.get_agent(tx["brokerage_id"], agent_id)
+        except sb.SupabaseError:
+            agent = None
+
     preview = " ".join(body_text.split())[:120]
     who = sender_name or sender_email or "someone"
     address = tx.get("address") or "a transaction"
+
+    # ── Optional: forward the reply to the responsible agent's inbox ───────── #
+    if brokerage and brokerage.get("forward_replies_to_agent"):
+        agent_email = (
+            (agent or {}).get("email")
+            or tx.get("listing_agent_email")
+            or tx.get("selling_agent_email")
+            or ""
+        ).strip()
+        # Don't echo the agent's own reply back to them.
+        if agent_email and agent_email.lower() != (sender_email or "").strip().lower():
+            try:
+                await asyncio.to_thread(
+                    email_client.send_email,
+                    to_emails=[agent_email],
+                    subject=f"Reply on {address} — {who}",
+                    html=_forward_html(address, who, sender_email, subject, body_html, body_text),
+                    plain=_forward_plain(address, who, sender_email, subject, body_text),
+                    reply_to=email_client.reply_to_address(transaction_id),
+                )
+            except Exception:  # noqa: BLE001 — forwarding is best-effort
+                pass
+
+    # ── Targeted WhatsApp nudge: the deal's agent, not the whole brokerage ── #
     nudge = (
         f"📨 Reply received on {address}\n"
         f"From: {who}\n"
@@ -93,7 +163,15 @@ async def inbound_email(request: Request) -> Any:
     )
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
-        for c in contacts:
+        if agent_id:
+            # Only the agent on this deal. If they have no WhatsApp contact we
+            # send nothing here — the reply is still in the dashboard (and
+            # forwarded by email when that's enabled).
+            recipients = [c for c in contacts if c.get("agent_id") == agent_id]
+        else:
+            # Unassigned deal — fall back to the brokerage's contacts.
+            recipients = contacts
+        for c in recipients:
             phone = c.get("phone_number")
             if not phone:
                 continue

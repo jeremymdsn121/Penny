@@ -4,6 +4,7 @@ import PennyBubble from '../components/PennyBubble'
 import {
   smsApi,
   whatsappApi,
+  type MessagingSettings,
   type SmsConfig,
   type WhatsAppContact,
   type WhatsAppConfig,
@@ -24,6 +25,10 @@ export default function WhatsAppSettings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Reply-handling settings
+  const [forwardReplies, setForwardReplies] = useState(false)
+  const [forwardSaving, setForwardSaving] = useState(false)
+
   // Add-contact form
   const [phone, setPhone] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -37,16 +42,34 @@ export default function WhatsAppSettings() {
       whatsappApi.listContacts(),
       smsApi.config(),
       smsApi.listContacts(),
+      whatsappApi.getSettings(),
     ])
-      .then(([cfg, ctcts, scfg, sctcts]) => {
+      .then(([cfg, ctcts, scfg, sctcts, settings]) => {
         setConfig(cfg)
         setContacts(ctcts)
         setSmsConfig(scfg)
         setSmsContacts(sctcts)
+        setForwardReplies(!!settings.forward_replies_to_agent)
       })
       .catch(() => setError('Could not load messaging settings.'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function toggleForwardReplies(next: boolean) {
+    setForwardReplies(next) // optimistic
+    setForwardSaving(true)
+    try {
+      const saved: MessagingSettings = await whatsappApi.updateSettings({
+        forward_replies_to_agent: next,
+      })
+      setForwardReplies(!!saved.forward_replies_to_agent)
+    } catch {
+      setForwardReplies(!next) // revert on failure
+      setError('Could not save the reply-forwarding setting.')
+    } finally {
+      setForwardSaving(false)
+    }
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -166,6 +189,34 @@ export default function WhatsAppSettings() {
                   on the backend to enable WhatsApp messaging.
                 </p>
               )}
+            </section>
+
+            {/* ── Reply handling ── */}
+            <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+              <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
+                Reply Handling
+              </h2>
+              <p className="mb-4 text-xs text-ink-subtle">
+                When a party replies to one of Penny's emails, the reply is always saved to the
+                transaction and the deal's agent is nudged on WhatsApp. You can also have Penny
+                forward each reply to that agent's email inbox.
+              </p>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={forwardReplies}
+                  disabled={forwardSaving}
+                  onChange={(e) => toggleForwardReplies(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-hairline text-penny focus:ring-penny disabled:opacity-50"
+                />
+                <span className="text-sm text-ink">
+                  Forward email replies to the agent's inbox
+                  <span className="mt-0.5 block text-xs text-ink-subtle">
+                    The agent can reply straight from their email — Penny still logs the thread on
+                    the transaction.
+                  </span>
+                </span>
+              </label>
             </section>
 
             {/* ── What agents can do ── */}
