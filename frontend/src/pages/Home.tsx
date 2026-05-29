@@ -144,11 +144,11 @@ function useTypewriter(phrases: string[], enabled: boolean): string {
           phase = 'holding'
           timer = setTimeout(tick, 1800)
         } else {
-          timer = setTimeout(tick, 48)
+          timer = setTimeout(tick, 24)
         }
       } else if (phase === 'holding') {
         phase = 'deleting'
-        timer = setTimeout(tick, 28)
+        timer = setTimeout(tick, 14)
       } else {
         charIdx -= 1
         setDisplay(phrase.slice(0, Math.max(0, charIdx)))
@@ -157,7 +157,7 @@ function useTypewriter(phrases: string[], enabled: boolean): string {
           phraseIdx = (phraseIdx + 1) % phrases.length
           timer = setTimeout(tick, 380)
         } else {
-          timer = setTimeout(tick, 28)
+          timer = setTimeout(tick, 14)
         }
       }
     }
