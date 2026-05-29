@@ -129,6 +129,62 @@ export const autonomyApi = {
 }
 
 // --------------------------------------------------------------------------- //
+// Document routing (Autonomy task `doc-routing`)
+// --------------------------------------------------------------------------- //
+
+export interface DocRoutingRule {
+  id: string
+  brokerage_id: string
+  trigger_stage: string
+  document_source: string
+  recipient_roles: string[]
+  enabled: boolean
+  created_at?: string
+}
+
+export interface PendingDocRoute {
+  id: string
+  brokerage_id: string
+  transaction_id: string
+  rule_id?: string | null
+  trigger_stage: string
+  document_source: string
+  document_url?: string | null
+  recipient_roles: string[]
+  recipient_emails: string[]
+  status: 'pending' | 'sent' | 'dismissed'
+  created_at?: string
+}
+
+export const docRoutingApi = {
+  listRules: () => api.get<DocRoutingRule[]>('/doc-routing/rules').then((r) => r.data),
+  createRule: (data: {
+    trigger_stage: string
+    recipient_roles: string[]
+    document_source?: string
+    enabled?: boolean
+  }) => api.post<DocRoutingRule>('/doc-routing/rules', data).then((r) => r.data),
+  updateRule: (id: string, data: Partial<Omit<DocRoutingRule, 'id' | 'brokerage_id'>>) =>
+    api.patch<DocRoutingRule>(`/doc-routing/rules/${id}`, data).then((r) => r.data),
+  deleteRule: (id: string) => api.delete(`/doc-routing/rules/${id}`),
+  listPending: () => api.get<PendingDocRoute[]>('/doc-routing/pending').then((r) => r.data),
+  sendPending: (id: string) =>
+    api
+      .post<PendingDocRoute>(`/doc-routing/pending/${id}/send`, { confirmed: true })
+      .then((r) => r.data),
+  dismissPending: (id: string) =>
+    api.post<PendingDocRoute>(`/doc-routing/pending/${id}/dismiss`).then((r) => r.data),
+}
+
+// Transaction stages a routing rule can trigger on (mirrors backend VALID_STAGES).
+export const ROUTING_STAGES: { key: string; label: string }[] = [
+  { key: 'under_contract', label: 'Under Contract' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'closed', label: 'Closed' },
+  { key: 'cancelled', label: 'Cancelled' },
+]
+
+// --------------------------------------------------------------------------- //
 // Transactions
 // --------------------------------------------------------------------------- //
 

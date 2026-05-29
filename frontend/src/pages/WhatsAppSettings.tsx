@@ -248,7 +248,7 @@ export default function WhatsAppSettings() {
               <p className="mt-4 text-xs text-ink-subtle">
                 Send a voice memo for any of these and Penny transcribes it. Anything that
                 sends or changes something asks you to confirm first, unless you’ve set it to
-                run automatically (e.g. intro emails, in Automation settings).
+                run automatically (e.g. intro emails, in Autonomy settings).
               </p>
             </section>
 

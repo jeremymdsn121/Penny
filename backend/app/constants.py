@@ -50,7 +50,11 @@ TASK_DEFINITIONS: list[dict] = [
     {
         "task_id": "doc-routing",
         "label": "Document routing",
-        "description": "Send documents to title and lender when a trigger fires.",
+        "description": (
+            "Send the contract to selected parties (e.g. title, lender) when a deal "
+            "enters a chosen stage. With autonomy off, Penny queues each send for "
+            "the deal's agent to approve in one click."
+        ),
         "default_autonomous": False,
         "locked": False,
     },

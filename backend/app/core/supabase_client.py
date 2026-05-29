@@ -1678,3 +1678,152 @@ async def create_signed_url(bucket: str, path: str, expires_in: int = 3600) -> s
     if signed and signed.startswith("/"):
         return f"{STORAGE_BASE}{signed}"
     return signed
+
+
+# --------------------------------------------------------------------------- #
+# Document routing (Autonomy task `doc-routing`)
+# --------------------------------------------------------------------------- #
+
+
+async def list_doc_routing_rules(
+    brokerage_id: str, *, enabled_only: bool = False
+) -> list[dict[str, Any]]:
+    params = {"brokerage_id": f"eq.{brokerage_id}", "select": "*", "order": "created_at.asc"}
+    if enabled_only:
+        params["enabled"] = "eq.true"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/doc_routing_rules", params=params, headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_doc_routing_rule(rule_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/doc_routing_rules",
+            params={"id": f"eq.{rule_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def insert_doc_routing_rule(data: dict[str, Any]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/doc_routing_rules",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else {}
+
+
+async def update_doc_routing_rule(rule_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/doc_routing_rules",
+            params={"id": f"eq.{rule_id}"},
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else {}
+
+
+async def delete_doc_routing_rule(rule_id: str) -> None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/doc_routing_rules",
+            params={"id": f"eq.{rule_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def list_pending_doc_routes(
+    brokerage_id: str, *, status_filter: str | None = "pending"
+) -> list[dict[str, Any]]:
+    params = {
+        "brokerage_id": f"eq.{brokerage_id}",
+        "select": "*",
+        "order": "created_at.desc",
+    }
+    if status_filter:
+        params["status"] = f"eq.{status_filter}"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_doc_routes", params=params, headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_pending_doc_route(route_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_doc_routes",
+            params={"id": f"eq.{route_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_pending_doc_routes_for_transaction(
+    transaction_id: str,
+) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_doc_routes",
+            params={"transaction_id": f"eq.{transaction_id}", "select": "*"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def insert_pending_doc_route(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Insert a queued/sent route row. Returns None on a unique-constraint
+    conflict (the route already exists for this transaction+rule), which makes
+    the routing engine idempotent across repeated stage entries."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/pending_doc_routes",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code == 409:
+        return None
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_pending_doc_route(route_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/pending_doc_routes",
+            params={"id": f"eq.{route_id}"},
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else {}

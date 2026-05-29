@@ -2,7 +2,7 @@ import { type TaskDefinition } from '../lib/api'
 
 // A single task row with a switch. `locked` tasks (compliance) show a static
 // "Always needs approval" badge and can't be toggled. Shared by the onboarding
-// wizard and the Automation settings page.
+// wizard and the Autonomy settings page.
 export default function TaskToggle({
   task,
   value,

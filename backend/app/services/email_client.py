@@ -161,6 +161,7 @@ def send_email(
     plain: str,
     reply_to: str | None = None,
     disclosure: str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> bool:
     """Send a single email to one or more recipients.
 
@@ -168,6 +169,9 @@ def send_email(
     message is sent with all addresses on the To line, so recipients can see and
     reply-all to each other — exactly what an introduction should do. ``reply_to``
     sets the Reply-To header (used for per-transaction inbound reply threading).
+
+    ``attachments`` is an optional list of ``{"content": bytes, "filename": str,
+    "type": str}`` dicts — used by document routing to attach the contract PDF.
 
     No-op (returns False) when ``SENDGRID_API_KEY`` is unset. Never raises.
     """
@@ -201,6 +205,26 @@ def send_email(
     )
     if reply_to:
         message.reply_to = reply_to
+    for att in attachments or []:
+        content = att.get("content")
+        if not content:
+            continue
+        from sendgrid.helpers.mail import (
+            Attachment,
+            Disposition,
+            FileContent,
+            FileName,
+            FileType,
+        )
+
+        message.add_attachment(
+            Attachment(
+                FileContent(base64.b64encode(content).decode()),
+                FileName(att.get("filename") or "attachment"),
+                FileType(att.get("type") or "application/octet-stream"),
+                Disposition("attachment"),
+            )
+        )
     try:
         sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
         response = sg.send(message)

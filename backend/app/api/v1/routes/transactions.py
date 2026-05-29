@@ -16,6 +16,7 @@ from app.services import (
     compliance_checklist,
     docusign_provider,
     doc_generate,
+    doc_routing,
     email_client,
     rentcast,
     workflow,
@@ -122,6 +123,11 @@ async def create(
         await workflow.generate_stage_tasks(tx, tx.get("stage") or "under_contract")
     except sb.SupabaseError:
         pass  # best-effort at creation; both can be (re)built later
+    # Fire document-routing rules for the deal's initial stage (best-effort).
+    try:
+        await doc_routing.run_stage_routing(tx, tx.get("stage") or "under_contract")
+    except sb.SupabaseError:
+        pass
     return tx
 
 
@@ -181,10 +187,15 @@ async def update_one(
     tx = await sb.update_transaction(brokerage["id"], transaction_id, data)
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-    # On a stage transition, generate the new stage's workflow tasks.
+    # On a stage transition, generate the new stage's workflow tasks and fire
+    # any document-routing rules for the new stage (both best-effort).
     if new_stage and new_stage != prev.get("stage"):
         try:
             await workflow.generate_stage_tasks(tx, new_stage)
+        except sb.SupabaseError:
+            pass
+        try:
+            await doc_routing.run_stage_routing(tx, new_stage)
         except sb.SupabaseError:
             pass
     return tx

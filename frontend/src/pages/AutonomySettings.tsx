@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import DocRoutingSettings from '../components/DocRoutingSettings'
 import PennyBubble from '../components/PennyBubble'
 import TaskToggle from '../components/TaskToggle'
 import { autonomyApi, type TaskAutonomy } from '../lib/api'
@@ -50,7 +51,7 @@ export default function AutonomySettings() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-6 py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Automation</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Autonomy</h1>
         <p className="mt-1 text-sm text-ink-muted">
           Choose what Penny does on her own, and what she drafts for your approval.
         </p>
@@ -94,6 +95,8 @@ export default function AutonomySettings() {
               {saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
+
+          <DocRoutingSettings autonomous={!!autonomy['doc-routing']} />
         </>
       )}
     </div>

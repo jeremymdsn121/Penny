@@ -312,6 +312,8 @@ Post-V2 (web-app work):
 - `016_reply_forwarding.sql` — `brokerages.forward_replies_to_agent` boolean
   (default false): forward inbound email replies to the deal's agent. See the
   Inbound email threading (4) bullet.
+- `017_doc_routing.sql` — `doc_routing_rules` + `pending_doc_routes` (Autonomy
+  task `doc-routing`). See the Document routing bullet.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
@@ -415,12 +417,29 @@ against live services in the dev brokerage:
   threading (4) + migration 016. Verified: toggle saves; nudge targeting needs the
   agent's number linked to their agent record (`agent_channels.agent_id`) and the deal
   assigned (`transactions.agent_id`) to resolve a specific recipient.
-- **Automation settings page** (`/settings/autonomy`, `AutonomySettings.tsx`) —
-  post-onboarding editing of the task-autonomy toggles (`GET`/`PUT /autonomy` in
-  `routes/autonomy.py`, same `task_autonomy` table + rules as onboarding; compliance
-  stays locked off). `TaskToggle` was extracted to `components/TaskToggle.tsx` and is
-  shared with the onboarding wizard. The `intro-email` executor now honours autonomy at
-  the executor level (no longer prompt-only). Verified: load + save round-trip.
+- **Autonomy settings page** (`/settings/autonomy`, `AutonomySettings.tsx`; labelled
+  "Autonomy" in the sidebar) — post-onboarding editing of the task-autonomy toggles
+  (`GET`/`PUT /autonomy` in `routes/autonomy.py`, same `task_autonomy` table + rules as
+  onboarding; compliance stays locked off). `TaskToggle` was extracted to
+  `components/TaskToggle.tsx` and is shared with the onboarding wizard. The `intro-email`
+  executor now honours autonomy at the executor level (no longer prompt-only). Verified:
+  load + save round-trip.
+- **Document routing** (Autonomy task `doc-routing`, migration 017) — the previously
+  inert `doc-routing` toggle now does something. `doc_routing_rules` (per-brokerage
+  config: `trigger_stage` + `recipient_roles` + `document_source`) and
+  `pending_doc_routes` (the one-click send queue) back it. On a transaction entering a
+  stage (creation + stage PATCH, alongside `generate_stage_tasks`),
+  `services/doc_routing.py` matches enabled rules, resolves roles to party emails on the
+  deal, and grabs the contract PDF from the `contracts` bucket. If the `doc-routing`
+  task is **autonomous**, it emails immediately (same opt-in gate as `intro-email`);
+  otherwise it queues a `pending_doc_routes` row and WhatsApp-nudges the deal's agent.
+  Sending is **confirm-gated** — `POST /doc-routing/pending/{id}/send` requires
+  `confirmed=true` (no bypass flag), `/dismiss` drops it. `send_email` gained an
+  `attachments` param for the PDF. Rules CRUD + queue live on the Autonomy page
+  (`components/DocRoutingSettings.tsx`). VALID_STAGES are the real transaction stages
+  (`under_contract`/`pending`/`closed`/`cancelled`), not deadline labels. Verified in
+  the browser: rules CRUD round-trip; queue/send paths are import- + unit-checked
+  (a live send needs SendGrid + a contract on file).
 - **Assistant name is fixed to "Penny"** — the onboarding rename field was removed and
   the backend hardcodes `assistant_name="Penny"`. Refer to Penny as she/her in copy.
 
