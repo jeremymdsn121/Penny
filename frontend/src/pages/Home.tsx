@@ -19,6 +19,14 @@ import { useAuthStore } from '../store/auth'
 
 const ACTIVE_STAGES = new Set(['under_contract', 'pending'])
 
+// Generic suggestions shown before there are any active deals to template from.
+const GENERIC_SUGGESTIONS = [
+  'What needs my attention today?',
+  'Which deals are closing this week?',
+  "What's missing on my newest file?",
+  'Show me my pipeline',
+]
+
 interface Pill {
   to: string
   label: string
@@ -37,13 +45,6 @@ const PILLS: Pill[] = [
   { to: '/settings/compliance', label: 'Compliance', hint: 'Disclosure & consent', icon: Scale },
 ]
 
-const STARTERS = [
-  'What needs my attention today?',
-  'Which deals are closing this week?',
-  "What's missing on my newest file?",
-  'Show me my pipeline.',
-]
-
 function greeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -56,6 +57,116 @@ function daysUntil(dateStr?: string | null): number | null {
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return null
   return Math.ceil((d.getTime() - Date.now()) / 86_400_000)
+}
+
+// Short street line of an address (drop city/state) for compact prompts.
+function shortAddress(addr?: string | null): string {
+  const first = (addr ?? '').split(',')[0].trim()
+  return first || 'this deal'
+}
+
+// Build contextual prompt suggestions from the loaded transactions — entirely
+// client-side off real fields, so they're accurate, instant, and free. Falls
+// back to the generic set when there are no active deals to template from.
+function buildSuggestions(txs: Transaction[]): string[] {
+  const active = txs.filter((t) => ACTIVE_STAGES.has(t.stage ?? 'under_contract'))
+  if (active.length === 0) return GENERIC_SUGGESTIONS
+
+  // Most time-sensitive first: soonest closing date wins.
+  const ranked = [...active].sort((a, b) => {
+    const da = a.closing_date ? new Date(a.closing_date).getTime() : Infinity
+    const db = b.closing_date ? new Date(b.closing_date).getTime() : Infinity
+    return da - db
+  })
+
+  const out: string[] = []
+  for (const t of ranked.slice(0, 3)) {
+    const addr = shortAddress(t.address)
+    if (t.emd_amount && !t.emd_received) {
+      out.push(`When is earnest money due for ${addr}?`)
+    } else if (typeof t.checklist_pct === 'number' && t.checklist_pct < 100) {
+      out.push(`What's missing on ${addr}?`)
+    } else {
+      out.push(`What's the status of ${addr}?`)
+    }
+  }
+
+  // A closing-countdown prompt for the soonest deal, if it's actually near.
+  const soonest = ranked[0]
+  const d = daysUntil(soonest?.closing_date)
+  if (d !== null && d >= 0 && d <= 10) {
+    out.push(`What's left before ${shortAddress(soonest.address)} closes?`)
+  }
+
+  out.push('Show me my pipeline')
+  return Array.from(new Set(out)).slice(0, 5)
+}
+
+// --------------------------------------------------------------------------- //
+// Small presentation hooks (kept local — only the landing uses them).
+// --------------------------------------------------------------------------- //
+
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReduced(mq.matches)
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduced
+}
+
+// Typewriter that cycles through `phrases` while `enabled`. Types, holds,
+// deletes, advances. Returns '' (so a static placeholder can show) when paused.
+function useTypewriter(phrases: string[], enabled: boolean): string {
+  const [display, setDisplay] = useState('')
+  useEffect(() => {
+    if (!enabled || phrases.length === 0) {
+      setDisplay('')
+      return
+    }
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    let phraseIdx = 0
+    let charIdx = 0
+    let phase: 'typing' | 'holding' | 'deleting' = 'typing'
+
+    const tick = () => {
+      if (cancelled) return
+      const phrase = phrases[phraseIdx % phrases.length]
+      if (phase === 'typing') {
+        charIdx += 1
+        setDisplay(phrase.slice(0, charIdx))
+        if (charIdx >= phrase.length) {
+          phase = 'holding'
+          timer = setTimeout(tick, 1800)
+        } else {
+          timer = setTimeout(tick, 48)
+        }
+      } else if (phase === 'holding') {
+        phase = 'deleting'
+        timer = setTimeout(tick, 28)
+      } else {
+        charIdx -= 1
+        setDisplay(phrase.slice(0, Math.max(0, charIdx)))
+        if (charIdx <= 0) {
+          phase = 'typing'
+          phraseIdx = (phraseIdx + 1) % phrases.length
+          timer = setTimeout(tick, 380)
+        } else {
+          timer = setTimeout(tick, 28)
+        }
+      }
+    }
+    timer = setTimeout(tick, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [enabled, phrases])
+  return display
 }
 
 // Browser-native speech-to-text (Chrome/Edge/Safari). Returns null where unsupported.
@@ -74,6 +185,7 @@ export default function Home() {
   const navigate = useNavigate()
   const brokerage = useAuthStore((s) => s.brokerage)
   const assistant = brokerage?.assistant_name || 'Penny'
+  const reduceMotion = useReducedMotion()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [reviewCount, setReviewCount] = useState(0)
@@ -82,12 +194,14 @@ export default function Home() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [listening, setListening] = useState(false)
+  const [focused, setFocused] = useState(false)
 
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
 
   const speechSupported = useMemo(() => getSpeechRecognition() !== null, [])
+  const suggestions = useMemo(() => buildSuggestions(transactions), [transactions])
 
   useEffect(() => {
     transactionsApi.list().then(setTransactions).catch(() => {})
@@ -98,6 +212,14 @@ export default function Home() {
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, sending])
+
+  const started = messages.length > 0
+
+  // Animate the placeholder only on the empty landing, while the field is idle.
+  const animatePlaceholder = !started && !focused && !input && !listening && !reduceMotion
+  const typed = useTypewriter(suggestions, animatePlaceholder)
+  const staticPlaceholder = `Ask ${assistant} anything about your deals…`
+  const placeholder = animatePlaceholder && typed ? `${typed}▏` : staticPlaceholder
 
   const briefing = useMemo(() => {
     const active = transactions.filter((t) => ACTIVE_STAGES.has(t.stage ?? 'under_contract'))
@@ -183,8 +305,6 @@ export default function Home() {
     }
   }
 
-  const started = messages.length > 0
-
   const ChatBar = (
     <div className="rounded-2xl border border-hairline bg-surface shadow-soft transition-colors focus-within:border-penny">
       <textarea
@@ -192,8 +312,10 @@ export default function Home() {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={onKeyDown}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         rows={started ? 1 : 2}
-        placeholder={`Ask ${assistant} anything about your deals…`}
+        placeholder={placeholder}
         className="w-full resize-none bg-transparent px-4 pt-3.5 text-sm text-ink outline-none placeholder:text-ink-subtle"
       />
       <div className="flex items-center justify-between px-3 pb-3">
@@ -273,31 +395,37 @@ export default function Home() {
   }
 
   // ── Landing / empty state ────────────────────────────────────────────────
+  const rise = (delay: number) =>
+    reduceMotion ? undefined : ({ animationDelay: `${delay}ms` } as React.CSSProperties)
+  const riseClass = reduceMotion ? '' : 'animate-fade-up'
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
       {/* Brand mark */}
-      <div className="mb-6 flex justify-center">
+      <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(0)}>
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-penny to-penny-bright text-3xl font-bold text-white shadow-soft">
           {assistant.charAt(0)}
         </div>
       </div>
 
       {/* Greeting + briefing */}
-      <h1 className="text-center text-3xl font-semibold tracking-tight text-ink">
+      <h1 className={`text-center text-3xl font-semibold tracking-tight text-ink ${riseClass}`} style={rise(60)}>
         {greeting()}
       </h1>
-      <p className="mt-2 text-center text-sm text-ink-muted">
+      <p className={`mt-2 text-center text-sm text-ink-muted ${riseClass}`} style={rise(110)}>
         {transactions.length === 0
           ? `I'm ${assistant}. Drop a contract or ask me anything to get started.`
           : briefing}
       </p>
 
       {/* Chat bar */}
-      <div className="mt-8">{ChatBar}</div>
+      <div className={`mt-8 ${riseClass}`} style={rise(170)}>
+        {ChatBar}
+      </div>
 
-      {/* Starter prompts */}
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
-        {STARTERS.map((s) => (
+      {/* Starter chips — contextual, clickable shortcuts */}
+      <div className={`mt-3 flex flex-wrap justify-center gap-2 ${riseClass}`} style={rise(230)}>
+        {suggestions.slice(0, 3).map((s) => (
           <button
             key={s}
             onClick={() => send(s)}
@@ -309,7 +437,7 @@ export default function Home() {
       </div>
 
       {/* Nav pills */}
-      <div className="mt-10">
+      <div className={`mt-10 ${riseClass}`} style={rise(300)}>
         <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">
           <Sparkles size={14} />
           Jump to
