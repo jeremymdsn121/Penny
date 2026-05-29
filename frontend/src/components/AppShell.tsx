@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { brokerApi } from '../lib/api'
+import PennyMark from './PennyMark'
 import { useAuthStore } from '../store/auth'
 import { useThemeStore } from '../store/theme'
 import { useUiStore } from '../store/ui'
@@ -57,7 +58,6 @@ export default function AppShell() {
   const onLanding = location.pathname === '/' && !chatStarted
 
   const name = brokerage?.name ?? 'Penny'
-  const assistant = brokerage?.assistant_name || 'Penny'
 
   useEffect(() => {
     brokerApi
@@ -80,9 +80,7 @@ export default function AppShell() {
       <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-hairline bg-surface-2">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-penny to-penny-bright text-sm font-semibold text-white">
-            {assistant.charAt(0)}
-          </div>
+          <PennyMark size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
             <p className="text-xs text-ink-subtle">Virtual coordinator</p>

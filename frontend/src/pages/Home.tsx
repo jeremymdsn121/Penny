@@ -14,6 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
+import PennyMark from '../components/PennyMark'
 import { brokerApi, chatApi, transactionsApi, type ChatTurn, type Transaction } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 import { useUiStore } from '../store/ui'
@@ -411,11 +412,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark */}
-      <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(0)}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-penny to-penny-bright text-3xl font-bold text-white shadow-soft">
-          {assistant.charAt(0)}
-        </div>
+      {/* Brand mark — the animated PennyMark signs itself in last, after the
+          rest of the launcher has settled. */}
+      <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(360)}>
+        <PennyMark size={120} animated />
       </div>
 
       {/* Greeting + briefing */}
