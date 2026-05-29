@@ -1,0 +1,289 @@
+# Penny V2 — Build Context (condensed from PENNY_V2_CLAUDE_CODE.md)
+
+Single working spec for V2 build. Source of truth is PENNY_V2_CLAUDE_CODE.md;
+this is the navigational digest for future sessions. Read the full doc before
+implementing any section.
+
+## Mission
+
+Virtual TC for small brokerages (2–10 agents) replacing Gmail + shared Sheet +
+DocuSign chaos. Primary user: broker-owner who is also a producing agent. Every
+feature decision: "does it make her Monday morning less overwhelming?" Default
+to simple; surface complexity only when asked.
+
+## Stack — Do Not Recreate
+
+- Backend: FastAPI + httpx (no ORM, direct Supabase REST)
+- Frontend: React 18 + TS + Vite + Tailwind + Zustand + Axios + RHF + Zod
+- DB: Supabase Postgres + RLS, every query scoped by `brokerage_id`
+- Auth: Supabase Auth, `brokerage_id` in JWT `app_metadata` (single source of truth)
+- AI: Anthropic claude-sonnet-4 (native doc blocks; strict JSON; empty on uncertainty)
+- Messaging: Twilio (WhatsApp + SMS, signed webhooks)
+- Email: SendGrid
+- Storage: Supabase buckets (`contracts`, `knowledge-docs`, `listing-packets`, `compliance-docs`)
+- Voice: OpenAI Whisper
+- Market data: Rentcast
+
+Live-tested today: auth, onboarding, contract PDF extraction, transactions,
+WhatsApp text+voice, knowledge base, doc generation, deadlines, compliance
+review (AI + structural), comps, scheduling, MLS listing prep.
+
+## Non-Negotiable Security
+
+- No API keys in frontend, ever
+- `service_role` server-side only
+- Every DB query scoped by `brokerage_id`
+- Compliance review NEVER autonomous (no flag, no setting, no path)
+- Confirmation gates required for: email send, document send, compliance
+  decision, appointment booking, listing push, deadline party notification
+- Extracted fields never hallucinated — empty string on uncertainty
+- `TWILIO_SKIP_VALIDATION` must be false in production
+
+## Migration Strategy
+
+Numbered files continuing from 001–005 (and currently shipped 006–015). Apply
+in order. Never modify existing migrations. Every new table:
+- `id uuid DEFAULT gen_random_uuid() PRIMARY KEY`
+- `brokerage_id uuid NOT NULL REFERENCES brokerages(id) ON DELETE CASCADE`
+  (or scoped via parent transaction)
+- `created_at timestamptz DEFAULT now()`
+- RLS policy scoped by `brokerage_id`
+
+## Build Sections
+
+### 1. Remove Adoption Blockers
+
+**1A. WhatsApp/SMS inbound PDF/image processing**
+- Extend Twilio inbound handler: detect `MediaUrl0` + `MediaContentType0`
+- Download w/ Twilio Basic Auth (urls expire fast)
+- PDF → existing extraction pipeline; image (jpg/png/heic/heif) → Claude image block
+- HEIC/HEIF → JPEG via Pillow
+- Store extracted fields in `pending_whatsapp_transactions`
+  (brokerage_id, whatsapp_contact_id, extracted_fields JSONB, pdf_storage_url, expires_at = now+2h)
+- YES/yep/correct → create transaction; corrections → parse + re-summarize
+- 15MB cap; duplicate-address warning; unknown sender → register first
+
+**1B. Per-agent style profiles**
+- Migration 006: `ALTER TABLE knowledge_rules ADD COLUMN agent_id uuid REFERENCES agents(id)`
+  + index `(brokerage_id, agent_id)`. agent_id NULL = brokerage-wide.
+- `agents` table if missing (id, brokerage_id, name, email, phone, whatsapp_number, sms_number, license_number)
+- `get_confirmed_knowledge_rules(brokerage_id, agent_id=None)`: fetch brokerage rules always;
+  if agent_id, also fetch agent-specific; agent rules take precedence on conflict
+- Wire agent_id into all doc-gen + email-draft calls (known from WA contact + web session)
+- Web UI: "My Style" tab — upload sample → propose → confirm (same UX as brokerage KB)
+- Admin: view (not edit) per-agent profiles; delete allowed
+
+**1C. SMS fallback channel**
+- Rename/extend `whatsapp_contacts` → `agent_channels`
+  (id, brokerage_id, agent_id, channel CHECK('whatsapp'|'sms'), phone_number, display_name,
+   UNIQUE(brokerage_id, phone_number, channel))
+- Migrate existing whatsapp_contacts with channel='whatsapp'
+- New route `POST /api/v1/sms/inbound`: same signature validation + contact lookup
+  + same tool-use loop, text-only (no voice memo, no media on SMS this phase)
+- Reply via `messages.create(from_=SMS_NUMBER, ...)`
+- Onboarding: admin chooses whatsapp/sms/both per agent
+- New env: `TWILIO_SMS_FROM` (standard Twilio number, not WhatsApp sender)
+
+### 2. Broker Compliance File
+
+**2A. Compliance Checklist Engine (migration 007)**
+Tables:
+- `compliance_templates` (brokerage_id NULL=system default, state, transaction_type
+  CHECK('buy_side'|'list_side'|'dual_agency'|'lease'), name, is_system_default)
+- `compliance_template_items` (template_id, sort_order, label, description, required,
+  document_required, notes)
+- `transaction_checklist_items` (transaction_id, template_item_id NULL=manual, label,
+  required, document_required, status CHECK('pending'|'complete'|'waived'|'not_applicable'),
+  completed_at, completed_by, document_url, waiver_note, sort_order)
+
+Seed system defaults: buy-side 16 items + list-side 16 items (see full doc lines 333–369).
+
+Endpoints:
+- `GET/POST/PUT /api/v1/compliance-templates`
+- `GET /api/v1/transactions/:id/checklist`
+- `POST /api/v1/transactions/:id/checklist/items` (manual add)
+- `PATCH /api/v1/transactions/:id/checklist/items/:item_id` (complete/waive/upload)
+- `DELETE /api/v1/transactions/:id/checklist/items/:item_id` (manual items only)
+
+Auto-instantiate on transaction creation; pick best template (brokerage custom > system default,
+matching state). Compute `checklist_pct` server-side; include in list responses.
+
+WhatsApp: "what's missing for 123 Main?" → list pending required only;
+"mark inspection complete" → confirm-gated update.
+
+**2B. Broker Review Queue**
+- `GET /api/v1/broker/review-queue` returns 4 categories: compliance_attention,
+  closing_soon_incomplete (<5d AND <80% checklist), overdue_deadlines (past due_date),
+  stale_transactions (no activity 7+ days — needs `last_activity_at` on transactions)
+- Each row: tx id, address, buyer, closing date, stage, checklist_pct, agent, one-line reason
+- UI: 4 collapsible sections, count badges, inline review-note textarea, 5min auto-refresh
+- Dashboard banner: "🚨 N items need your review" when count > 0
+- Admin role only
+
+### 3. Workflow Task Templates (migration 008)
+
+Tables:
+- `workflow_templates` (brokerage_id NULL=system default, name, state, transaction_type, is_system_default)
+- `workflow_steps` (template_id, sort_order, label, description,
+  trigger_type CHECK('stage_entry'|'days_before_deadline'|'days_after_stage'|'manual'),
+  trigger_stage, trigger_deadline_label, trigger_days,
+  assigned_to_role CHECK('agent'|'admin'|'buyer'|'seller'|'lender'|'title'),
+  due_offset_days)
+- `transaction_tasks` (transaction_id, step_id NULL=manual, label, description, due_date,
+  assigned_to_role, status CHECK('pending'|'complete'|'skipped'), completed_at, completed_by, skip_reason)
+
+Seed buy-side default workflow (see full doc lines 561–588). Hook generator into:
+- Transaction creation (stage_entry: under_contract)
+- Stage PATCH
+- Deadline reminder run (days_before_deadline)
+
+WhatsApp tool `get_pending_tasks`: group by urgency (overdue/today/this_week/upcoming).
+"Mark inspection ordered" → confirm-gated complete.
+
+UI: Tasks panel on transaction detail; overdue badge on transaction list.
+
+### 4. Inbound Email Reply Threading (migration 009)
+
+DNS: `reply.penny.app` MX → `mx.sendgrid.net`. Configure Inbound Parse → `POST /api/v1/email/inbound`.
+
+Outbound emails: `Reply-To: tx-{transaction_id}@reply.penny.app`
+
+Table `transaction_emails` (transaction_id, direction CHECK('outbound'|'inbound'),
+sender_email, sender_name, recipient_emails[], subject, body_text, body_html,
+sendgrid_message_id, read, read_at, read_by, received_at).
+
+`POST /api/v1/email/inbound` (public, validates SendGrid signature via `SENDGRID_WEBHOOK_KEY`):
+extract transaction_id from `to`, verify brokerage ownership, store, WhatsApp-nudge admin
+(preview truncated 120 chars).
+
+All existing SendGrid sends log to `transaction_emails` (direction='outbound', sendgrid_message_id).
+
+UI: Communications tab — chronological interleave, unread highlight, expand-to-read,
+Reply opens draft via doc-gen flow (human reviews + confirms — never auto-reply).
+
+Endpoints: `GET /api/v1/transactions/:id/emails`, `POST .../emails/read`.
+
+### 5. EMD Tracking (migration 010)
+
+`ALTER TABLE transactions ADD COLUMN`:
+- emd_amount numeric, emd_due_date date, emd_received boolean DEFAULT false,
+  emd_received_date date, emd_receipt_document_url text,
+  emd_held_by CHECK('title'|'brokerage'|'escrow'|'other'), emd_notes text
+
+Contract extraction wires `earnest_money` → `emd_amount`; if contract has EMD due date, extract.
+
+Review queue: add `emd_overdue` category (top priority, 🔴).
+
+UI: EMD card on transaction detail (amount, due, held_by, received). Mark Received:
+date picker + optional receipt upload → `compliance-docs` bucket.
+
+WhatsApp: query status, mark received (confirm-gated).
+
+**Constraint**: receipt tracking only. NO calculations, NO disbursements, NO trust math.
+UI label: "EMD Receipt Tracking."
+
+### 6. AI Disclosure + Party Consent (migration 011)
+
+Table `party_consents` (transaction_id, party_role, email, consented_at, ip_address,
+user_agent, consent_method DEFAULT 'email_link').
+
+`ALTER TABLE brokerages ADD`:
+- ai_disclosure_enabled boolean DEFAULT true
+- ai_disclosure_text text DEFAULT (standard disclosure paragraph)
+
+Disclosure footer: when enabled, append to every outbound email (small, muted, below sig).
+
+Optional consent link: HMAC-signed `GET /api/v1/consent/{transaction_id}/{party_role}?token=...`
+using `CONSENT_SECRET`. Verify → record in party_consents → simple HTML thank-you.
+Gated by per-brokerage `request_ai_consent` (default false).
+
+UI: Compliance Settings — toggle disclosure, edit text (with legal warning), toggle
+explicit consent, per-tx consent status panel.
+
+### 7. Broker Reporting
+
+All metrics from existing transaction data. No external BI.
+
+`GET /api/v1/reports/broker-summary?period=month|quarter|ytd` returns:
+- pipeline (active_transactions, active_volume, by_stage, closing_this_month + volume)
+- at_risk (overdue_deadlines, closing_soon_incomplete, stale_transactions)
+- production (closed_count, closed_volume, avg_days_to_close, agent_breakdown[])
+- compliance (avg_checklist_completion_at_close, open_compliance_items_total)
+
+Add `closed_at` to transactions if missing; set on stage → 'closed'.
+`avg_days_to_close` = closed_at - created_at.
+
+`GET /api/v1/reports/transactions-export?period=...` → CSV of closed transactions.
+
+UI: Reports nav page, three sections (Pipeline / Production / Compliance Health) +
+recharts bar chart. Period selector: This Month / This Quarter / YTD. No drill-down,
+no custom date range in V1.
+
+### 8. DocuSign Integration
+
+**Prerequisite**: DocuSign developer account + integration key (client ID) required
+before this section starts. Production needs DocuSign partner review.
+
+OAuth 2.0 Auth Code grant. Table `docusign_tokens` (brokerage_id, access_token,
+refresh_token, expires_at, docusign_account_id, docusign_user_id).
+
+Brokerage settings: "Connect DocuSign" → OAuth → store tokens → "Connected."
+
+`POST /api/v1/transactions/:id/docusign/send` body: { document_url, signers[], email_subject, message }.
+
+`POST /api/v1/docusign/webhook` (Connect): on 'completed', fetch signed doc URL, store
+in `signed_contract_url` (or contract_pdf_url), add transaction note.
+
+UI: Signatures card — "Send for Signature" pre-fills from party contacts, confirm-gated,
+status indicator (Draft/Sent/Partial/Completed/Declined), link to signed doc.
+
+**Scoping constraint**: NOT a forms library. DocuSign sends documents Penny already has
+(extracted contracts, generated correspondence). NOT generating state association forms
+(see Hard Limit 1).
+
+## Hard Limits — Document in BLOCKERS.md, Do Not Engineer Around
+
+1. **State association forms** — Dotloop/zipForm have NAR + state assoc licensing.
+   Penny can extract/track/sign, but cannot distribute forms. 6–18 month legal process.
+
+2. **MLS write APIs** — ~580 MLSs, each needs separate data access agreement + creds
+   (sometimes RESO Web API cert). Pursue per beachhead market only; `mls_provider` seam
+   is ready.
+
+3. **Google/Microsoft Calendar OAuth** — Google verification 4–12 weeks (possibly security
+   assessment). Submit verification now; `calendar_provider` seam is ready.
+
+4. **WhatsApp Business API production approval** — Twilio Sandbox today. META approval
+   can be delayed/rejected for real estate. Apply now; SMS fallback (1C) is the
+   production-ready channel meanwhile.
+
+5. **AI reliability in compliance review** — LLMs miss/false-flag findings. Human gate
+   is load-bearing — NEVER autonomous. Add `confidence` field (high/med/low self-report);
+   surface low-confidence with distinct treatment. UI text: "checklist aid, not legal
+   determination."
+
+6. **SOC 2 / NPI handling** — Enterprise-adjacent brokerages won't sign without SOC 2
+   Type II. 6–12 month process. Interim: Privacy Policy + DPA, reference Supabase's
+   SOC 2 + ISO 27001, configurable retention setting (default 7 years).
+
+## Deployment Checklist (per feature)
+
+- [ ] RLS policies on all new tables, scoped by brokerage_id
+- [ ] JWT auth on all new endpoints except designated public webhooks
+- [ ] Webhook signature validation (Twilio, SendGrid, DocuSign)
+- [ ] New env vars in `.env.example` w/ descriptions
+- [ ] Migrations numbered sequentially, tested in order on clean Supabase
+- [ ] Storage buckets created with access policies
+- [ ] BLOCKERS.md updated if blocked by a Hard Limit
+- [ ] DEPLOYMENT.md updated for new DNS/platform/external requirements
+
+## Framing — Always
+
+User is a broker-owner running a 6-agent shop, also producing. Never had a TC.
+Comparing Penny to her current chaos (Gmail + Sheet + DocuSign), not to SkySlope.
+Every feature should make Monday morning easier. If she has to think about it,
+simplify it. If she has to maintain a second system, she'll abandon it.
+
+---
+Source: PENNY_V2_CLAUDE_CODE.md v1.0 (compiled 2026-05-27, commit 829ca32).
+Read the full doc before implementing any section — this digest is for navigation.

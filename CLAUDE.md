@@ -10,6 +10,16 @@ penny/
   frontend/   React 18 + TS + Vite + Tailwind + Zustand + Axios + RHF/Zod
 ```
 
+**V1 → V2.** Phases 1–3 (V1) shipped: auth, onboarding, contract extraction,
+transactions, WhatsApp+voice, knowledge base, doc generation, deadlines,
+compliance review, comps, scheduling, MLS listing prep. The V2 build (sections
+1A–8 in `PENNY_V2_CLAUDE_CODE.md`) layered on: inbound media on WhatsApp,
+per-agent style, SMS fallback, the compliance checklist + broker review queue,
+workflow tasks, inbound email threading, EMD tracking, AI disclosure +
+consent, broker reporting, and a DocuSign seam. The full V2 spec is in
+`PENNY_V2_CLAUDE_CODE.md`; a condensed navigational digest is in `.context` —
+read that before touching V2 areas, fall back to the full doc for prose/seeds.
+
 ## Run
 
 **Backend** (from `backend/`, uses the existing `.venv`):
@@ -141,33 +151,157 @@ first thing to check (ngrok inspector: http://localhost:4040).
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: Dashboard, transactions, **Listings** (`/listings`), WhatsApp settings,
-  **Brand & Style** (`/knowledge`).
+  **Brand & Style** (`/knowledge`), plus V2 pages: **Review Queue**
+  (`/review`, admin only), **Reports** (`/reports`), and per-agent settings
+  surfaces (style profile, channels).
+
+### V2 systems (sections 1A–8 in `PENNY_V2_CLAUDE_CODE.md`)
+
+- **WhatsApp/SMS media intake (1A):** `app/services/media_extract.py` +
+  inbound webhook handlers. Twilio media (`MediaUrl0`/`MediaContentType0`) is
+  downloaded with Basic Auth, HEIC/HEIF → JPEG via pillow-heif, PDFs/images
+  routed through the existing 25-field extraction. Extracted fields land in
+  `pending_whatsapp_transactions` (2h TTL); agent replies YES/correction to
+  commit. 15MB cap; duplicate-address warning; unknown sender → register first.
+- **Per-agent style (1B):** `knowledge_rules.agent_id` + `knowledge_documents.agent_id`
+  added (migration 007). `get_confirmed_knowledge_rules(brokerage_id, agent_id)`
+  merges brokerage-wide (agent_id NULL) with agent-specific; agent rules win on
+  conflict. `agents.py` route exposes per-agent style CRUD. `whatsapp_contacts.agent_id`
+  carries the lookup from WhatsApp into doc generation.
+- **SMS fallback (1C):** `agent_channels` table (migration 008) supersedes the
+  WhatsApp-only contact model — `channel` is `'whatsapp'` or `'sms'`, existing
+  `whatsapp_contacts` migrated in. `app/api/v1/routes/sms.py` mirrors the WhatsApp
+  inbound flow (signature check, contact lookup, same tool-use loop). Text-only on
+  SMS — no voice memo, no media. Replies use `TWILIO_SMS_FROM` (standard number,
+  not WhatsApp sender).
+- **Compliance checklist (2A):** `compliance_templates` + `compliance_template_items`
+  + `transaction_checklist_items` (migration 009). System defaults seeded on first
+  run (buy-side 16 items, list-side 16 items). `app/services/compliance_checklist.py`
+  auto-instantiates on transaction creation, picking the best matching template
+  (brokerage custom > system default, matching state). `app/api/v1/routes/checklist.py`
+  exposes per-transaction CRUD; `checklist_pct` is computed server-side and joined into
+  transaction list responses. Distinct from `app/services/compliance.py` — that AI
+  pass reads the contract for issues; this tracks whether required documents are in
+  the file. WhatsApp tools added for "what's missing on 123 Main?" and confirm-gated
+  "mark inspection complete."
+- **Broker review queue (2B):** `app/api/v1/routes/broker.py` →
+  `GET /broker/review-queue` returns four buckets: `compliance_attention`,
+  `closing_soon_incomplete` (<5d AND <80% checklist), `overdue_deadlines`,
+  `stale_transactions` (no activity 7+ days via `transactions.last_activity_at`,
+  added in migration 010). Admin-only. Each row carries a one-line reason string.
+  Dashboard banner surfaces totals; the Review Queue page (`/review`) has the
+  four collapsible sections + inline review-note textarea + 5-min auto-refresh.
+- **Workflow tasks (3):** `workflow_templates` + `workflow_steps` + `transaction_tasks`
+  (migration 011). `app/services/workflow.py` generates tasks on transaction creation,
+  stage transitions, and within the deadline reminder scan (`days_before_deadline`
+  trigger). Trigger types: `stage_entry`, `days_before_deadline`, `days_after_stage`,
+  `manual`. `app/api/v1/routes/tasks.py` exposes CRUD; WhatsApp `get_pending_tasks`
+  groups by urgency (overdue/today/this week/upcoming); "mark X done" is confirm-gated.
+- **Inbound email threading (4):** `transaction_emails` (migration 012) logs both
+  directions. Outbound emails set `Reply-To: tx-{transaction_id}@reply.penny.app`
+  (DNS: `reply.penny.app` MX → `mx.sendgrid.net`, configured in `DEPLOYMENT.md`).
+  `POST /api/v1/email/inbound` (public, validates SendGrid Inbound Parse signature
+  via `SENDGRID_WEBHOOK_KEY`) extracts the transaction_id from the recipient address,
+  verifies brokerage ownership, stores the message, and WhatsApp-nudges the admin
+  with a 120-char preview. All existing SendGrid sends now log to `transaction_emails`
+  with `direction='outbound'`. Reply UX: the Communications tab opens a draft via the
+  doc-generation flow — human reviews and confirms send. **Never auto-reply.**
+- **EMD tracking (5):** Columns added to `transactions` (migration 013) —
+  `emd_amount`, `emd_due_date`, `emd_received`, `emd_received_date`,
+  `emd_receipt_document_url`, `emd_held_by` ∈ {title, brokerage, escrow, other},
+  `emd_notes`. Contract extraction wires `earnest_money` → `emd_amount`; an EMD
+  due date in the contract is extracted when present. Review queue gains an
+  `emd_overdue` category (top priority). UI is an EMD card on transaction detail;
+  receipt uploads land in the `compliance-docs` bucket. **Receipt tracking only —
+  no calculations, no disbursements, no trust math.** UI label: "EMD Receipt Tracking."
+- **AI disclosure + party consent (6):** `party_consents` table (migration 014)
+  + `brokerages.ai_disclosure_enabled` / `ai_disclosure_text` /
+  `request_ai_consent`. Disclosure footer is appended to every outbound email when
+  enabled (small, muted, below sig). Optional HMAC-signed consent link
+  (`CONSENT_SECRET`) — `GET /api/v1/consent/{transaction_id}/{party_role}?token=...`
+  → verify → record → simple HTML thank-you. `app/api/v1/routes/consent.py` +
+  `app/services/consent.py`. Compliance Settings UI exposes the toggles + editable
+  disclosure text (with a "have your attorney review" warning).
+- **Broker reporting (7):** `app/services/reporting.py` +
+  `app/api/v1/routes/reports.py`. `GET /reports/broker-summary?period=month|quarter|ytd`
+  returns pipeline (active/by_stage/closing_this_month), at_risk, production
+  (closed_count, closed_volume, avg_days_to_close, agent_breakdown), and compliance
+  (avg_checklist_completion_at_close, open items). `transactions.closed_at` was added
+  (migration 015) and is set on stage → 'closed' so `avg_days_to_close` is computable.
+  `GET /reports/transactions-export?period=...` returns CSV. Reports page (`/reports`)
+  has three sections (Pipeline / Production / Compliance Health) + a lightweight
+  CSS by-stage bar chart (no recharts dependency) + period selector. No
+  drill-down, no custom date ranges in V1.
+- **DocuSign (8) — deferred behind a seam.** `app/services/docusign_provider.py`
+  reports "not connected"; `POST /api/v1/transactions/:id/docusign/send` and the
+  Connect webhook are stubbed. Same pattern as `calendar_provider` and
+  `mls_provider` — only the seam bodies change when DocuSign developer credentials
+  + production partner review are in hand. **Scoping constraint: Penny is not a
+  forms library** — DocuSign sends documents Penny already has (extracted
+  contracts, generated correspondence). State association form distribution
+  requires NAR/state licensing (see `BLOCKERS.md`, Hard Limit 1).
 
 ## Database
 
 Migrations in `backend/migrations/`, run **in order** via the Supabase SQL
-Editor (paste file *contents*, not the path):
-- `001_*` initial schema (brokerages, transactions, RLS helpers)
+Editor (paste file *contents*, not the path). Every new migration must:
+new tables carry `id uuid DEFAULT gen_random_uuid() PRIMARY KEY`, a `brokerage_id`
+FK (or scope via the parent transaction's `brokerage_id`), `created_at timestamptz
+DEFAULT now()`, and an RLS policy scoped by `brokerage_id`.
+
+V1 (Phases 1–3):
+- `001_*` initial schema (brokerages, transactions, RLS helpers, deadlines)
 - `002_*` `onboarding_completed`
 - `003_whatsapp.sql` `whatsapp_contacts`, `whatsapp_messages`, `transactions.notes`
 - `004_knowledge.sql` `knowledge_documents` + `knowledge_rules.document_id`
-  (**not yet applied to the dev DB** — run it before using the knowledge base)
 - `005_listings.sql` `listings` table (MLS listing prep) + RLS
-  (**not yet applied to the dev DB** — run it before using listings)
 
-Deadline tracking + reminders need **no new migration** — the `deadlines` table
-(with `due_date`, `responsible_parties`, and the `reminder_5day/2day/day_sent`
-flags) is already in `001`.
+V2 (sections 1A–7 in `PENNY_V2_CLAUDE_CODE.md`):
+- `006_pending_whatsapp_transactions.sql` — 2h holding area for inbound media
+  extractions before YES/correction commits (Section 1A)
+- `007_agent_style.sql` — `agent_id` on `knowledge_rules` + `knowledge_documents`
+  + `whatsapp_contacts` (Section 1B). **Requires 004 applied first**
+- `008_agent_channels.sql` — `agent_channels` table + migrate `whatsapp_contacts`
+  rows in with channel='whatsapp' (Section 1C)
+- `009_compliance_checklist.sql` — templates + items + per-transaction instances,
+  plus system-default seed rows (Section 2A)
+- `010_review_queue.sql` — `transactions.last_activity_at` + `deadlines.resolved`
+  / `resolved_note` (Section 2B)
+- `011_workflow_tasks.sql` — `workflow_templates` + `workflow_steps` +
+  `transaction_tasks` + system-default buy-side seed (Section 3)
+- `012_transaction_emails.sql` — outbound + inbound email log (Section 4)
+- `013_emd_tracking.sql` — EMD columns on `transactions` (Section 5)
+- `014_party_consents.sql` — `party_consents` + brokerage AI-disclosure settings
+  (Section 6)
+- `015_reporting.sql` — `transactions.closed_at` set on stage → closed (Section 7)
+
+**Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist).
+If a paste fails with `relation "X" does not exist`, the most likely cause is a
+skipped earlier migration — `create table if not exists` + `add column if not
+exists` guards make it safe to re-paste 004/005 if you're unsure they ran.
+
+Deadline tracking + reminders themselves need **no new migration** — the
+`deadlines` table (with `due_date`, `responsible_parties`, and the
+`reminder_5day/2day/day_sent` flags) is already in `001`. 010 only adds the
+`resolved` flag the review queue uses to filter out handled overdue deadlines.
 
 ## Env vars (names only — never print values)
 
-`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+V1: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Whisper),
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`,
 `TWILIO_SKIP_VALIDATION`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL` (intro
 email; the from address must be a verified SendGrid sender), `RENTCAST_API_KEY`
-(comparable sales). Deferred (calendar sync, not yet wired): `GOOGLE_CLIENT_ID`/
-`GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`,
+(comparable sales).
+
+V2: `TWILIO_SMS_FROM` (Section 1C — standard Twilio number, not the WhatsApp
+sender), `SENDGRID_WEBHOOK_KEY` (Section 4 — validates Inbound Parse posts),
+`CONSENT_SECRET` (Section 6 — HMAC key for consent-link tokens).
+
+Deferred (built behind seams, wired when credentials/approval exist):
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
+`MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` (calendar OAuth),
+`DOCUSIGN_CLIENT_ID`/`DOCUSIGN_CLIENT_SECRET` (Section 8 e-signature),
 `REDIS_URL`.
 
 WhatsApp specifics:
@@ -187,12 +321,22 @@ WhatsApp specifics:
 - All API keys stored encrypted at rest; `service_role` key is server-only (bypasses RLS).
 - Always scope DB queries by `brokerage_id` — never return data across brokerages.
 - Never hallucinate extracted fields — return empty string if a field isn't found.
-- Never skip the confirmation step for rules, document sending, or email approval.
+- Confirmation gates required for: email send, document send, compliance decision,
+  appointment booking, listing push, deadline party notification, EMD mark-received,
+  DocuSign envelope send. Don't add a flag to bypass any of these.
 - Never let compliance review run autonomously — always surface findings to the agent.
-- Build phases in PRD order; resist scope creep — don't pre-build later-phase features.
+- EMD is receipt tracking only. No calculations, disbursements, or trust math —
+  Penny is not accounting software. UI label is "EMD Receipt Tracking."
+- Never auto-reply to inbound emails — Penny drafts on request, human reviews and sends.
+- Build phases in spec order (V1 = Phases 1–3, V2 = sections 1A–8); resist scope creep.
 - When inspecting `.env`, show only key names + char counts, never the secret values.
+- Deferred integrations (calendar OAuth, MLS publishing, DocuSign) live behind
+  seams — don't wire them blind. Only the seam bodies change when credentials
+  arrive. See `BLOCKERS.md` for the business/legal blockers.
 
 ## Status & next up
+
+### V1 (Phases 1–3)
 
 Done & tested: scaffold, auth, onboarding (5 steps), contract PDF extraction +
 transactions, and the full **WhatsApp text+voice channel** (register agent
@@ -237,26 +381,66 @@ not yet exercised against live services):
   per-market write integration behind the `mls_provider` seam (no universal MLS
   write API exists).
 
-Outstanding setup before the above work end-to-end (all on Jeremy's side):
-run `004_knowledge.sql` in the Supabase SQL editor; set `ANTHROPIC_API_KEY`,
-`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`. (Deadline reminders need no migration;
-they no-op gracefully without Twilio/SendGrid.)
+### V2 (sections 1A–7 in `PENNY_V2_CLAUDE_CODE.md`)
 
-Not started / deferred:
-- **Calendar OAuth for scheduling** (deferred, not blocked): wire Google/Microsoft
-  connect + token refresh + real free/busy + event creation into the
-  `calendar_provider` seam. Do this in one focused pass once the OAuth apps are
-  registered, so it's testable against real providers (avoids building blind).
-- **MLS publishing** (deferred, not blocked): a per-market write integration
-  behind the `mls_provider` seam (no universal MLS write API). Pursue per
-  beachhead market once credentials/approval exist; testable then, not blind.
-- WhatsApp "actions": photo upload via MMS, richer data capture.
-- **Phases 1–3 are now feature-complete in-app.** Intro email, knowledge base,
-  document generation, deadline reminders, compliance review (Phase 2);
-  comparable sales, scheduling core, MLS listing prep (Phase 3). Everything is
-  pending live end-to-end verification (keys/migrations on Jeremy's side) rather
-  than further build. The only remaining *build* work is the two deferred
-  external integrations above (calendar OAuth, MLS publishing).
+All V2 build sections except DocuSign (8) have code committed; routes register,
+typechecks pass, unit checks on the deterministic pieces (template instantiation,
+checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
+**Pending live end-to-end verification** (keys + migrations 006–015 applied):
+
+- **1A WhatsApp/SMS media intake** — needs Twilio configured and the dev brokerage
+  to test a real PDF/photo MMS round-trip. Image path uses Claude image blocks
+  (no separate key beyond `ANTHROPIC_API_KEY`).
+- **1B Per-agent style** — needs 007 applied (which itself depends on 004).
+  Browser flow on the agent profile page not yet exercised end-to-end.
+- **1C SMS fallback** — needs `TWILIO_SMS_FROM` set + the SMS-enabled Twilio
+  number's webhook pointed at `/api/v1/sms/inbound`.
+- **2A Compliance checklist** — needs 009 applied (seeds system defaults on
+  first run). Browser walk-through of the Compliance File panel not yet done.
+- **2B Review queue** — needs 010 applied (adds `last_activity_at` and
+  `deadlines.resolved`). The `/review` page hasn't had a live render yet.
+- **3 Workflow tasks** — needs 011 applied (seeds buy-side workflow). Trigger
+  hooks wired into transaction creation, stage PATCH, and the reminder scan.
+  WhatsApp `get_pending_tasks` tool registered.
+- **4 Inbound email threading** — needs 012 + `SENDGRID_WEBHOOK_KEY` + DNS
+  (`reply.penny.app` MX → `mx.sendgrid.net`) + SendGrid Inbound Parse pointed
+  at `/api/v1/email/inbound`. **DNS is the gating step on Jeremy's side.**
+- **5 EMD tracking** — needs 013 applied. Already feeds the review queue.
+- **6 AI disclosure + consent** — needs 014 applied + `CONSENT_SECRET` set
+  (the disclosure footer works without consent links; only the link path needs
+  the secret).
+- **7 Broker reporting** — needs 015 applied (adds `closed_at` for
+  `avg_days_to_close`). `/reports` page registered.
+
+### Outstanding setup (all on Jeremy's side)
+
+Apply migrations 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012 → 013 →
+014 → 015 in order via the Supabase SQL editor (paste each file's contents).
+Set new env vars where their feature is being exercised: `TWILIO_SMS_FROM` (1C),
+`SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6). V1 keys (`ANTHROPIC_API_KEY`,
+`SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most V2 sections too. DNS
+for `reply.penny.app` is the long-lead item — kick that off early if Section 4
+is on the verification list.
+
+### Deferred (built behind seams, do not build blind)
+
+- **Calendar OAuth (V1)** — Google/Microsoft connect + token refresh + real
+  free/busy + event creation. Wire when the OAuth apps are registered. Only
+  `calendar_provider` bodies change.
+- **MLS publishing (V1)** — per-beachhead-market write integration behind
+  `mls_provider`. No universal MLS write API.
+- **DocuSign e-signature (V2 Section 8)** — `docusign_provider.py` seam ships
+  "not connected"; OAuth + envelope creation + Connect webhook wire in once the
+  developer integration key is approved and production partner review is in
+  hand. **Scoping rule:** Penny is not a forms library — DocuSign sends
+  documents Penny already has (extracted contracts, generated correspondence),
+  not state association forms.
+
+Hard limits (business/legal, not engineering — see `BLOCKERS.md`): state
+association form distribution, MLS write licensing, Google/Microsoft OAuth
+verification, WhatsApp Business API production approval, AI reliability in
+compliance review (the human gate is load-bearing — never make it autonomous),
+SOC 2 for NPI handling.
 
 Commercialization (planned, post-build): pricing model decided — all features,
 per-seat, no tiers, small base, recurring. GTM next. See memory for details.
