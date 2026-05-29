@@ -1250,22 +1250,25 @@ async def run_penny_agent(
     history: list[dict[str, Any]],
     current_message: str,
     agent_id: str | None = None,
+    channel: str = "whatsapp",
 ) -> str:
-    """Run the Penny conversational agent and return a WhatsApp-ready reply.
+    """Run the Penny conversational agent and return a reply.
 
     Args:
         brokerage_id: The brokerage UUID (for DB-scoped tool calls).
         brokerage_name: Human-readable brokerage name for the system prompt.
         contact_display_name: Realtor's registered display name (or None).
-        history: Recent messages from whatsapp_messages, oldest-first.
-                 Each has keys: direction ('inbound'|'outbound'), body.
+        history: Recent messages, oldest-first. Each has keys:
+                 direction ('inbound'|'outbound'), body.
         current_message: The realtor's current message text (already transcribed
                          if it was a voice memo).
         agent_id: The requesting agent's UUID, when the contact is linked to one —
                   used to apply that agent's personal style to drafted documents.
+        channel: 'whatsapp' (text-message tone) or 'web' (in-app chat panel tone).
+                 Only shapes the communication-style guidance; tools are identical.
 
     Returns:
-        Plain text reply to send via WhatsApp.
+        Plain text reply suitable for the originating channel.
     """
     if not settings.ANTHROPIC_API_KEY:
         return (
@@ -1304,17 +1307,39 @@ async def run_penny_agent(
             "send_intro_email with confirmed=true. Never send without that confirmation."
         )
 
+    if channel == "web":
+        channel_intro = (
+            "You help agents manage their transactions from the Penny web app, "
+            "through this chat panel."
+        )
+        style_block = (
+            "Communication style:\n"
+            "- You're in a web chat panel. Be concise and direct — a short answer or a "
+            "few short dash-prefixed lines, not long essays.\n"
+            "- Write PLAIN TEXT only. Do NOT use markdown: no ** for bold, no # headers, "
+            "no tables. For a heading just write the words and a colon. Use plain dashes "
+            "for lists.\n"
+            "- Numbers and dates should be human-readable (e.g. 'May 26, 2026', '$450,000').\n"
+            "- If you cannot find a transaction, say so and suggest the agent be more specific.\n"
+            "- Never invent data. Only report what the tools return.\n\n"
+        )
+    else:
+        channel_intro = "You help agents manage their transactions via WhatsApp."
+        style_block = (
+            "Communication style:\n"
+            "- Keep replies concise and conversational — this is a text message interface.\n"
+            "- Use plain text only. No markdown tables, no bullet markdown (use plain dashes).\n"
+            "- Numbers and dates should be human-readable (e.g. 'May 26, 2026', '$450,000').\n"
+            "- If you cannot find a transaction, say so and suggest the agent be more specific.\n"
+            "- Never invent data. Only report what the tools return.\n\n"
+        )
+
     system = (
         f"You are Penny, a real estate transaction coordinator assistant for "
-        f"{brokerage_name}. You help agents manage their transactions via WhatsApp.\n\n"
+        f"{brokerage_name}. {channel_intro}\n\n"
         f"Today's date: {today}\n"
         f"You are speaking with: {agent_label}\n\n"
-        "Communication style:\n"
-        "- Keep replies concise and conversational — this is a text message interface.\n"
-        "- Use plain text only. No markdown tables, no bullet markdown (use plain dashes).\n"
-        "- Numbers and dates should be human-readable (e.g. 'May 26, 2026', '$450,000').\n"
-        "- If you cannot find a transaction, say so and suggest the agent be more specific.\n"
-        "- Never invent data. Only report what the tools return.\n\n"
+        f"{style_block}"
         "Sending the intro email:\n"
         "- The intro email introduces every party on a deal (buyer, seller, agents, "
         "lender, title) to each other and presents you as the coordinator.\n"

@@ -947,3 +947,14 @@ export const agentsApi = {
   },
   deleteStyleProfile: (id: string) => api.delete(`/agents/${id}/style-profile`),
 }
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export const chatApi = {
+  // Send one turn; the client replays recent history so the backend stays stateless.
+  send: (message: string, history: ChatTurn[]) =>
+    api.post<{ reply: string }>('/chat', { message, history }).then((r) => r.data),
+}

@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Agents from './pages/Agents'
 import ComplianceSettings from './pages/ComplianceSettings'
 import Dashboard from './pages/Dashboard'
+import Home from './pages/Home'
 import Knowledge from './pages/Knowledge'
 import ListingDetail from './pages/ListingDetail'
 import Listings from './pages/Listings'
@@ -39,13 +40,14 @@ export default function App() {
         path="/onboarding"
         element={
           <ProtectedRoute>
-            {onboarded ? <Navigate to="/dashboard" replace /> : <Onboarding />}
+            {onboarded ? <Navigate to="/" replace /> : <Onboarding />}
           </ProtectedRoute>
         }
       />
 
       {/* All onboarded app pages share the sidebar shell. */}
       <Route element={<AppLayout />}>
+        <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/transactions/new" element={<NewTransaction />} />
         <Route path="/transactions/:transaction_id" element={<TransactionDetail />} />
@@ -59,7 +61,7 @@ export default function App() {
         <Route path="/reports" element={<Reports />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

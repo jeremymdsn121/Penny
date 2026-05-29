@@ -11,6 +11,7 @@ import {
   Plus,
   Scale,
   ShieldAlert,
+  Sparkles,
   Sun,
   Users,
   type LucideIcon,
@@ -27,6 +28,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { to: '/', label: 'Ask Penny', icon: Sparkles, exact: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/review', label: 'Needs Review', icon: ShieldAlert },
   { to: '/listings', label: 'Listings', icon: Home },
@@ -68,15 +70,15 @@ export default function AppShell() {
     <div className="flex min-h-screen">
       <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-hairline bg-surface-2">
         {/* Brand */}
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-penny text-sm font-semibold text-white">
+        <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-penny to-penny-bright text-sm font-semibold text-white">
             {assistant.charAt(0)}
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
             <p className="text-xs text-ink-subtle">Virtual coordinator</p>
           </div>
-        </div>
+        </Link>
 
         {/* Primary action */}
         <div className="px-3 pb-2">

@@ -154,9 +154,21 @@ first thing to check (ngrok inspector: http://localhost:4040).
   so real publishing is a **deferred, per-market integration** (e.g. Spark API for
   Flexmls markets), wired when credentials/approval exist. Web UI: a Listings page
   (`/listings`, upload→review) + listing detail/edit.
+- **Web chat ("Ask Penny"):** `app/api/v1/routes/chat.py` — `POST /chat`
+  (auth-scoped) reuses the **same** `penny_agent` tool-use loop that powers
+  WhatsApp/SMS, exposed over the browser. Stateless: the client replays recent
+  turns each call, so **no table/migration**. `run_penny_agent(channel="web")`
+  only swaps the tone guidance (plain text, no markdown); tools + confirmation
+  gates are identical to the messaging channels. The frontend home page
+  (`/`, `src/pages/Home.tsx`) is the chat-forward landing — greeting + live
+  briefing (active deals / needs-review / closing-soon, pulled from the same
+  endpoints as the dashboard) + chat bar with browser-native voice input
+  (Web Speech API, no new dep) + a "Jump to" pill grid mirroring the nav. The
+  full operational **Dashboard stays at `/dashboard`** (sidebar + every pill).
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
-  Pages: Dashboard, transactions, **Listings** (`/listings`), WhatsApp settings,
+  Pages: **Home** (`/`, Ask Penny chat + briefing), **Dashboard** (`/dashboard`),
+  transactions, **Listings** (`/listings`), WhatsApp settings,
   **Brand & Style** (`/knowledge`), plus V2 pages: **Review Queue**
   (`/review`, admin only), **Reports** (`/reports`), and per-agent settings
   surfaces (style profile, channels).

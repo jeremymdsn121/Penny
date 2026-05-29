@@ -5,6 +5,7 @@ from app.api.v1.routes import (
     appointments,
     auth,
     broker,
+    chat,
     checklist,
     consent,
     deadlines,
@@ -36,3 +37,4 @@ api_router.include_router(tasks.router)
 api_router.include_router(email.router)
 api_router.include_router(consent.router)
 api_router.include_router(reports.router)
+api_router.include_router(chat.router)
