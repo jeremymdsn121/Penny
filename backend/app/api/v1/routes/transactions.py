@@ -294,6 +294,18 @@ async def update_one(
     return tx
 
 
+@router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_one(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> None:
+    """Delete a transaction. Child rows cascade via their FKs."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    await sb.delete_transaction(brokerage["id"], transaction_id)
+
+
 # --------------------------------------------------------------------------- #
 # Document drafting + sending (PRD §8.3) — drafts in the brokerage's voice
 # using confirmed knowledge_rules; sending is a separate, confirmed step.

@@ -332,6 +332,19 @@ async def update_transaction(
     return rows[0] if isinstance(rows, list) and rows else None
 
 
+async def delete_transaction(brokerage_id: str, transaction_id: str) -> None:
+    """Delete a transaction (brokerage-scoped). Child rows (deadlines, tasks,
+    emails, etc.) cascade via their FKs."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/transactions",
+            params={"id": f"eq.{transaction_id}", "brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
 async def _confirmed_rules(
     brokerage_id: str, agent_filter: str
 ) -> list[dict[str, Any]]:
