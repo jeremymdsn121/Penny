@@ -76,7 +76,8 @@ first thing to check (ngrok inspector: http://localhost:4040).
   `whatsapp_messages`. Agent tools: list transactions, get details, update
   stage, add note, preview/send intro email, draft document, list/add deadlines,
   review compliance (surface-only — never approves), comparable sales,
-  propose/book/list appointments.
+  propose/book/list appointments, checklist/EMD/tasks, and `suggest_next_actions`
+  (the proactive synthesizer — see the Web chat bullet).
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
   and presents Penny as coordinator. Sent on request via the WhatsApp agent —
@@ -171,6 +172,20 @@ first thing to check (ngrok inspector: http://localhost:4040).
   endpoints as the dashboard) + chat bar with browser-native voice input
   (Web Speech API, no new dep) + a "Jump to" pill grid mirroring the nav. The
   full operational **Dashboard stays at `/dashboard`** (sidebar + every pill).
+- **Proactive next actions:** `app/services/next_actions.py` is the single
+  source of truth that cross-references pending workflow tasks, missing required
+  checklist items, EMD status, upcoming deadlines, and missing party contacts
+  across active deals into a prioritized list (each item carries a display
+  `headline`/`offer` plus a click-to-act `prompt`). Two consumers share it: the
+  `suggest_next_actions` agent tool (Penny's answer to open "what should I do?"
+  questions — used instead of a raw task dump) and `GET /briefing/next-actions`
+  (`routes/briefing.py`, brokerage-scoped, **not** admin-only — deterministic, no
+  LLM round-trip), which feeds the home page's "What I'd tackle first" cards;
+  clicking a card hands its `prompt` straight to Penny in chat. The system prompt
+  also gained a "Proactive next moves" section so Penny proposes the concrete
+  next action (propose times / draft email / chase receipt) and flags missing
+  party emails, rather than only offering to "mark complete." Applies across web,
+  WhatsApp, and SMS (same agent loop).
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: **Home** (`/`, Ask Penny chat + briefing), **Dashboard** (`/dashboard`),
@@ -390,6 +405,33 @@ WhatsApp specifics:
   arrive. See `BLOCKERS.md` for the business/legal blockers.
 
 ## Status & next up
+
+### Penny proactivity + fixes — branch `penny-proactivity-and-fixes` (not yet merged)
+
+Latest session, **on a feature branch off `master`, browser-verified in the dev
+brokerage but not yet pushed/merged**. Three commits:
+
+- **Penny proposes concrete next actions, not lists.** Previously she answered
+  "what's overdue?" by enumerating tasks and only offering to mark them complete.
+  Now: a "Proactive next moves" block in the system prompt (infer the next action
+  per item — propose times / draft email / chase receipt — and flag missing party
+  emails), a `suggest_next_actions` agent tool, the shared
+  `services/next_actions.py` synthesizer, the `GET /briefing/next-actions`
+  endpoint, and the home page's "What I'd tackle first" cards (click → hands the
+  prompt to Penny). See the Web chat / Proactive next actions architecture
+  bullets. Verified live: briefing renders; clicking the inspection card had Penny
+  propose real slots.
+- **Review queue bucket split.** `closing_soon_incomplete` no longer catches
+  deals whose closing date is in the *past*; a new `past_closing_not_closed`
+  bucket (red) flags active deals past their closing date (stage never moved).
+  Same off-by-direction fix in `reporting.py`'s `at_risk` count.
+- **§4 email fixes.** `doc_routing._send_route` now logs its sends to
+  `transaction_emails` (routed PDFs were missing from the thread); the
+  Communications panel renders inbound HTML bodies in a sandboxed iframe (was
+  text-only).
+
+Next step when resuming: push the branch + open a PR, or keep building (e.g.
+refresh the briefing cards after Penny acts — they're fetched once on load).
 
 ### Web app (post-V2) — shipped to `master`, live-verified
 
