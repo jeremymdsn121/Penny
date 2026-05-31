@@ -115,9 +115,19 @@ export default function Communications({
                 </button>
                 {openId === e.id && (
                   <div className="px-1 pb-4">
-                    <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-ink">
-                      {e.body_text || '(no text body)'}
-                    </pre>
+                    {e.body_html ? (
+                      <iframe
+                        srcDoc={e.body_html}
+                        sandbox=""
+                        title="Email body"
+                        className="w-full rounded-lg border border-hairline bg-white"
+                        style={{ minHeight: '80px', maxHeight: '400px', overflow: 'auto' }}
+                      />
+                    ) : (
+                      <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-ink">
+                        {e.body_text || '(no text body)'}
+                      </pre>
+                    )}
                     {isInbound && onReply && (
                       <button
                         onClick={() => onReply(e)}

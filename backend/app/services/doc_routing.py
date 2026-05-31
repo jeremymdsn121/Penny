@@ -126,7 +126,7 @@ async def _send_route(
         "Reply to this email with any questions."
     )
     html = f"<p>{body}</p>"
-    return await asyncio.to_thread(
+    sent = await asyncio.to_thread(
         email_client.send_email,
         to_emails=emails,
         subject=subject,
@@ -141,6 +141,20 @@ async def _send_route(
             }
         ],
     )
+    if sent and tx.get("id"):
+        try:
+            await sb.insert_transaction_email(
+                {
+                    "transaction_id": tx["id"],
+                    "direction": "outbound",
+                    "recipient_emails": emails,
+                    "subject": subject,
+                    "body_text": body,
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    return sent
 
 
 async def run_stage_routing(tx: dict[str, Any], stage: str) -> list[dict[str, Any]]:
