@@ -28,6 +28,7 @@ from app.services import (
     compliance,
     doc_generate,
     email_client,
+    next_actions,
     rentcast,
     scheduling,
     workflow,
@@ -506,6 +507,32 @@ _TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["address_query", "task_query", "confirmed"],
+        },
+    },
+    {
+        "name": "suggest_next_actions",
+        "description": (
+            "Synthesize the top concrete next actions an agent should take, "
+            "cross-referencing pending workflow tasks, missing required checklist "
+            "items, EMD status, upcoming deadlines, and missing party contacts on "
+            "active deals. Returns a curated, prioritized list with the specific "
+            "tool that would advance each one. Read-only. Use when the agent asks "
+            "open questions like 'what should I do?', 'what's next?', or 'where are "
+            "we?' — instead of dumping a raw task list. Pass address_query to scope "
+            "to one deal, or omit it for a brokerage-wide top-3."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Part of the property address to scope to one "
+                        "transaction. Omit for a brokerage-wide synthesis."
+                    ),
+                },
+            },
+            "required": [],
         },
     },
 ]
@@ -1225,6 +1252,39 @@ async def _exec_mark_task_complete(brokerage_id: str, inputs: dict) -> str:
     return f"Marked '{task.get('label')}' complete for {tx.get('address', 'the transaction')}."
 
 
+async def _exec_suggest_next_actions(brokerage_id: str, inputs: dict) -> str:
+    """Curated top-3 synthesis across active deals, or scoped to one deal.
+
+    Delegates the cross-referencing to ``next_actions`` (shared with the
+    home-page briefing) and formats the result for chat.
+    """
+    query = (inputs.get("address_query") or "").strip()
+
+    if query:
+        tx, err = await _resolve_single(brokerage_id, query)
+        if err:
+            return err
+        actions = await next_actions.collect_for_transaction(tx)
+        scope_label = tx.get("address") or "the deal"
+    else:
+        try:
+            actions = await next_actions.collect_for_brokerage(brokerage_id)
+        except Exception:  # noqa: BLE001
+            return "Couldn't load your deals right now — try again in a moment."
+        scope_label = "your active deals"
+
+    if not actions:
+        return f"Nothing pressing on {scope_label} right now — you're caught up."
+
+    top, remaining = next_actions.top_actions(actions, limit=3)
+    lines = [f"Top next moves on {scope_label}:"]
+    for a in top:
+        lines.append(f"- {a['headline']} — I can {a['offer']}.")
+    if remaining > 0:
+        lines.append(f"({remaining} more on the list — ask me about a specific deal for the rest.)")
+    return "\n".join(lines)
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -1246,6 +1306,7 @@ _TOOL_MAP = {
     "mark_emd_received": _exec_mark_emd_received,
     "get_pending_tasks": _exec_get_pending_tasks,
     "mark_task_complete": _exec_mark_task_complete,
+    "suggest_next_actions": _exec_suggest_next_actions,
 }
 
 
@@ -1384,7 +1445,42 @@ async def run_penny_agent(
         "Earnest money:\n"
         "- get_emd_status reports whether the earnest money deposit has been received. "
         "mark_emd_received records receipt — confirm with the agent first, then call "
-        "with confirmed=true. Penny tracks EMD receipt only — never trust-account math."
+        "with confirmed=true. Penny tracks EMD receipt only — never trust-account math.\n\n"
+        "Proactive next moves (important):\n"
+        "- When a tool surfaces a list of pending things (tasks, missing checklist "
+        "items, upcoming deadlines), don't just enumerate. For each item, infer the "
+        "concrete next action and offer to take it — NOT 'want me to mark this "
+        "complete?'. mark_task_complete and mark_checklist_item are for after the "
+        "work is done, not the offer itself.\n"
+        "- Common task → action mappings:\n"
+        "    'Order inspection' / 'Schedule walkthrough' → propose_showing_times "
+        "(then book_appointment after the agent picks a slot)\n"
+        "    'Verify lender has application' / lender follow-up → draft_document "
+        "(audience='the lender')\n"
+        "    'Confirm EMD receipt' / 'Earnest money' task → get_emd_status first; "
+        "if not received, draft_document (audience='title company') asking for the "
+        "receipt\n"
+        "    'Send intro email' task → preview_intro_email (then send_intro_email "
+        "after confirmation)\n"
+        "    'Order appraisal' / appraisal task → draft_document (audience='the "
+        "lender') about appraisal scheduling\n"
+        "    'Final walkthrough' task → propose_showing_times\n"
+        "- If a party email is missing on a deal (lender_email, title_email, etc.) "
+        "and you'd need it for the action, flag it explicitly — you can't email "
+        "someone you can't reach. Ask the agent for the contact.\n"
+        "- Offer ONE specific action per item ('I can draft an email to the lender "
+        "now — want me to?'), not a buffet of options.\n"
+        "- For broad 'what should I do?' / 'what's next?' / 'where are we?' "
+        "questions — especially without a specific deal in mind — call "
+        "suggest_next_actions for a curated top-3 synthesis instead of dumping raw "
+        "task lists. Pass address_query to scope to one deal, or omit it for "
+        "brokerage-wide.\n\n"
+        "Synthesis:\n"
+        "- suggest_next_actions cross-references pending tasks, missing checklist "
+        "items, EMD status, upcoming deadlines, and missing party contacts to "
+        "surface the most impactful next moves. Use it instead of a raw "
+        "get_pending_tasks dump when the agent asks an open question like 'what "
+        "should I do' or 'what's next.'"
     )
 
     # Build the messages array from history + current message.
