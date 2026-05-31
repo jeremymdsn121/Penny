@@ -93,8 +93,10 @@ async def build_summary(
     stale = 0
     for t in active:
         closing = _parse_date(t.get("closing_date"))
-        if closing is not None and (closing - today).days <= 5 and pct_map.get(t["id"], 0) < 80:
-            closing_soon_incomplete += 1
+        if closing is not None:
+            days = (closing - today).days
+            if 0 <= days <= 5 and pct_map.get(t["id"], 0) < 80:
+                closing_soon_incomplete += 1
         last = t.get("last_activity_at")
         last_dt = _parse_date(last)
         if last_dt is None or (today - last_dt).days >= 7:

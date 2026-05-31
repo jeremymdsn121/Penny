@@ -6,6 +6,7 @@ import { brokerApi, type ReviewItem, type ReviewQueue } from '../lib/api'
 const SECTIONS: { key: keyof ReviewQueue; title: string; tone: string }[] = [
   { key: 'emd_overdue', title: 'Earnest money overdue', tone: 'text-red-700' },
   { key: 'compliance_attention', title: 'Compliance needs attention', tone: 'text-red-700' },
+  { key: 'past_closing_not_closed', title: 'Past closing date, not closed', tone: 'text-red-700' },
   { key: 'closing_soon_incomplete', title: 'Closing soon, file incomplete', tone: 'text-yellow-700' },
   { key: 'overdue_deadlines', title: 'Overdue deadlines', tone: 'text-yellow-700' },
   { key: 'stale_transactions', title: 'Stale transactions', tone: 'text-ink' },

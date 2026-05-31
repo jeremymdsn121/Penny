@@ -2,13 +2,17 @@
 
 A single place for the broker-owner to see which deals need attention, so she
 doesn't find out a deal is in trouble only when an agent texts her in a panic.
-Four categories, computed from existing data in one pass:
+Categories, computed from existing data in one pass:
 
-  - compliance_attention   : compliance_status = 'needs_attention'
-  - closing_soon_incomplete: closing within 5 days AND checklist < 80%
-  - overdue_deadlines      : at least one unresolved past-due deadline
-  - emd_overdue            : EMD past due and not received (Section 5)
-  - stale_transactions     : no activity in 7+ days
+  - compliance_attention    : compliance_status = 'needs_attention'
+  - closing_soon_incomplete : closing within 5 days AND checklist < 80%
+  - past_closing_not_closed : closing date is in the past, stage still active
+                              (a data-hygiene problem distinct from "rush to
+                              complete file" — usually means someone forgot to
+                              transition the stage to closed/cancelled)
+  - overdue_deadlines       : at least one unresolved past-due deadline
+  - emd_overdue             : EMD past due and not received (Section 5)
+  - stale_transactions      : no activity in 7+ days
 
 Visible to the brokerage owner (admin). Like the rest of the app, everything is
 scoped to the caller's brokerage.
@@ -93,6 +97,7 @@ async def review_queue(
 
     compliance_attention: list[dict[str, Any]] = []
     closing_soon_incomplete: list[dict[str, Any]] = []
+    past_closing_not_closed: list[dict[str, Any]] = []
     overdue_deadlines: list[dict[str, Any]] = []
     emd_overdue: list[dict[str, Any]] = []
     stale_transactions: list[dict[str, Any]] = []
@@ -109,10 +114,19 @@ async def review_queue(
         closing = _parse_date(tx.get("closing_date"))
         if closing is not None:
             days = (closing - today).days
-            if days <= CLOSING_SOON_DAYS and pct < INCOMPLETE_PCT:
-                when = "today" if days == 0 else (
-                    f"in {days} days" if days > 0 else f"{abs(days)} days ago"
+            if days < 0:
+                past = abs(days)
+                past_closing_not_closed.append(
+                    _row(
+                        tx,
+                        agent,
+                        pct,
+                        f"Closed {past} day{'s' if past != 1 else ''} ago, "
+                        f"stage still {tx.get('stage') or 'active'}",
+                    )
                 )
+            elif days <= CLOSING_SOON_DAYS and pct < INCOMPLETE_PCT:
+                when = "today" if days == 0 else f"in {days} day{'s' if days != 1 else ''}"
                 closing_soon_incomplete.append(
                     _row(tx, agent, pct, f"Closing {when}, file {pct}% complete")
                 )
@@ -137,12 +151,14 @@ async def review_queue(
     return {
         "compliance_attention": compliance_attention,
         "closing_soon_incomplete": closing_soon_incomplete,
+        "past_closing_not_closed": past_closing_not_closed,
         "overdue_deadlines": overdue_deadlines,
         "emd_overdue": emd_overdue,
         "stale_transactions": stale_transactions,
         "total": (
             len(compliance_attention)
             + len(closing_soon_incomplete)
+            + len(past_closing_not_closed)
             + len(overdue_deadlines)
             + len(emd_overdue)
             + len(stale_transactions)

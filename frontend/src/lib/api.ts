@@ -591,6 +591,7 @@ export interface ReviewItem {
 export interface ReviewQueue {
   compliance_attention: ReviewItem[]
   closing_soon_incomplete: ReviewItem[]
+  past_closing_not_closed: ReviewItem[]
   overdue_deadlines: ReviewItem[]
   emd_overdue: ReviewItem[]
   stale_transactions: ReviewItem[]
