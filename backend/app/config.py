@@ -58,11 +58,20 @@ class Settings(BaseSettings):
     # OpenAI — Whisper audio transcription for voice memos
     OPENAI_API_KEY: str | None = None
 
-    # Frontend origins allowed by CORS.
+    # Frontend origins allowed by CORS (local dev defaults).
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+    # Additional comma-separated origins for deployed frontends, merged with
+    # CORS_ORIGINS at startup. E.g.
+    # "https://sloane-web.onrender.com,https://app.heysloane.io".
+    EXTRA_CORS_ORIGINS: str = ""
+
+    @property
+    def cors_origins(self) -> list[str]:
+        extra = [o.strip() for o in self.EXTRA_CORS_ORIGINS.split(",") if o.strip()]
+        return [*self.CORS_ORIGINS, *extra]
 
 
 @lru_cache

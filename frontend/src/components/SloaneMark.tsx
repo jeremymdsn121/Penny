@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * SloaneMark — Sloane's wordmark-logo (the letter P), drawn as one continuous
- * stroke. Like a signature: pen down at the bottom of the stem, up the stem,
- * around the bowl, back to where the bowl meets the stem.
+ * SloaneMark — Sloane's wordmark-logo (the letter S), drawn as one continuous
+ * stroke. Two opposing arcs meeting at the waist, like how you'd draw an S
+ * with a single pen stroke: top arc hooks from right to left, transitions
+ * through the middle, bottom arc hooks from left to right.
  *
  * Animation is opt-in via the `animated` prop:
- *   - default (static)  → the full P, no motion. Sidebar, login, favicon-ish.
+ *   - default (static)  → the full S, no motion. Sidebar, login, favicon-ish.
  *   - animated          → the stroke draws itself top-to-bottom (~1.4s), then
- *                         the bowl breathes (~6% scale) forever. Use on the
- *                         landing page only.
+ *                         the whole S breathes (~4% scale) forever. Use on
+ *                         the landing page only.
  *
  * Pure SVG + CSS — no new deps. Honours `prefers-reduced-motion` (renders
- * the final frame, no motion).
+ * the final frame, no motion). Depth treatment: inner highlight stroke
+ * (rounded-surface sheen) + soft purple drop shadow (subtle lift).
  *
  * Usage:
  *   <SloaneMark size={160} animated />   // landing
@@ -27,28 +29,28 @@ interface SloaneMarkProps {
 }
 
 /**
- * Single-stroke P path (viewBox 0 0 120 120). Softened: instead of sharp
- * right-angle corners (the geometric/angular read), the stem curves into
- * the bowl with a quadratic bezier, and the bowl is a slightly opened arc
- * — feminine, drawn-feeling, still confidently a P.
+ * Single-stroke S path (viewBox 0 0 120 120).
  *
- *   M 34 104                  → start near the bottom of the stem
- *   L 34 26                   → up the stem
- *   Q 34 14 46 14             → round the top-left into the bowl (no corner)
- *   A 30 26 0 1 1 34 64       → single elliptical sweep all the way around
- *                                until it terminates INSIDE the stem at
- *                                x=34. The rounded line cap is hidden by
- *                                the stem stroke, so the bowl reads as
- *                                seamlessly merging — no second curve,
- *                                no kinks.
+ * Geometry: two opposing arcs joined by a cubic bezier through the waist.
+ *   M 86 32                      → start at the top-right of the S (natural
+ *                                  pen-start point)
+ *   A 24 22 0 0 0 38 36          → top arc curves left, down, and around
+ *                                  to the start of the waist
+ *   C 30 50 90 70 82 84          → cubic through the waist — the belly of
+ *                                  the S. Control points pull outward so
+ *                                  the transition has sway, not a straight
+ *                                  diagonal.
+ *   A 24 22 0 0 0 34 88          → bottom arc curves right, down, and
+ *                                  around to the bottom-left of the S.
  *
- * Bowl bbox: y=14..~66 (height ~52), peaking at roughly x=76 on the right.
- * Stem extends to y=104 — a real capital P with room beneath the bowl.
+ * Stroke width 16, rounded caps + joins. Same depth treatment as the
+ * previous P mark. Whole letterform fits inside a 120×120 viewBox with
+ * breathing room.
  *
- * Path length: ~265 in viewBox units; we measure the real length at runtime
- * via getTotalLength() so the draw is pixel-accurate.
+ * Path length comes out around ~245 in viewBox units; we measure the real
+ * length at runtime via getTotalLength() so the draw is pixel-accurate.
  */
-const P_PATH = 'M 34 104 L 34 26 Q 34 14 46 14 A 30 26 0 1 1 34 64'
+const S_PATH = 'M 86 32 A 24 22 0 0 0 38 36 C 30 50 90 70 82 84 A 24 22 0 0 0 34 88'
 const PATH_LENGTH = 300
 
 export default function SloaneMark({
@@ -93,21 +95,21 @@ export default function SloaneMark({
     >
       <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden="true">
         <defs>
-          {/* Main stroke gradient — the body of the P. */}
+          {/* Main stroke gradient — the body of the S. */}
           <linearGradient id="sloaneMarkStroke" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#A78BFA" />
             <stop offset="100%" stopColor="#7C3AED" />
           </linearGradient>
-          {/* Inner highlight gradient — a soft sheen across the top-left of
-              the stroke. Low peak opacity + a wider (10px) stroke makes it
-              read as a rounded surface catching light, not a second line. */}
+          {/* Inner highlight — soft sheen at top-left, fades out diagonally.
+              Low peak opacity + wider stroke (10px on a 16px body) reads as
+              a rounded surface catching light, not a second line. */}
           <linearGradient id="sloaneMarkHighlight" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
             <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.08" />
             <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
           </linearGradient>
-          {/* Soft drop shadow — purple-tinted so it feels brand-native, not
-              a hard grey. Sits behind the whole P. */}
+          {/* Purple-tinted drop shadow — brand-native, soft, lifts the S
+              off the surface without a halo. */}
           <filter id="sloaneMarkShadow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="3.5" />
             <feOffset dx="0" dy="2.5" result="offsetblur" />
@@ -135,20 +137,18 @@ export default function SloaneMark({
           <path
             ref={pathRef}
             className="sloane-mark__stroke"
-            d={P_PATH}
+            d={S_PATH}
             fill="none"
             stroke="url(#sloaneMarkStroke)"
             strokeWidth="16"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          {/* Inner highlight stroke — thinner, lighter, sits on top of the
-              main stroke to imply a rounded surface catching light. Drawn
-              in lockstep with the main stroke (same dasharray) so it traces
-              the same path during build-in. */}
+          {/* Inner highlight stroke — thinner, lighter, in lockstep with
+              the body so it traces the same path during build-in. */}
           <path
             className="sloane-mark__highlight"
-            d={P_PATH}
+            d={S_PATH}
             fill="none"
             stroke="url(#sloaneMarkHighlight)"
             strokeWidth="10"
