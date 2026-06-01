@@ -236,7 +236,8 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
             items = []
         missing = [
             i for i in items
-            if not i.get("is_optional") and i.get("status") not in ("complete", "waived")
+            if i.get("required")
+            and i.get("status") not in ("complete", "waived", "not_applicable")
         ]
         if missing:
             d2c = (closing_d - today).days
