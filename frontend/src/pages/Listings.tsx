@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import { listingsApi, type Listing } from '../lib/api'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,10 +79,10 @@ export default function Listings() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <PennyBubble>
+        <SloaneBubble>
           Drop a listing packet and I'll pull the MLS fields for you to review. You can edit
           everything before it's ready to enter into the MLS.
-        </PennyBubble>
+        </SloaneBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -96,12 +96,12 @@ export default function Listings() {
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0] ?? null) }}
           className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-surface px-8 py-12 text-center transition-colors ${
-            dragOver ? 'border-penny bg-penny-light' : 'border-hairline'
+            dragOver ? 'border-sloane bg-sloane-light' : 'border-hairline'
           }`}
         >
           {extracting ? (
             <>
-              <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+              <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
               <p className="text-sm font-medium text-ink">Reading the packet…</p>
               <p className="mt-1 text-xs text-ink-subtle">This usually takes 10–20 seconds.</p>
             </>
@@ -131,7 +131,7 @@ export default function Listings() {
           </div>
           {loading ? (
             <div className="flex justify-center py-10">
-              <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+              <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
             </div>
           ) : listings.length === 0 ? (
             <p className="px-6 py-10 text-center text-sm text-ink-subtle">

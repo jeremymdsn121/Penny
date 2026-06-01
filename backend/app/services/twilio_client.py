@@ -1,7 +1,7 @@
 """Twilio helper — send WhatsApp messages back to realtors.
 
 Intentionally thin: we only need to send text replies and (optionally) validate
-incoming webhook signatures. All AI logic lives in penny_agent.py.
+incoming webhook signatures. All AI logic lives in sloane_agent.py.
 """
 
 from twilio.rest import Client as TwilioClient

@@ -1,4 +1,4 @@
-# Penny V2 — Claude Code Build Document
+# Sloane V2 — Claude Code Build Document
 ### Comprehensive Engineering Specification for Pre-Commercialization Development
 
 ---
@@ -20,15 +20,15 @@ Do not attempt to engineer around it. Note it in a `BLOCKERS.md` file and move o
 
 ## Product Mission
 
-Penny is a virtual transaction coordinator for small real estate brokerages (2–10 agents)
+Sloane is a virtual transaction coordinator for small real estate brokerages (2–10 agents)
 that have never had a TC and currently coordinate transactions through Gmail, group texts,
-and shared spreadsheets. Penny is not replacing a human TC — it is being the first TC
+and shared spreadsheets. Sloane is not replacing a human TC — it is being the first TC
 this brokerage has ever had.
 
 The primary user is a broker-owner who is also a producing agent. She lists 20 homes a
 year, manages her team's deals, handles her own compliance file review, and does all of
 this today with Gmail, a shared Google Sheet, and DocuSign. She has never had a TC. She
-is not evaluating Penny against SkySlope — she is evaluating it against her current chaos.
+is not evaluating Sloane against SkySlope — she is evaluating it against her current chaos.
 
 Every feature decision flows from this: does it make her Monday morning less overwhelming?
 If a feature requires her to learn a new concept or maintain a second system, she will
@@ -163,7 +163,7 @@ When Twilio delivers a message with `MediaUrl0` and `MediaContentType0` in the P
 
 ### 1B. Per-Agent Style Profiles
 
-**The problem it solves:** A top producer doesn't want Penny writing emails in the
+**The problem it solves:** A top producer doesn't want Sloane writing emails in the
 same voice as the new agent who joined last month. Shared brokerage style is the
 floor; agent style is the preference layer on top.
 
@@ -205,7 +205,7 @@ Update all document generation and email draft calls to pass the requesting agen
 **Web UI — "My Style" section:**
 Add a tab or section on the agent's profile page:
 - Upload a sample email or letter (PDF, image, or .docx)
-- Penny reads it, proposes style rules, surfaces them as "unconfirmed" for the agent
+- Sloane reads it, proposes style rules, surfaces them as "unconfirmed" for the agent
   to confirm or reject (identical UX to the existing brokerage-level knowledge base flow)
 - Confirmed rules apply only to that agent's generated documents
 
@@ -219,7 +219,7 @@ Add a tab or section on the agent's profile page:
 ### 1C. SMS Fallback Channel
 
 **The problem it solves:** WhatsApp penetration among US real estate agents over 45
-is low. Requiring agents to install WhatsApp to use Penny is a dealbreaker for a
+is low. Requiring agents to install WhatsApp to use Sloane is a dealbreaker for a
 meaningful portion of small brokerage teams.
 
 **What to build:**
@@ -263,8 +263,8 @@ not the WhatsApp sender). Document in `.env.example`.
 
 ## BUILD SECTION 2 — The Broker Compliance File
 
-This is what makes a broker-owner feel safe. Without it, Penny is a novelty. With it,
-Penny is infrastructure.
+This is what makes a broker-owner feel safe. Without it, Sloane is a novelty. With it,
+Sloane is infrastructure.
 
 ---
 
@@ -425,9 +425,9 @@ On the transaction detail page, add a "Compliance File" section (alongside exist
 
 **WhatsApp integration:**
 - "What's missing from the compliance file for 123 Main?" →
-  Penny lists pending required items only (not waived/complete)
+  Sloane lists pending required items only (not waived/complete)
 - "Mark the inspection report complete for 123 Main" →
-  Penny marks the matching item complete, confirms back (confirm-gated)
+  Sloane marks the matching item complete, confirms back (confirm-gated)
 
 ---
 
@@ -491,7 +491,7 @@ to the Review Queue when count > 0.
 ## BUILD SECTION 3 — Workflow Task Templates
 
 **The problem it solves:** A human TC's core value is knowing what needs to happen next
-without being asked. Penny currently waits to be asked. This makes it reactive, not
+without being asked. Sloane currently waits to be asked. This makes it reactive, not
 proactive — and reactive tools feel like extra work, not help.
 
 **What to build:**
@@ -607,7 +607,7 @@ Hook this into:
 **WhatsApp integration (new tool: `get_pending_tasks`):**
 
 When agent asks "What's next on 123 Main?" or "What do I need to do on Main St?":
-- Penny returns pending tasks, sorted by due_date ascending
+- Sloane returns pending tasks, sorted by due_date ascending
 - Groups by urgency: overdue (red flag), due today, due this week, upcoming
 - Format:
   ```
@@ -624,7 +624,7 @@ When agent asks "What's next on 123 Main?" or "What do I need to do on Main St?"
   • Confirm inspection scheduled (July 1)
   ```
 
-When agent says "Mark inspection ordered for 123 Main" → Penny finds the matching task,
+When agent says "Mark inspection ordered for 123 Main" → Sloane finds the matching task,
 marks complete, confirms back (confirm-gated).
 
 **Web UI:**
@@ -638,7 +638,7 @@ marks complete, confirms back (confirm-gated).
 
 ## BUILD SECTION 4 — Inbound Email Reply Threading
 
-**The problem it solves:** Penny sends intro emails and party notifications, but when
+**The problem it solves:** Sloane sends intro emails and party notifications, but when
 a lender replies to ask a question or a buyer replies with a concern, that reply
 disappears into whoever's Gmail is the from-address. The broker has no visibility.
 The transaction has no record.
@@ -648,15 +648,15 @@ The transaction has no record.
 Use SendGrid's Inbound Parse webhook to capture replies.
 
 **Setup:**
-1. Configure a reply subdomain: `reply.penny.app` (or equivalent). Point its MX record
+1. Configure a reply subdomain: `reply.heysloane.io` (or equivalent). Point its MX record
    to `mx.sendgrid.net`. Document this as a DNS requirement in `DEPLOYMENT.md`.
 2. In SendGrid dashboard: Settings → Inbound Parse → add the subdomain and point to
    `POST /api/v1/email/inbound`.
 
 **Reply-to addressing scheme:**
-Every outbound email Penny sends sets:
+Every outbound email Sloane sends sets:
 ```
-Reply-To: tx-{transaction_id}@reply.penny.app
+Reply-To: tx-{transaction_id}@reply.heysloane.io
 ```
 This routes all replies to a single inbound endpoint where the transaction_id is
 extractable from the recipient address.
@@ -695,7 +695,7 @@ Validate inbound Parse requests using SendGrid's signed webhook verification
 
 Parse the POST body:
 - `to` field → extract transaction_id from the recipient address
-  (regex: `tx-([a-f0-9-]+)@reply\.penny\.app`)
+  (regex: `tx-([a-f0-9-]+)@reply\.sloane\.app`)
 - Look up transaction by ID, verify it belongs to a known brokerage (security check)
 - Extract sender, subject, body_text, body_html
 - Store in `transaction_emails` with direction = 'inbound'
@@ -707,7 +707,7 @@ After storing: send a WhatsApp nudge to the brokerage's admin/agent channel:
 From: Jennifer Walsh (lender)
 "Just wanted to confirm the appraisal is ordered — we..."
 
-View full message in Penny dashboard.
+View full message in Sloane dashboard.
 ```
 
 Truncate the preview at 120 characters.
@@ -722,9 +722,9 @@ Add a "Communications" tab to the transaction detail page showing the full email
 - Unread inbound messages highlighted
 - Click to expand full message body
 - "Mark as read" on expand
-- Reply button: opens a draft in Penny's document generation flow, pre-addressed to the
+- Reply button: opens a draft in Sloane's document generation flow, pre-addressed to the
   sender, pre-populated with transaction context. Agent reviews, edits, confirms send.
-  Do not auto-reply. Human writes the response; Penny drafts it on request.
+  Do not auto-reply. Human writes the response; Sloane drafts it on request.
 
 **API endpoints:**
 ```
@@ -778,11 +778,11 @@ On transaction detail, add an EMD card (alongside existing panels):
 - If received: green "EMD Received" badge with received date and receipt link
 
 **WhatsApp integration:**
-- "Has EMD been received for 123 Main?" → Penny answers from record with date if received
-- "Mark EMD received for 123 Main" → Penny asks for received date, confirm-gated
+- "Has EMD been received for 123 Main?" → Sloane answers from record with date if received
+- "Mark EMD received for 123 Main" → Sloane asks for received date, confirm-gated
 
 **Important constraint:**
-Penny tracks receipt only. No calculations, no disbursements, no trust account math.
+Sloane tracks receipt only. No calculations, no disbursements, no trust account math.
 The UI label everywhere reads "EMD Receipt Tracking." This is not accounting software.
 
 ---
@@ -826,7 +826,7 @@ ALTER TABLE brokerages ADD COLUMN ai_disclosure_text text DEFAULT
 
 **Disclosure footer:**
 When `ai_disclosure_enabled = true`, append the disclosure text to the HTML footer
-of every outbound email Penny sends (intro email, document emails, deadline notifications).
+of every outbound email Sloane sends (intro email, document emails, deadline notifications).
 Style it as small, muted text below the signature — not prominently. It is a disclosure,
 not a marketing statement.
 
@@ -848,7 +848,7 @@ Default: false (disclosure footer only, no explicit consent link).
 In brokerage settings (or a new "Compliance Settings" section):
 - Toggle: "Include AI disclosure in all outbound emails" (default on)
 - Editable text area: the disclosure text (with a warning: "Have your attorney review
-  this text. Penny cannot provide legal advice on disclosure requirements.")
+  this text. Sloane cannot provide legal advice on disclosure requirements.")
 - Toggle: "Request explicit consent from transaction parties" (default off)
 - Consent status panel: per active transaction, shows which parties have acknowledged
 
@@ -858,7 +858,7 @@ In brokerage settings (or a new "Compliance Settings" section):
 
 **The problem it solves:** Broker-owners think in pipeline and production. The current
 dashboard is a transaction list. Monday morning, the broker wants one page that tells
-her how the business is doing. Without reporting, Penny is a task tool. With reporting,
+her how the business is doing. Without reporting, Sloane is a task tool. With reporting,
 it's a business tool.
 
 **What to build:**
@@ -941,8 +941,8 @@ she can trust.
 
 **Why this is here:** The current document generation creates correspondence (status
 updates, cover letters, congratulations emails). It does not create signable documents.
-A broker who cannot get contracts signed through Penny will maintain DocuSign separately,
-which means maintaining two systems, which means abandoning Penny.
+A broker who cannot get contracts signed through Sloane will maintain DocuSign separately,
+which means maintaining two systems, which means abandoning Sloane.
 
 **Prerequisite (outside engineering scope):**
 DocuSign developer account and integration key (client ID) required before this section
@@ -995,9 +995,9 @@ On transaction detail, add a "Signatures" card:
 - Signing deadline (optional, DocuSign supports envelope expiration)
 
 **Important scoping constraint:**
-Do not attempt to build a forms library. DocuSign is for sending the documents Penny
+Do not attempt to build a forms library. DocuSign is for sending the documents Sloane
 already has (extracted contracts, generated correspondence). The agent uploads or
-generates the document first, then sends it for signature through Penny. Penny is not
+generates the document first, then sends it for signature through Sloane. Sloane is not
 generating state association forms — that requires licensing agreements (see Hard Limits).
 
 ---
@@ -1011,10 +1011,10 @@ Brief the product owner; these require business or legal action.
 
 Dotloop and zipForm have licensing agreements with the National Association of REALTORS®
 and state associations (CAR in CA, TAR in TX, etc.) to distribute and pre-fill
-state-promulgated contract forms. Penny cannot generate, pre-fill, or reproduce these
+state-promulgated contract forms. Sloane cannot generate, pre-fill, or reproduce these
 forms without equivalent licensing agreements.
 
-**What Penny can do:** extract data from forms the agent already has, track them in
+**What Sloane can do:** extract data from forms the agent already has, track them in
 the compliance file, send them for signature via DocuSign.
 **What requires a business deal:** distributing the actual forms.
 **Action required:** If form distribution is a roadmap goal, engage NAR and relevant
@@ -1065,7 +1065,7 @@ LLMs — it cannot be eliminated by prompting or fine-tuning at the current scal
 - Add a `confidence` field to AI compliance findings (ask the model to self-report
   confidence as high/medium/low per finding). Surface low-confidence findings
   with a distinct visual treatment ("⚠️ Uncertain — verify manually").
-- Document clearly in the UI: "Penny's compliance review is a checklist aid, not
+- Document clearly in the UI: "Sloane's compliance review is a checklist aid, not
   a legal determination. The broker of record is responsible for all regulatory compliance."
 - Over time, build a feedback loop: allow the admin to mark AI findings as
   correct/incorrect. Log these for future model improvement, but do not use them
@@ -1107,9 +1107,9 @@ Before any section goes to production, verify:
 
 ## Framing Note — Keep This in Mind Throughout
 
-Penny's user is a broker-owner running a 6-agent shop in a mid-size market. She is also
+Sloane's user is a broker-owner running a 6-agent shop in a mid-size market. She is also
 a producing agent. She lists homes, manages her team's deals, and handles her own
-compliance review. She has never had a TC. She is not comparing Penny to SkySlope —
+compliance review. She has never had a TC. She is not comparing Sloane to SkySlope —
 she is comparing it to her current chaos: Gmail, a shared Google Sheet, and DocuSign.
 
 Every feature should make her Monday morning less overwhelming.
@@ -1123,5 +1123,5 @@ have to think about it first? If she has to think about it, simplify it.
 ---
 
 *Document version: 1.0 — compiled 2026-05-27*
-*Reflects Penny codebase at git commit 829ca32*
+*Reflects Sloane codebase at git commit 829ca32*
 *Intended for use with Claude Code (claude-sonnet-4-20250514 or later)*

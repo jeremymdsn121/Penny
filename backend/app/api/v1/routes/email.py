@@ -1,7 +1,7 @@
 """Inbound email reply threading (V2 Section 4).
 
-SendGrid Inbound Parse delivers replies to Penny-sent emails to POST /email/inbound.
-Every outbound email Penny sends carries Reply-To: tx-{transaction_id}@<reply domain>,
+SendGrid Inbound Parse delivers replies to Sloane-sent emails to POST /email/inbound.
+Every outbound email Sloane sends carries Reply-To: tx-{transaction_id}@<reply domain>,
 so the transaction id is recoverable from the recipient address. We store the reply
 on the transaction and nudge the brokerage's WhatsApp contacts.
 
@@ -54,9 +54,9 @@ def _forward_html(
     subj = _h.escape(subject or "(no subject)")
     return (
         '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;">'
-        '<p style="font-size:13px;color:#6B7280;">Penny forwarded a reply on '
+        '<p style="font-size:13px;color:#6B7280;">Sloane forwarded a reply on '
         f'<strong>{_h.escape(address)}</strong>. Reply to this email to continue the '
-        'thread — Penny will log your response on the transaction.</p>'
+        'thread — Sloane will log your response on the transaction.</p>'
         '<hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;"/>'
         f'<p style="font-size:13px;color:#6B7280;margin:0 0 4px;"><strong>From:</strong> {frm}</p>'
         f'<p style="font-size:13px;color:#6B7280;margin:0 0 12px;"><strong>Subject:</strong> {subj}</p>'
@@ -69,8 +69,8 @@ def _forward_plain(
 ) -> str:
     frm = f"{who} <{sender_email}>" if sender_email else who
     return (
-        f"Penny forwarded a reply on {address}. Reply to this email to continue the "
-        "thread — Penny will log your response on the transaction.\n\n"
+        f"Sloane forwarded a reply on {address}. Reply to this email to continue the "
+        "thread — Sloane will log your response on the transaction.\n\n"
         f"From: {frm}\n"
         f"Subject: {subject or '(no subject)'}\n"
         f"{'-' * 40}\n"
@@ -159,7 +159,7 @@ async def inbound_email(request: Request) -> Any:
         f"📨 Reply received on {address}\n"
         f"From: {who}\n"
         f'"{preview}"\n\n'
-        "View the full message in the Penny dashboard."
+        "View the full message in the Sloane dashboard."
     )
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])

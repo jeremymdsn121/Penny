@@ -63,7 +63,7 @@ async def transactions_export(
     writer = csv.writer(buf)
     writer.writerows(rows)
     buf.seek(0)
-    filename = f"penny-closed-{period}.csv"
+    filename = f"sloane-closed-{period}.csv"
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",

@@ -139,7 +139,7 @@ def build_party_notice(
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:{white};border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
         <tr><td style="background:{violet};padding:28px 40px;text-align:center;">
-          <p style="margin:0;color:{white};font-size:24px;font-weight:700;letter-spacing:-0.5px;">Penny</p>
+          <p style="margin:0;color:{white};font-size:24px;font-weight:700;letter-spacing:-0.5px;">Sloane</p>
           <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:13px;font-weight:500;">Transaction Coordinator · {brokerage_name}</p>
         </td></tr>
         <tr><td style="padding:36px 40px 32px;">
@@ -153,7 +153,7 @@ def build_party_notice(
           </p>
         </td></tr>
         <tr><td style="background:{bg};padding:18px 40px;border-top:1px solid #E5E7EB;text-align:center;">
-          <p style="margin:0;font-size:12px;color:{muted};">Sent by Penny on behalf of {brokerage_name}</p>
+          <p style="margin:0;font-size:12px;color:{muted};">Sent by Sloane on behalf of {brokerage_name}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -166,7 +166,7 @@ def build_party_notice(
         f"A quick heads-up that {label} for the transaction at {address} is due on "
         f"{due_str}.\n\n"
         "Please reach out if you have any questions or need anything ahead of this date.\n\n"
-        f"—\nSent by Penny on behalf of {brokerage_name}"
+        f"—\nSent by Sloane on behalf of {brokerage_name}"
     )
     return subject, html, plain
 

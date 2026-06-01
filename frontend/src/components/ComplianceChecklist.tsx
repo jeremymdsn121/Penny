@@ -89,7 +89,7 @@ function ItemRow({
           <button
             onClick={() => setStatus('complete')}
             disabled={busy}
-            className="text-xs font-semibold text-penny hover:underline disabled:opacity-50"
+            className="text-xs font-semibold text-sloane hover:underline disabled:opacity-50"
           >
             Complete
           </button>
@@ -199,7 +199,7 @@ export default function ComplianceChecklist({ txId }: { txId: string }) {
       {/* Progress bar */}
       <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-surface-3">
         <div
-          className="h-full rounded-full bg-penny transition-all"
+          className="h-full rounded-full bg-sloane transition-all"
           style={{ width: `${percent}%` }}
         />
       </div>

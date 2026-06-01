@@ -52,7 +52,7 @@ TASK_DEFINITIONS: list[dict] = [
         "label": "Document routing",
         "description": (
             "Send the contract to selected parties (e.g. title, lender) when a deal "
-            "enters a chosen stage. With autonomy off, Penny queues each send for "
+            "enters a chosen stage. With autonomy off, Sloane queues each send for "
             "the deal's agent to approve in one click."
         ),
         "default_autonomous": False,

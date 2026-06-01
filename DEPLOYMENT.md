@@ -1,4 +1,4 @@
-# Penny — Deployment & External Configuration
+# Sloane — Deployment & External Configuration
 
 External setup required before V2 features work end-to-end. Code-side everything
 is wired; these are the out-of-band steps (DNS, platform registration, buckets,
@@ -44,11 +44,11 @@ Auto-created on first use (private), but you can pre-create them:
 
 ## 4. SendGrid — inbound reply threading (4)
 
-1. Pick a reply subdomain, e.g. `reply.penny.app`. Add an **MX record** pointing
+1. Pick a reply subdomain, e.g. `reply.heysloane.io`. Add an **MX record** pointing
    to `mx.sendgrid.net`.
 2. SendGrid dashboard → Settings → **Inbound Parse** → add the subdomain →
    destination URL `https://<api-host>/api/v1/email/inbound?key=<SENDGRID_WEBHOOK_KEY>`.
-3. Env: set `REPLY_EMAIL_DOMAIN=reply.penny.app` (enables `Reply-To: tx-{id}@…`)
+3. Env: set `REPLY_EMAIL_DOMAIN=reply.heysloane.io` (enables `Reply-To: tx-{id}@…`)
    and `SENDGRID_WEBHOOK_KEY` to a random secret (the webhook checks `?key=`).
 4. `SENDGRID_FROM_EMAIL` must be a verified SendGrid sender.
 

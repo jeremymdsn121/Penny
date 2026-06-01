@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import { brokerApi, type ReviewItem, type ReviewQueue } from '../lib/api'
 
 const SECTIONS: { key: keyof ReviewQueue; title: string; tone: string }[] = [
@@ -39,7 +39,7 @@ function ReviewRow({ item }: { item: ReviewItem }) {
           onClick={() => navigate(`/transactions/${item.id}`)}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="truncate text-sm font-medium text-ink hover:text-penny">
+          <p className="truncate text-sm font-medium text-ink hover:text-sloane">
             {item.address || 'Address not set'}
           </p>
           <p className="mt-0.5 truncate text-xs text-ink-muted">{item.reason}</p>
@@ -52,7 +52,7 @@ function ReviewRow({ item }: { item: ReviewItem }) {
         </button>
         <button
           onClick={() => setNoteOpen((o) => !o)}
-          className="shrink-0 text-xs font-medium text-penny hover:underline"
+          className="shrink-0 text-xs font-medium text-sloane hover:underline"
         >
           {saved ? 'Note added' : 'Add note'}
         </button>
@@ -118,11 +118,11 @@ export default function ReviewQueue() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <PennyBubble>
+        <SloaneBubble>
           {queue && queue.total === 0
             ? 'Everything looks good — nothing needs your attention right now.'
             : 'Here’s what needs your attention across your active deals.'}
-        </PennyBubble>
+        </SloaneBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -132,7 +132,7 @@ export default function ReviewQueue() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
           </div>
         ) : (
           queue &&

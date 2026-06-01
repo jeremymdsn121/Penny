@@ -185,7 +185,7 @@ export default function EmdCard({
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hairline pt-4">
             <button
               onClick={() => setEditing(true)}
-              className="text-sm font-medium text-penny hover:underline"
+              className="text-sm font-medium text-sloane hover:underline"
             >
               Edit details
             </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import { complianceSettingsApi, type ComplianceSettings } from '../lib/api'
 
 export default function ComplianceSettingsPage() {
@@ -52,11 +52,11 @@ export default function ComplianceSettingsPage() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <PennyBubble>
+        <SloaneBubble>
           Several states require disclosing when AI assists real estate communications. I add
           a disclosure footer to outbound email by default. You can edit the wording or also
           ask parties to explicitly acknowledge it.
-        </PennyBubble>
+        </SloaneBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -71,7 +71,7 @@ export default function ComplianceSettingsPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
           </div>
         ) : (
           <section className="space-y-5 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
@@ -103,7 +103,7 @@ export default function ComplianceSettingsPage() {
                 className="input text-sm"
               />
               <p className="mt-1 text-xs text-yellow-700">
-                Have your attorney review this text. Penny cannot provide legal advice on
+                Have your attorney review this text. Sloane cannot provide legal advice on
                 disclosure requirements.
               </p>
             </div>

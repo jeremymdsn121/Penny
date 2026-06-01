@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
 
-const KEY = 'penny-theme'
+const KEY = 'sloane-theme'
 
 function apply(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')

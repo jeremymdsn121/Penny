@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import { reportsApi, type BrokerSummary } from '../lib/api'
 
 const PERIODS: { key: string; label: string }[] = [
@@ -60,14 +60,14 @@ export default function Reports() {
         <h1 className="text-sm font-semibold text-ink">Reports</h1>
         <button
           onClick={() => reportsApi.downloadExport(period).catch(() => setError('Export failed.'))}
-          className="text-sm font-medium text-penny hover:underline"
+          className="text-sm font-medium text-sloane hover:underline"
         >
           Export CSV
         </button>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
-        <PennyBubble>Here’s how the business is doing this {period === 'ytd' ? 'year' : period}.</PennyBubble>
+        <SloaneBubble>Here’s how the business is doing this {period === 'ytd' ? 'year' : period}.</SloaneBubble>
 
         <div className="flex gap-2">
           {PERIODS.map((p) => (
@@ -93,7 +93,7 @@ export default function Reports() {
 
         {loading || !data ? (
           <div className="flex justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
           </div>
         ) : (
           <>
@@ -122,7 +122,7 @@ export default function Reports() {
                         </span>
                         <div className="h-5 flex-1 overflow-hidden rounded bg-surface-3">
                           <div
-                            className="flex h-full items-center justify-end rounded bg-penny px-2 text-[10px] font-semibold text-white"
+                            className="flex h-full items-center justify-end rounded bg-sloane px-2 text-[10px] font-semibold text-white"
                             style={{ width: `${(n / maxStage) * 100}%` }}
                           >
                             {n}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * PennyMark — Penny's wordmark-logo (the letter P), drawn as one continuous
+ * SloaneMark — Sloane's wordmark-logo (the letter P), drawn as one continuous
  * stroke. Like a signature: pen down at the bottom of the stem, up the stem,
  * around the bowl, back to where the bowl meets the stem.
  *
@@ -15,10 +15,10 @@ import { useEffect, useRef, useState } from 'react'
  * the final frame, no motion).
  *
  * Usage:
- *   <PennyMark size={160} animated />   // landing
- *   <PennyMark size={32} />             // sidebar / login / inline
+ *   <SloaneMark size={160} animated />   // landing
+ *   <SloaneMark size={32} />             // sidebar / login / inline
  */
-interface PennyMarkProps {
+interface SloaneMarkProps {
   size?: number
   /** Animate on mount + breathe forever. Off by default. */
   animated?: boolean
@@ -51,12 +51,12 @@ interface PennyMarkProps {
 const P_PATH = 'M 34 104 L 34 26 Q 34 14 46 14 A 30 26 0 1 1 34 64'
 const PATH_LENGTH = 300
 
-export default function PennyMark({
+export default function SloaneMark({
   size = 120,
   animated = false,
-  label = 'Penny',
+  label = 'Sloane',
   className = '',
-}: PennyMarkProps) {
+}: SloaneMarkProps) {
   // Gate the build-in to first paint so the keyframes actually run.
   const [armed, setArmed] = useState(false)
   // Measure the real path length on mount so the draw-in is pixel-accurate
@@ -80,35 +80,35 @@ export default function PennyMark({
     <div
       role="img"
       aria-label={label}
-      className={`penny-mark penny-mark--${phase} ${className}`}
+      className={`sloane-mark sloane-mark--${phase} ${className}`}
       style={
         {
           width: size,
           height: size,
           // Pass the measured path length to CSS via a custom property so
           // the keyframes can use it for the stroke-draw effect.
-          ['--penny-mark-path-length' as string]: pathLen,
+          ['--sloane-mark-path-length' as string]: pathLen,
         } as React.CSSProperties
       }
     >
       <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden="true">
         <defs>
           {/* Main stroke gradient — the body of the P. */}
-          <linearGradient id="pennyMarkStroke" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id="sloaneMarkStroke" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#A78BFA" />
             <stop offset="100%" stopColor="#7C3AED" />
           </linearGradient>
           {/* Inner highlight gradient — a soft sheen across the top-left of
               the stroke. Low peak opacity + a wider (10px) stroke makes it
               read as a rounded surface catching light, not a second line. */}
-          <linearGradient id="pennyMarkHighlight" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id="sloaneMarkHighlight" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
             <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.08" />
             <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
           </linearGradient>
           {/* Soft drop shadow — purple-tinted so it feels brand-native, not
               a hard grey. Sits behind the whole P. */}
-          <filter id="pennyMarkShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id="sloaneMarkShadow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="3.5" />
             <feOffset dx="0" dy="2.5" result="offsetblur" />
             <feComponentTransfer>
@@ -130,14 +130,14 @@ export default function PennyMark({
 
         {/* The whole mark scales together during breathe. Drop shadow is
             applied to the group so the shadow scales with the stroke. */}
-        <g className="penny-mark__p" filter="url(#pennyMarkShadow)">
+        <g className="sloane-mark__p" filter="url(#sloaneMarkShadow)">
           {/* Body stroke — this one carries the draw-in animation. */}
           <path
             ref={pathRef}
-            className="penny-mark__stroke"
+            className="sloane-mark__stroke"
             d={P_PATH}
             fill="none"
-            stroke="url(#pennyMarkStroke)"
+            stroke="url(#sloaneMarkStroke)"
             strokeWidth="16"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -147,10 +147,10 @@ export default function PennyMark({
               in lockstep with the main stroke (same dasharray) so it traces
               the same path during build-in. */}
           <path
-            className="penny-mark__highlight"
+            className="sloane-mark__highlight"
             d={P_PATH}
             fill="none"
-            stroke="url(#pennyMarkHighlight)"
+            stroke="url(#sloaneMarkHighlight)"
             strokeWidth="10"
             strokeLinecap="round"
             strokeLinejoin="round"

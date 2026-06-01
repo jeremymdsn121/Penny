@@ -22,7 +22,7 @@ export default function TaskToggle({
             task.locked
               ? 'bg-surface-3 text-ink-muted'
               : value
-                ? 'bg-penny-light text-penny-dark'
+                ? 'bg-sloane-light text-sloane-dark'
                 : 'bg-blue-50 text-blue-700'
           }`}
         >
@@ -37,7 +37,7 @@ export default function TaskToggle({
         disabled={task.locked}
         onClick={() => onChange(!value)}
         className={`mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          task.locked ? 'cursor-not-allowed bg-surface-3' : value ? 'bg-penny' : 'bg-surface-3'
+          task.locked ? 'cursor-not-allowed bg-surface-3' : value ? 'bg-sloane' : 'bg-surface-3'
         }`}
       >
         <span

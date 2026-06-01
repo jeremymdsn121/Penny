@@ -1,4 +1,4 @@
--- Penny V2 — Pending WhatsApp transactions (Section 1A).
+-- Sloane V2 — Pending WhatsApp transactions (Section 1A).
 -- Stores in-flight contract extractions triggered by a media upload from WhatsApp.
 -- One row per contact (UNIQUE on brokerage_id + phone_number); upsert replaces
 -- any prior extraction so the agent can re-send without manual cleanup.

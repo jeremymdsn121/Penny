@@ -1,5 +1,5 @@
--- Penny V2 — Inbound email reply threading (Section 4).
--- Penny sends intro emails and party notifications; when a lender or buyer
+-- Sloane V2 — Inbound email reply threading (Section 4).
+-- Sloane sends intro emails and party notifications; when a lender or buyer
 -- replies, that reply currently vanishes into someone's Gmail. transaction_emails
 -- captures both directions so the broker has visibility and the transaction has a
 -- record. Inbound replies arrive via SendGrid Inbound Parse to a per-transaction

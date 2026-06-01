@@ -1,6 +1,6 @@
 """Anthropic-backed document drafting.
 
-Penny drafts professional real estate correspondence (status updates, cover
+Sloane drafts professional real estate correspondence (status updates, cover
 letters, follow-ups) for a transaction, in the brokerage's voice. The
 brokerage's *confirmed* knowledge_rules are injected so drafts stay on brand
 (this is the payoff of the knowledge base).
@@ -21,7 +21,7 @@ from app.config import settings
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1500
 
-# doc_type -> what Penny should produce.
+# doc_type -> what Sloane should produce.
 DOC_TYPES: dict[str, str] = {
     "status_update": "a concise status update on where the transaction stands and any next steps",
     "cover_letter": "a cover letter / transmittal to accompany documents being sent to a party",
@@ -81,7 +81,7 @@ def _build_system(
     )
     rules_block = rules or "None on file yet — use a clear, warm, professional tone."
     return (
-        f"You are Penny, a transaction coordinator drafting correspondence on behalf "
+        f"You are Sloane, a transaction coordinator drafting correspondence on behalf "
         f"of {brokerage_name}. Write in the brokerage's voice, following their confirmed "
         f"brand/style rules below.\n\n"
         f"Brand & style rules:\n{rules_block}\n\n"

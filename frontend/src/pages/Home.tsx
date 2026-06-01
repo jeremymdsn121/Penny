@@ -14,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import PennyMark from '../components/PennyMark'
+import SloaneMark from '../components/SloaneMark'
 import {
   briefingApi,
   brokerApi,
@@ -195,7 +195,7 @@ interface Msg {
 export default function Home() {
   const navigate = useNavigate()
   const brokerage = useAuthStore((s) => s.brokerage)
-  const assistant = brokerage?.assistant_name || 'Penny'
+  const assistant = brokerage?.assistant_name || 'Sloane'
   const reduceMotion = useReducedMotion()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -327,7 +327,7 @@ export default function Home() {
   }
 
   const ChatBar = (
-    <div className="rounded-2xl border border-hairline bg-surface shadow-soft transition-colors focus-within:border-penny">
+    <div className="rounded-2xl border border-hairline bg-surface shadow-soft transition-colors focus-within:border-sloane">
       <textarea
         ref={inputRef}
         value={input}
@@ -361,7 +361,7 @@ export default function Home() {
             onClick={() => send(input)}
             disabled={!input.trim() || sending}
             title="Send"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-penny text-white transition-colors hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-sloane text-white transition-colors hover:bg-sloane-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             {sending ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
@@ -382,14 +382,14 @@ export default function Home() {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
-                <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-penny to-penny-bright text-xs font-bold text-white">
+                <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sloane to-sloane-bright text-xs font-bold text-white">
                   {assistant.charAt(0)}
                 </div>
               )}
               <div
                 className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-penny text-white'
+                    ? 'bg-sloane text-white'
                     : 'border border-hairline bg-surface text-ink'
                 }`}
               >
@@ -399,7 +399,7 @@ export default function Home() {
           ))}
           {sending && (
             <div className="flex justify-start">
-              <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-penny to-penny-bright text-xs font-bold text-white">
+              <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sloane to-sloane-bright text-xs font-bold text-white">
                 {assistant.charAt(0)}
               </div>
               <div className="flex items-center gap-1 rounded-2xl border border-hairline bg-surface px-4 py-3">
@@ -422,10 +422,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark — the animated PennyMark signs itself in last, after the
+      {/* Brand mark — the animated SloaneMark signs itself in last, after the
           rest of the launcher has settled. */}
       <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(360)}>
-        <PennyMark size={120} animated />
+        <SloaneMark size={120} animated />
       </div>
 
       {/* Greeting + briefing */}
@@ -443,7 +443,7 @@ export default function Home() {
         {ChatBar}
       </div>
 
-      {/* Next actions — Penny's prioritized "what I'd tackle" list. Clicking
+      {/* Next actions — Sloane's prioritized "what I'd tackle" list. Clicking
           one hands the task straight to her in chat. */}
       {nextActions.length > 0 && (
         <div className={`mt-6 ${riseClass}`} style={rise(200)}>
@@ -475,7 +475,7 @@ export default function Home() {
                 </span>
                 <ArrowUp
                   size={15}
-                  className="mt-0.5 shrink-0 rotate-45 text-ink-subtle transition-colors group-hover:text-penny"
+                  className="mt-0.5 shrink-0 rotate-45 text-ink-subtle transition-colors group-hover:text-sloane"
                 />
               </button>
             ))}
@@ -489,7 +489,7 @@ export default function Home() {
           <button
             key={s}
             onClick={() => send(s)}
-            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-penny/40 hover:text-ink"
+            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-sloane/40 hover:text-ink"
           >
             {s}
           </button>
@@ -512,7 +512,7 @@ export default function Home() {
                 className="card group flex flex-col gap-2 p-4 text-left transition-colors hover:bg-surface-3"
               >
                 <div className="flex items-center justify-between">
-                  <Icon size={18} className="text-penny dark:text-penny-bright" />
+                  <Icon size={18} className="text-sloane dark:text-sloane-bright" />
                   {p.to === '/review' && reviewCount > 0 && (
                     <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-500">
                       {reviewCount}

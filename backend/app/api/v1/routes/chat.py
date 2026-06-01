@@ -1,7 +1,7 @@
-"""Web chat with Penny.
+"""Web chat with Sloane.
 
 The same conversational agent that powers WhatsApp/SMS, exposed over an
-authenticated browser endpoint so brokers can ask Penny about their pipeline,
+authenticated browser endpoint so brokers can ask Sloane about their pipeline,
 deadlines, compliance file, comps, etc. from the web app's home screen.
 
 Stateless: the client holds the thread and replays recent turns on each call,
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import penny_agent
+from app.services import sloane_agent
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -52,7 +52,7 @@ async def chat(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ChatOut:
-    """Run one turn of the Penny web-chat agent and return its reply."""
+    """Run one turn of the Sloane web-chat agent and return its reply."""
     # Map the browser-side {role, content} thread to the agent's
     # {direction, body} history shape, keeping only the most recent turns.
     recent = body.history[-_MAX_HISTORY_TURNS:]
@@ -64,7 +64,7 @@ async def chat(
         for turn in recent
     ]
 
-    reply = await penny_agent.run_penny_agent(
+    reply = await sloane_agent.run_sloane_agent(
         brokerage_id=brokerage["id"],
         brokerage_name=brokerage.get("name", "your brokerage"),
         contact_display_name=_display_name(user),

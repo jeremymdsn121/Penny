@@ -1,4 +1,4 @@
-"""Penny WhatsApp agent — Claude with tool-use for conversational transaction management.
+"""Sloane WhatsApp agent — Claude with tool-use for conversational transaction management.
 
 Flow:
   1. Build a system prompt with the realtor's brokerage context and today's date.
@@ -39,7 +39,7 @@ MAX_TOKENS = 1024
 
 # Set per-request so document-drafting tools can layer the requesting agent's
 # personal style rules on top of the brokerage's (V2 Section 1B).
-_current_agent_id: ContextVar[str | None] = ContextVar("penny_current_agent_id", default=None)
+_current_agent_id: ContextVar[str | None] = ContextVar("sloane_current_agent_id", default=None)
 
 # --------------------------------------------------------------------------- #
 # Tool definitions
@@ -218,7 +218,7 @@ _TOOLS: list[dict[str, Any]] = [
         "name": "add_deadline",
         "description": (
             "Add a deadline to a transaction (e.g. inspection, financing, "
-            "appraisal, closing). Penny will remind the agent at the 5-day, "
+            "appraisal, closing). Sloane will remind the agent at the 5-day, "
             "2-day, and day-of marks. Optionally list which parties are "
             "responsible so they can be notified."
         ),
@@ -1314,7 +1314,7 @@ _TOOL_MAP = {
 # Agent entry point
 # --------------------------------------------------------------------------- #
 
-async def run_penny_agent(
+async def run_sloane_agent(
     brokerage_id: str,
     brokerage_name: str,
     contact_display_name: str | None,
@@ -1323,7 +1323,7 @@ async def run_penny_agent(
     agent_id: str | None = None,
     channel: str = "whatsapp",
 ) -> str:
-    """Run the Penny conversational agent and return a reply.
+    """Run the Sloane conversational agent and return a reply.
 
     Args:
         brokerage_id: The brokerage UUID (for DB-scoped tool calls).
@@ -1380,7 +1380,7 @@ async def run_penny_agent(
 
     if channel == "web":
         channel_intro = (
-            "You help agents manage their transactions from the Penny web app, "
+            "You help agents manage their transactions from the Sloane web app, "
             "through this chat panel."
         )
         style_block = (
@@ -1406,7 +1406,7 @@ async def run_penny_agent(
         )
 
     system = (
-        f"You are Penny, a real estate transaction coordinator assistant for "
+        f"You are Sloane, a real estate transaction coordinator assistant for "
         f"{brokerage_name}. {channel_intro}\n\n"
         f"Today's date: {today}\n"
         f"You are speaking with: {agent_label}\n\n"
@@ -1445,7 +1445,7 @@ async def run_penny_agent(
         "Earnest money:\n"
         "- get_emd_status reports whether the earnest money deposit has been received. "
         "mark_emd_received records receipt — confirm with the agent first, then call "
-        "with confirmed=true. Penny tracks EMD receipt only — never trust-account math.\n\n"
+        "with confirmed=true. Sloane tracks EMD receipt only — never trust-account math.\n\n"
         "Proactive next moves (important):\n"
         "- When a tool surfaces a list of pending things (tasks, missing checklist "
         "items, upcoming deadlines), don't just enumerate. For each item, infer the "

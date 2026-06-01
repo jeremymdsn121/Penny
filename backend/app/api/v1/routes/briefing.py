@@ -2,7 +2,7 @@
 
 ``GET /briefing/next-actions`` returns a prioritized, curated list of concrete
 next moves across the brokerage's active deals, synthesized by
-``services/next_actions``. This is the same logic behind Penny's
+``services/next_actions``. This is the same logic behind Sloane's
 ``suggest_next_actions`` chat tool, exposed deterministically for the landing
 page so the briefing renders instantly without an LLM round-trip.
 

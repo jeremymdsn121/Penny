@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import { listingsApi, type Listing } from '../lib/api'
 
 const PROPERTY_TYPES = ['single_family', 'condo', 'townhouse', 'multi_family', 'land', 'other']
@@ -150,7 +150,7 @@ export default function ListingDetail() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-2">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
       </div>
     )
   }
@@ -159,7 +159,7 @@ export default function ListingDetail() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-2 text-center">
         <p className="text-sm text-ink-muted">{error}</p>
-        <button onClick={() => navigate('/listings')} className="text-sm font-medium text-penny hover:underline">
+        <button onClick={() => navigate('/listings')} className="text-sm font-medium text-sloane hover:underline">
           Back to Listings
         </button>
       </div>
@@ -182,10 +182,10 @@ export default function ListingDetail() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
-        <PennyBubble>
+        <SloaneBubble>
           Review the MLS fields I pulled from the packet. Edit anything, then it's ready to enter
           into your MLS.
-        </PennyBubble>
+        </SloaneBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>

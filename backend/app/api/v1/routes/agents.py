@@ -1,7 +1,7 @@
 """Agents — brokerage roster + per-agent style profiles (V2 Section 1B).
 
 The brokerage admin manages the agent roster here. Each agent can also build a
-personal "My Style" profile: upload a sample letter/email, Penny proposes style
+personal "My Style" profile: upload a sample letter/email, Sloane proposes style
 rules (stored unconfirmed with the agent's agent_id), the agent confirms them,
 and those confirmed rules layer on top of the brokerage-wide style for that
 agent's generated documents (see supabase_client.get_confirmed_knowledge_rules).

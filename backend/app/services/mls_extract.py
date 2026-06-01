@@ -60,7 +60,7 @@ def _client() -> AsyncAnthropic:
 def _build_system() -> str:
     keys = ", ".join(MLS_FIELDS)
     return (
-        "You are Penny, a real estate transaction coordinator assistant. You extract "
+        "You are Sloane, a real estate transaction coordinator assistant. You extract "
         "MLS listing data from a listing packet (listing agreement, property data "
         "sheet, seller disclosures) so an agent can enter the listing into the MLS.\n\n"
         f"Extract these fields and return ONLY a JSON object with exactly these keys: {keys}.\n"

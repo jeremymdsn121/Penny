@@ -1,9 +1,9 @@
-# Penny — Virtual Brokerage Assistant
+# Sloane — Virtual Brokerage Assistant
 
-Monorepo for Penny, a virtual transaction-coordinator assistant for real estate brokerages.
+Monorepo for Sloane, a virtual transaction-coordinator assistant for real estate brokerages.
 
 ```
-penny/
+sloane/
   backend/    FastAPI + Supabase (Python 3.11+)
   frontend/   React 18 + TypeScript + Vite + Tailwind
 ```

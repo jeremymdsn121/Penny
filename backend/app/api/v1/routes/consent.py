@@ -25,10 +25,10 @@ _SETTINGS_FIELDS = ("ai_disclosure_enabled", "ai_disclosure_text", "request_ai_c
 def _page(message: str) -> HTMLResponse:
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Penny</title></head>
+<title>Sloane</title></head>
 <body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#F9FAFB;margin:0;padding:48px 16px;text-align:center;color:#111827;">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:36px;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-    <div style="font-size:24px;font-weight:700;color:#7C3AED;">Penny</div>
+    <div style="font-size:24px;font-weight:700;color:#7C3AED;">Sloane</div>
     <p style="margin-top:20px;font-size:15px;line-height:1.6;">{message}</p>
   </div>
 </body></html>"""

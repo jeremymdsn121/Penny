@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Communications from '../components/Communications'
 import ComplianceChecklist from '../components/ComplianceChecklist'
 import EmdCard from '../components/EmdCard'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import SectionNav, { type SectionNavItem } from '../components/SectionNav'
 import SignaturesCard from '../components/SignaturesCard'
 import TaskPanel from '../components/TaskPanel'
@@ -556,7 +556,7 @@ export default function TransactionDetail() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-2">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
       </div>
     )
   }
@@ -567,7 +567,7 @@ export default function TransactionDetail() {
         <p className="text-sm text-ink-muted">{error ?? 'Transaction not found.'}</p>
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm font-medium text-penny hover:underline"
+          className="text-sm font-medium text-sloane hover:underline"
         >
           Back to Dashboard
         </button>
@@ -617,11 +617,11 @@ export default function TransactionDetail() {
         {!editMode && <SectionNav items={SECTION_NAV} />}
         <div className="min-w-0 flex-1 space-y-6">
         {!editMode && (
-          <PennyBubble>
+          <SloaneBubble>
             {tx.closing_date
               ? `Closing on ${tx.closing_date}. Let me know if you need anything.`
               : `Here are the details for this transaction. Hit Edit to update any field.`}
-          </PennyBubble>
+          </SloaneBubble>
         )}
 
         {saveError && (
@@ -696,7 +696,7 @@ export default function TransactionDetail() {
               Deadlines
             </h3>
             <p className="mb-4 text-xs text-ink-subtle">
-              Penny reminds you at the 5-day, 2-day, and day-of marks. Responsible parties
+              Sloane reminds you at the 5-day, 2-day, and day-of marks. Responsible parties
               are notified automatically only if you've made deadline reminders autonomous —
               otherwise use “Notify parties” to confirm and send.
             </p>
@@ -761,7 +761,7 @@ export default function TransactionDetail() {
                             ) : (
                               <button
                                 onClick={() => setConfirmNotifyId(d.id)}
-                                className="text-xs font-medium text-penny hover:underline"
+                                className="text-xs font-medium text-sloane hover:underline"
                               >
                                 Notify parties
                               </button>
@@ -847,7 +847,7 @@ export default function TransactionDetail() {
               Scheduling
             </h3>
             <p className="mb-4 text-xs text-ink-subtle">
-              Penny proposes open times from your working hours and books showings or
+              Sloane proposes open times from your working hours and books showings or
               inspections. Calendar sync isn’t connected yet — times reflect your hours and
               existing appointments.
             </p>
@@ -994,7 +994,7 @@ export default function TransactionDetail() {
               })()}
             </div>
             <p className="mb-4 text-xs text-ink-subtle">
-              Penny surfaces findings to verify — she never approves compliance. A human
+              Sloane surfaces findings to verify — she never approves compliance. A human
               must review and sign off below.
             </p>
 
@@ -1144,7 +1144,7 @@ export default function TransactionDetail() {
               Comparable sales
             </h3>
             <p className="mb-4 text-xs text-ink-subtle">
-              Penny pulls recent comps and an estimated value for this property. Figures are
+              Sloane pulls recent comps and an estimated value for this property. Figures are
               estimates from Rentcast.
             </p>
 
@@ -1361,7 +1361,7 @@ export default function TransactionDetail() {
               Draft a document
             </h3>
             <p className="mb-4 text-xs text-ink-subtle">
-              Penny drafts in your brand voice using your confirmed Brand &amp; Style rules.
+              Sloane drafts in your brand voice using your confirmed Brand &amp; Style rules.
               Review before sending.
             </p>
 

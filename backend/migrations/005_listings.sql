@@ -1,6 +1,6 @@
--- Penny — MLS listing prep (PRD task `mls-entry`).
+-- Sloane — MLS listing prep (PRD task `mls-entry`).
 -- A `listings` table for the listing side: a property an agent is taking to
--- market. Distinct from `transactions` (purchase side). Penny extracts MLS-ready
+-- market. Distinct from `transactions` (purchase side). Sloane extracts MLS-ready
 -- fields from a listing packet into a draft listing the agent reviews; pushing
 -- to an MLS is a deferred, per-market integration (see app/services/mls_provider.py).
 -- Run this in the Supabase SQL Editor after 004_knowledge.sql.

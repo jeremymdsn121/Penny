@@ -1,7 +1,7 @@
--- Penny V2 — Unified messaging channels (Section 1C: SMS fallback).
--- WhatsApp penetration among older US agents is low, so Penny also speaks plain
+-- Sloane V2 — Unified messaging channels (Section 1C: SMS fallback).
+-- WhatsApp penetration among older US agents is low, so Sloane also speaks plain
 -- SMS. agent_channels is the single source of truth for "which phone numbers may
--- message Penny, and on which channel". A number can be registered on WhatsApp,
+-- message Sloane, and on which channel". A number can be registered on WhatsApp,
 -- SMS, or both (one row per channel).
 -- Existing whatsapp_contacts rows are copied in as channel='whatsapp'; the old
 -- table is left in place (read-only) so nothing is lost.

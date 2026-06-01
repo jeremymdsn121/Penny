@@ -67,7 +67,7 @@ export default function Communications({
         )}
       </div>
       <p className="mb-4 text-xs text-ink-subtle">
-        Emails Penny has sent, plus any replies routed back to this deal.
+        Emails Sloane has sent, plus any replies routed back to this deal.
       </p>
 
       {error && (
@@ -131,7 +131,7 @@ export default function Communications({
                     {isInbound && onReply && (
                       <button
                         onClick={() => onReply(e)}
-                        className="mt-2 text-xs font-semibold text-penny hover:underline"
+                        className="mt-2 text-xs font-semibold text-sloane hover:underline"
                       >
                         Reply with a draft →
                       </button>

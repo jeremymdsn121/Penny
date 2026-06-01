@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
+import SloaneBubble from '../components/SloaneBubble'
 import TaskToggle from '../components/TaskToggle'
 import {
   onboardingApi,
@@ -26,7 +26,7 @@ export default function Onboarding() {
 
   // Step 1 — State
   const [state, setState] = useState(brokerage?.state ?? '')
-  // Step 2 — Identity (assistant is always "Penny"; not user-editable)
+  // Step 2 — Identity (assistant is always "Sloane"; not user-editable)
   const [name, setName] = useState(brokerage?.name ?? '')
   const [email, setEmail] = useState(brokerage?.email ?? '')
   const [phone, setPhone] = useState(brokerage?.phone ?? '')
@@ -54,7 +54,7 @@ export default function Onboarding() {
       .catch(() => setError('Could not load setup options. Is the backend running?'))
   }, [])
 
-  const assistant = 'Penny'
+  const assistant = 'Sloane'
   const isDetailedState = useMemo(
     () => !!state && (options?.detailed_ruleset_states.includes(state) ?? false),
     [state, options],
@@ -114,7 +114,7 @@ export default function Onboarding() {
     <div className="min-h-screen bg-surface-2 px-4 py-10">
       <div className="mx-auto w-full max-w-lg space-y-6">
         <Stepper step={step} />
-        <PennyBubble>{bubble}</PennyBubble>
+        <SloaneBubble>{bubble}</SloaneBubble>
 
         <div className="space-y-5 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
           {!options && !error && <p className="text-sm text-ink-muted">Loading…</p>}
@@ -145,7 +145,7 @@ export default function Onboarding() {
           {step === 1 && options && (
             <div className="space-y-4">
               <TextField label="Brokerage name" value={name} onChange={setName} />
-              <TextField label="Email" type="email" value={email} onChange={setEmail} placeholder="penny@yourbrokerage.com" />
+              <TextField label="Email" type="email" value={email} onChange={setEmail} placeholder="sloane@yourbrokerage.com" />
               <TextField label="Phone" value={phone} onChange={setPhone} placeholder="(512) 555-0100" />
             </div>
           )}
@@ -280,7 +280,7 @@ function Stepper({ step }: { step: number }) {
         <div key={label} className="flex items-center gap-1.5">
           <div
             className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-              i <= step ? 'bg-penny text-white' : 'bg-surface-3 text-ink-muted'
+              i <= step ? 'bg-sloane text-white' : 'bg-surface-3 text-ink-muted'
             }`}
           >
             {i + 1}
@@ -338,7 +338,7 @@ function OptionCard({
       type="button"
       onClick={onClick}
       className={`w-full rounded-lg border p-3 text-left transition-colors ${
-        selected ? 'border-penny bg-penny-light' : 'border-hairline hover:border-hairline'
+        selected ? 'border-sloane bg-sloane-light' : 'border-hairline hover:border-hairline'
       }`}
     >
       <p className="text-sm font-medium text-ink">{title}</p>
@@ -361,7 +361,7 @@ function ChoicePill({
       type="button"
       onClick={onClick}
       className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-        active ? 'border-penny bg-penny-light font-medium text-penny-dark' : 'border-hairline text-ink hover:border-hairline'
+        active ? 'border-sloane bg-sloane-light font-medium text-sloane-dark' : 'border-hairline text-ink hover:border-hairline'
       }`}
     >
       {label}

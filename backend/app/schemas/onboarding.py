@@ -13,7 +13,7 @@ class OnboardingSubmit(BaseModel):
     state: str = Field(min_length=2, max_length=2)
 
     # Step 2 — Identity
-    assistant_name: str = Field(min_length=1, default="Penny")
+    assistant_name: str = Field(min_length=1, default="Sloane")
     name: str = Field(min_length=1)  # brokerage name
     email: EmailStr | None = None
     phone: str | None = None

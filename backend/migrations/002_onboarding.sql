@@ -1,4 +1,4 @@
--- Penny — onboarding support.
+-- Sloane — onboarding support.
 -- Adds the columns the setup wizard captures that aren't already in 001:
 --   * onboarding_completed — whether a brokerage finished the wizard
 --   * calendar/scheduling preferences (provider, working hours, buffer, showing method)

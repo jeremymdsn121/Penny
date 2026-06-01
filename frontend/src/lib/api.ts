@@ -28,7 +28,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       authToken = null
       // Wipe the persisted Zustand store so ProtectedRoute redirects properly.
-      localStorage.removeItem('penny-auth')
+      localStorage.removeItem('sloane-auth')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -280,7 +280,7 @@ export interface WhatsAppContact {
 }
 
 export interface WhatsAppConfig {
-  penny_whatsapp_number: string | null
+  sloane_whatsapp_number: string | null
   configured: boolean
 }
 
@@ -303,7 +303,7 @@ export const whatsappApi = {
 }
 
 export interface SmsConfig {
-  penny_sms_number: string | null
+  sloane_sms_number: string | null
   configured: boolean
 }
 
@@ -372,7 +372,7 @@ export const transactionsApi = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'penny-transactions-template.csv'
+    a.download = 'sloane-transactions-template.csv'
     a.click()
     URL.revokeObjectURL(url)
   },
@@ -677,7 +677,7 @@ export const reportsApi = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `penny-closed-${period}.csv`
+    a.download = `sloane-closed-${period}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()

@@ -2,7 +2,7 @@
 
 The model is told to return strict JSON for a fixed set of keys and to use null
 for anything it can't find — never guess. We inject the brokerage's confirmed
-knowledge rules into the system prompt so Penny stays on-brand.
+knowledge rules into the system prompt so Sloane stays on-brand.
 
 PDF strategy: we send the raw PDF bytes directly to the Anthropic API as a
 native document (vision-capable), which handles text-layer PDFs, fillable
@@ -62,7 +62,7 @@ def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
     rules_block = rules or "None on file yet."
     keys = ", ".join(CONTRACT_FIELDS)
     return (
-        "You are Penny, a real estate transaction coordinator assistant. "
+        "You are Sloane, a real estate transaction coordinator assistant. "
         "You extract structured data from real estate purchase contracts.\n\n"
         f"Brokerage style rules:\n{rules_block}\n\n"
         f"Extract these fields and return ONLY a JSON object with exactly these keys: {keys}.\n"

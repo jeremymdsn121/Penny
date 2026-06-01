@@ -43,7 +43,7 @@
   }
 
   ::selection {
-    @apply bg-penny/30;
+    @apply bg-sloane/30;
   }
 }
 
@@ -73,70 +73,70 @@
 }
 
 /* ------------------------------------------------------------------ *
- * PennyMark — single-stroke P wordmark.
+ * SloaneMark — single-stroke P wordmark.
  *   --static = full P, no motion (default everywhere)
  *   --pre    = pre-build-in (path hidden via dashoffset, no FOUC)
  *   --in     = stroke draws top-to-bottom, then breathes (landing only)
  *
  * The build-in is a stroke-dasharray draw: the dash length equals the
- * path length (passed in as --penny-mark-path-length from the component),
+ * path length (passed in as --sloane-mark-path-length from the component),
  * and the offset animates from full-length → 0. After the draw, the
  * whole P breathes — a subtle scale loop centred on the bowl so the
  * mark feels alive without bouncing like a button.
  * ------------------------------------------------------------------ */
 @layer utilities {
-  .penny-mark { display: inline-block; }
-  .penny-mark svg { overflow: visible; display: block; }
+  .sloane-mark { display: inline-block; }
+  .sloane-mark svg { overflow: visible; display: block; }
 
   /* Scale around a point biased toward the bowl (top of the letter) so the
      breath looks like the bowl is leading and the stem follows, rather
      than the whole mark zooming. */
-  .penny-mark__p { transform-box: fill-box; transform-origin: 35% 30%; }
+  .sloane-mark__p { transform-box: fill-box; transform-origin: 35% 30%; }
 
   /* --- Static (default): show the full stroke + highlight, no motion. --- */
-  .penny-mark--static .penny-mark__stroke,
-  .penny-mark--static .penny-mark__highlight {
+  .sloane-mark--static .sloane-mark__stroke,
+  .sloane-mark--static .sloane-mark__highlight {
     stroke-dasharray: none;
     stroke-dashoffset: 0;
   }
 
   /* --- Pre: hide both strokes (offset by full path length). --- */
-  .penny-mark--pre .penny-mark__stroke,
-  .penny-mark--pre .penny-mark__highlight {
-    stroke-dasharray: var(--penny-mark-path-length, 300);
-    stroke-dashoffset: var(--penny-mark-path-length, 300);
+  .sloane-mark--pre .sloane-mark__stroke,
+  .sloane-mark--pre .sloane-mark__highlight {
+    stroke-dasharray: var(--sloane-mark-path-length, 300);
+    stroke-dashoffset: var(--sloane-mark-path-length, 300);
   }
 
   /* --- In: draw both strokes in lockstep, then breathe. --- */
-  .penny-mark--in .penny-mark__stroke,
-  .penny-mark--in .penny-mark__highlight {
-    stroke-dasharray: var(--penny-mark-path-length, 300);
-    stroke-dashoffset: var(--penny-mark-path-length, 300);
-    animation: penny-draw 1400ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  .sloane-mark--in .sloane-mark__stroke,
+  .sloane-mark--in .sloane-mark__highlight {
+    stroke-dasharray: var(--sloane-mark-path-length, 300);
+    stroke-dashoffset: var(--sloane-mark-path-length, 300);
+    animation: sloane-draw 1400ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
   }
-  .penny-mark--in .penny-mark__p {
-    animation: penny-breathe 4s ease-in-out 1600ms infinite;
+  .sloane-mark--in .sloane-mark__p {
+    animation: sloane-breathe 4s ease-in-out 1600ms infinite;
   }
 
-  @keyframes penny-draw {
+  @keyframes sloane-draw {
     to { stroke-dashoffset: 0; }
   }
   /* Softer breath — the curves carry the "alive" feeling, so the scale
      doesn't have to work as hard. */
-  @keyframes penny-breathe {
+  @keyframes sloane-breathe {
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.04); }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .penny-mark--pre .penny-mark__stroke,
-  .penny-mark--in  .penny-mark__stroke {
+  .sloane-mark--pre .sloane-mark__stroke,
+  .sloane-mark--in  .sloane-mark__stroke {
     stroke-dasharray: none !important;
     stroke-dashoffset: 0 !important;
   }
-  .penny-mark__stroke,
-  .penny-mark__p { animation: none !important; }
+  .sloane-mark__stroke,
+  .sloane-mark__p { animation: none !important; }
 }
 
 @layer components {
@@ -147,12 +147,12 @@
   .input {
     @apply w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink
       shadow-sm outline-none transition-colors placeholder:text-ink-subtle
-      focus:border-penny focus:ring-1 focus:ring-penny;
+      focus:border-sloane focus:ring-1 focus:ring-sloane;
   }
 
   .btn-primary {
-    @apply rounded-lg bg-penny px-4 py-2 text-sm font-medium text-white transition-colors
-      hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-lg bg-sloane px-4 py-2 text-sm font-medium text-white transition-colors
+      hover:bg-sloane-dark disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
@@ -168,6 +168,6 @@
   }
 
   .nav-item-active {
-    @apply bg-penny/10 text-penny dark:bg-penny/15 dark:text-penny-bright;
+    @apply bg-sloane/10 text-sloane dark:bg-sloane/15 dark:text-sloane-bright;
   }
 }

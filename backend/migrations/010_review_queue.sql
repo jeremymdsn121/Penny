@@ -1,4 +1,4 @@
--- Penny V2 — Broker review queue support (Section 2B).
+-- Sloane V2 — Broker review queue support (Section 2B).
 -- Adds deadline resolution tracking and a transaction "last activity" timestamp
 -- so the broker dashboard can surface stale and at-risk deals.
 -- Run after 009_compliance_checklist.sql.

@@ -43,7 +43,7 @@ export default function SectionNav({ items }: { items: SectionNavItem[] }) {
                 onClick={() => go(it.id)}
                 className={`-ml-px block w-full border-l-2 py-1.5 pl-4 text-left text-sm transition-colors ${
                   isActive
-                    ? 'border-penny font-medium text-penny dark:border-penny-bright dark:text-penny-bright'
+                    ? 'border-sloane font-medium text-sloane dark:border-sloane-bright dark:text-sloane-bright'
                     : 'border-transparent text-ink-subtle hover:border-hairline hover:text-ink'
                 }`}
               >

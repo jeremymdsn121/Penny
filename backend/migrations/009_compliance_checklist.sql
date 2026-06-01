@@ -1,4 +1,4 @@
--- Penny V2 — Compliance checklist engine (Section 2A).
+-- Sloane V2 — Compliance checklist engine (Section 2A).
 -- Distinct from the AI compliance review (which reads the contract for issues):
 -- this tracks whether the required documents are *in the file* — agency
 -- disclosure, lead-based paint, wire fraud advisory, etc. — with completed-by

@@ -1,11 +1,11 @@
-# Penny — Virtual Brokerage Assistant
+# Sloane — Virtual Brokerage Assistant
 
-B2B SaaS "virtual transaction coordinator" for real estate brokerages. One Penny
+B2B SaaS "virtual transaction coordinator" for real estate brokerages. One Sloane
 instance per brokerage, priced by agent seats. Built from a PRD; stack is fixed
 by the PRD — **do not substitute libraries**.
 
 ```
-penny/
+sloane/
   backend/    FastAPI + Python (Supabase over httpx)
   frontend/   React 18 + TS + Vite + Tailwind + Zustand + Axios + RHF/Zod
 ```
@@ -13,11 +13,11 @@ penny/
 **V1 → V2.** Phases 1–3 (V1) shipped: auth, onboarding, contract extraction,
 transactions, WhatsApp+voice, knowledge base, doc generation, deadlines,
 compliance review, comps, scheduling, MLS listing prep. The V2 build (sections
-1A–8 in `PENNY_V2_CLAUDE_CODE.md`) layered on: inbound media on WhatsApp,
+1A–8 in `SLOANE_V2_CLAUDE_CODE.md`) layered on: inbound media on WhatsApp,
 per-agent style, SMS fallback, the compliance checklist + broker review queue,
 workflow tasks, inbound email threading, EMD tracking, AI disclosure +
 consent, broker reporting, and a DocuSign seam. The full V2 spec is in
-`PENNY_V2_CLAUDE_CODE.md`; a condensed navigational digest is in `.context` —
+`SLOANE_V2_CLAUDE_CODE.md`; a condensed navigational digest is in `.context` —
 read that before touching V2 areas, fall back to the full doc for prose/seeds.
 
 ## Run
@@ -66,12 +66,12 @@ first thing to check (ngrok inspector: http://localhost:4040).
 - **Supabase access:** `app/core/supabase_client.py` — thin async httpx wrappers
   (not supabase-py). Service-role key is used server-side only and bypasses RLS.
 - **AI:** Anthropic `claude-sonnet-4-5` for the WhatsApp agent
-  (`app/services/penny_agent.py`, tool-use loop), contract field extraction
+  (`app/services/sloane_agent.py`, tool-use loop), contract field extraction
   (`app/services/ai_extract.py`), and brand/style rule extraction
   (`app/services/style_extract.py`).
 - **WhatsApp (text + voice):** inbound webhook `app/api/v1/routes/whatsapp.py`
   → Twilio signature check → contact lookup → optional Whisper transcription
-  (`app/services/whisper.py`) for voice memos → Penny agent → reply via Twilio
+  (`app/services/whisper.py`) for voice memos → Sloane agent → reply via Twilio
   (`app/services/twilio_client.py`). Conversation history persisted in
   `whatsapp_messages`. Agent tools: list transactions, get details, update
   stage, add note, preview/send intro email, draft document, list/add deadlines,
@@ -80,14 +80,14 @@ first thing to check (ngrok inspector: http://localhost:4040).
   (the proactive synthesizer — see the Web chat bullet).
 - **Email (SendGrid):** `app/services/email_client.py`. The **intro email**
   introduces all parties on a transaction (buyer, seller, agents, lender, title)
-  and presents Penny as coordinator. Sent on request via the WhatsApp agent —
+  and presents Sloane as coordinator. Sent on request via the WhatsApp agent —
   `preview_intro_email` (read-only) then `send_intro_email` (requires
   `confirmed=true`); confirmation is enforced unless the brokerage's `intro-email`
   task is autonomous. Flips `transactions.intro_email_sent` to prevent
   double-sends. No-op without `SENDGRID_API_KEY`.
 - **Knowledge base (brand & style):** `app/api/v1/routes/knowledge.py` +
   `style_extract.py`. Admins upload style references (letterhead, sample letter,
-  template as PDF/image/.docx); Penny proposes style rules into `knowledge_rules`
+  template as PDF/image/.docx); Sloane proposes style rules into `knowledge_rules`
   as **unconfirmed**; admin confirms; confirmed rules are injected into AI prompts
   via `get_confirmed_knowledge_rules`. Files stored in the `knowledge-docs` bucket.
 - **Document generation:** `app/services/doc_generate.py`. Drafts correspondence
@@ -161,10 +161,10 @@ first thing to check (ngrok inspector: http://localhost:4040).
   so real publishing is a **deferred, per-market integration** (e.g. Spark API for
   Flexmls markets), wired when credentials/approval exist. Web UI: a Listings page
   (`/listings`, upload→review) + listing detail/edit.
-- **Web chat ("Ask Penny"):** `app/api/v1/routes/chat.py` — `POST /chat`
-  (auth-scoped) reuses the **same** `penny_agent` tool-use loop that powers
+- **Web chat ("Ask Sloane"):** `app/api/v1/routes/chat.py` — `POST /chat`
+  (auth-scoped) reuses the **same** `sloane_agent` tool-use loop that powers
   WhatsApp/SMS, exposed over the browser. Stateless: the client replays recent
-  turns each call, so **no table/migration**. `run_penny_agent(channel="web")`
+  turns each call, so **no table/migration**. `run_sloane_agent(channel="web")`
   only swaps the tone guidance (plain text, no markdown); tools + confirmation
   gates are identical to the messaging channels. The frontend home page
   (`/`, `src/pages/Home.tsx`) is the chat-forward landing — greeting + live
@@ -177,24 +177,24 @@ first thing to check (ngrok inspector: http://localhost:4040).
   checklist items, EMD status, upcoming deadlines, and missing party contacts
   across active deals into a prioritized list (each item carries a display
   `headline`/`offer` plus a click-to-act `prompt`). Two consumers share it: the
-  `suggest_next_actions` agent tool (Penny's answer to open "what should I do?"
+  `suggest_next_actions` agent tool (Sloane's answer to open "what should I do?"
   questions — used instead of a raw task dump) and `GET /briefing/next-actions`
   (`routes/briefing.py`, brokerage-scoped, **not** admin-only — deterministic, no
   LLM round-trip), which feeds the home page's "What I'd tackle first" cards;
-  clicking a card hands its `prompt` straight to Penny in chat. The system prompt
-  also gained a "Proactive next moves" section so Penny proposes the concrete
+  clicking a card hands its `prompt` straight to Sloane in chat. The system prompt
+  also gained a "Proactive next moves" section so Sloane proposes the concrete
   next action (propose times / draft email / chase receipt) and flags missing
   party emails, rather than only offering to "mark complete." Applies across web,
   WhatsApp, and SMS (same agent loop).
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
-  Pages: **Home** (`/`, Ask Penny chat + briefing), **Dashboard** (`/dashboard`),
+  Pages: **Home** (`/`, Ask Sloane chat + briefing), **Dashboard** (`/dashboard`),
   transactions, **Listings** (`/listings`), WhatsApp settings,
   **Brand & Style** (`/knowledge`), plus V2 pages: **Review Queue**
   (`/review`, admin only), **Reports** (`/reports`), and per-agent settings
   surfaces (style profile, channels).
 
-### V2 systems (sections 1A–8 in `PENNY_V2_CLAUDE_CODE.md`)
+### V2 systems (sections 1A–8 in `SLOANE_V2_CLAUDE_CODE.md`)
 
 - **WhatsApp/SMS media intake (1A):** `app/services/media_extract.py` +
   inbound webhook handlers. Twilio media (`MediaUrl0`/`MediaContentType0`) is
@@ -237,8 +237,8 @@ first thing to check (ngrok inspector: http://localhost:4040).
   `manual`. `app/api/v1/routes/tasks.py` exposes CRUD; WhatsApp `get_pending_tasks`
   groups by urgency (overdue/today/this week/upcoming); "mark X done" is confirm-gated.
 - **Inbound email threading (4):** `transaction_emails` (migration 012) logs both
-  directions. Outbound emails set `Reply-To: tx-{transaction_id}@reply.penny.app`
-  (DNS: `reply.penny.app` MX → `mx.sendgrid.net`, configured in `DEPLOYMENT.md`).
+  directions. Outbound emails set `Reply-To: tx-{transaction_id}@reply.heysloane.io`
+  (DNS: `reply.heysloane.io` MX → `mx.sendgrid.net`, configured in `DEPLOYMENT.md`).
   `POST /api/v1/email/inbound` (public, validates SendGrid Inbound Parse signature
   via `SENDGRID_WEBHOOK_KEY`) extracts the transaction_id from the recipient address,
   verifies brokerage ownership, stores the message, and WhatsApp-nudges **the deal's
@@ -249,7 +249,7 @@ first thing to check (ngrok inspector: http://localhost:4040).
   Messaging page's "Reply Handling" card via `GET`/`PUT /whatsapp/settings`): when on,
   each inbound reply is also forwarded to the agent's email (`agents.email`, falling
   back to the deal's `listing_agent_email`/`selling_agent_email`) with `Reply-To` set
-  to the per-transaction address so the agent can reply from their inbox and Penny
+  to the per-transaction address so the agent can reply from their inbox and Sloane
   still logs the thread (the agent's own replies aren't echoed back). All existing
   SendGrid sends log to `transaction_emails` with `direction='outbound'`. Reply UX: the
   Communications tab opens a draft via the doc-generation flow — human reviews and
@@ -284,8 +284,8 @@ first thing to check (ngrok inspector: http://localhost:4040).
   reports "not connected"; `POST /api/v1/transactions/:id/docusign/send` and the
   Connect webhook are stubbed. Same pattern as `calendar_provider` and
   `mls_provider` — only the seam bodies change when DocuSign developer credentials
-  + production partner review are in hand. **Scoping constraint: Penny is not a
-  forms library** — DocuSign sends documents Penny already has (extracted
+  + production partner review are in hand. **Scoping constraint: Sloane is not a
+  forms library** — DocuSign sends documents Sloane already has (extracted
   contracts, generated correspondence). State association form distribution
   requires NAR/state licensing (see `BLOCKERS.md`, Hard Limit 1).
 
@@ -304,7 +304,7 @@ V1 (Phases 1–3):
 - `004_knowledge.sql` `knowledge_documents` + `knowledge_rules.document_id`
 - `005_listings.sql` `listings` table (MLS listing prep) + RLS
 
-V2 (sections 1A–7 in `PENNY_V2_CLAUDE_CODE.md`):
+V2 (sections 1A–7 in `SLOANE_V2_CLAUDE_CODE.md`):
 - `006_pending_whatsapp_transactions.sql` — 2h holding area for inbound media
   extractions before YES/correction commits (Section 1A)
 - `007_agent_style.sql` — `agent_id` on `knowledge_rules` + `knowledge_documents`
@@ -392,10 +392,10 @@ WhatsApp specifics:
   DocuSign envelope send. Don't add a flag to bypass any of these.
 - Never let compliance review run autonomously — always surface findings to the agent.
 - EMD is receipt tracking only. No calculations, disbursements, or trust math —
-  Penny is not accounting software. UI label is "EMD Receipt Tracking."
-- Never auto-reply to inbound emails — Penny drafts on request, human reviews and sends.
+  Sloane is not accounting software. UI label is "EMD Receipt Tracking."
+- Never auto-reply to inbound emails — Sloane drafts on request, human reviews and sends.
 - Build phases in spec order (V1 = Phases 1–3, V2 = sections 1A–8); resist scope creep.
-- **Penny's name is fixed** ("Penny", not user-editable) and Penny is referred to as
+- **Sloane's name is fixed** ("Sloane", not user-editable) and Sloane is referred to as
   **she/her** in copy, never "it".
 - **Copy style:** em dashes are allowed only as a headline→description separator (e.g.
   "Manage deals — pipeline summary…"); keep them out of body prose. Reword instead.
@@ -406,20 +406,20 @@ WhatsApp specifics:
 
 ## Status & next up
 
-### Penny proactivity + fixes — branch `penny-proactivity-and-fixes` (not yet merged)
+### Sloane proactivity + fixes — branch `sloane-proactivity-and-fixes` (not yet merged)
 
 Latest session, **on a feature branch off `master`, browser-verified in the dev
 brokerage but not yet pushed/merged**. Three commits:
 
-- **Penny proposes concrete next actions, not lists.** Previously she answered
+- **Sloane proposes concrete next actions, not lists.** Previously she answered
   "what's overdue?" by enumerating tasks and only offering to mark them complete.
   Now: a "Proactive next moves" block in the system prompt (infer the next action
   per item — propose times / draft email / chase receipt — and flag missing party
   emails), a `suggest_next_actions` agent tool, the shared
   `services/next_actions.py` synthesizer, the `GET /briefing/next-actions`
   endpoint, and the home page's "What I'd tackle first" cards (click → hands the
-  prompt to Penny). See the Web chat / Proactive next actions architecture
-  bullets. Verified live: briefing renders; clicking the inspection card had Penny
+  prompt to Sloane). See the Web chat / Proactive next actions architecture
+  bullets. Verified live: briefing renders; clicking the inspection card had Sloane
   propose real slots.
 - **Review queue bucket split.** `closing_soon_incomplete` no longer catches
   deals whose closing date is in the *past*; a new `past_closing_not_closed`
@@ -431,15 +431,15 @@ brokerage but not yet pushed/merged**. Three commits:
   text-only).
 
 Next step when resuming: push the branch + open a PR, or keep building (e.g.
-refresh the briefing cards after Penny acts — they're fetched once on load).
+refresh the briefing cards after Sloane acts — they're fetched once on load).
 
 ### Web app (post-V2) — shipped to `master`, live-verified
 
 A round of web-app work on top of V1+V2, all merged to `master` and exercised
 against live services in the dev brokerage:
 
-- **"Ask Penny" web chat** — `app/api/v1/routes/chat.py` (`POST /chat`) reuses the
-  `penny_agent` tool-use loop over the browser (`channel="web"`, plain-text tone;
+- **"Ask Sloane" web chat** — `app/api/v1/routes/chat.py` (`POST /chat`) reuses the
+  `sloane_agent` tool-use loop over the browser (`channel="web"`, plain-text tone;
   same tools + confirmation gates). Stateless, no migration. Verified end-to-end
   (real deal pulled across multiple tools).
 - **Chat-forward home (`/`, `Home.tsx`)** — greeting + live briefing, chat hero with
@@ -482,14 +482,14 @@ against live services in the dev brokerage:
   (`under_contract`/`pending`/`closed`/`cancelled`), not deadline labels. Verified in
   the browser: rules CRUD round-trip; queue/send paths are import- + unit-checked
   (a live send needs SendGrid + a contract on file).
-- **Assistant name is fixed to "Penny"** — the onboarding rename field was removed and
-  the backend hardcodes `assistant_name="Penny"`. Refer to Penny as she/her in copy.
+- **Assistant name is fixed to "Sloane"** — the onboarding rename field was removed and
+  the backend hardcodes `assistant_name="Sloane"`. Refer to Sloane as she/her in copy.
 
 ### V1 (Phases 1–3)
 
 Done & tested: scaffold, auth, onboarding (5 steps), contract PDF extraction +
 transactions, and the full **WhatsApp text+voice channel** (register agent
-numbers, text/voice-memo Penny, agent acts on transactions).
+numbers, text/voice-memo Sloane, agent acts on transactions).
 
 Built, pending live end-to-end verification (code + unit/type checks pass, but
 not yet exercised against live services):
@@ -530,7 +530,7 @@ not yet exercised against live services):
   per-market write integration behind the `mls_provider` seam (no universal MLS
   write API exists).
 
-### V2 (sections 1A–7 in `PENNY_V2_CLAUDE_CODE.md`)
+### V2 (sections 1A–7 in `SLOANE_V2_CLAUDE_CODE.md`)
 
 All V2 build sections except DocuSign (8) have code committed; routes register,
 typechecks pass, unit checks on the deterministic pieces (template instantiation,
@@ -552,7 +552,7 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
   hooks wired into transaction creation, stage PATCH, and the reminder scan.
   WhatsApp `get_pending_tasks` tool registered.
 - **4 Inbound email threading** — needs 012 + `SENDGRID_WEBHOOK_KEY` + DNS
-  (`reply.penny.app` MX → `mx.sendgrid.net`) + SendGrid Inbound Parse pointed
+  (`reply.heysloane.io` MX → `mx.sendgrid.net`) + SendGrid Inbound Parse pointed
   at `/api/v1/email/inbound`. **DNS is the gating step on Jeremy's side.**
 - **5 EMD tracking** — needs 013 applied. Already feeds the review queue.
 - **6 AI disclosure + consent** — needs 014 applied + `CONSENT_SECRET` set
@@ -569,7 +569,7 @@ order via the Supabase SQL editor (paste each file's contents) — mind the 008
 caveat in the Database section. Set new env vars where their feature is being
 exercised: `TWILIO_SMS_FROM` (1C), `SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6).
 V1 keys (`ANTHROPIC_API_KEY`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most
-V2 sections too. DNS for `reply.penny.app` is the long-lead item — it's the gating
+V2 sections too. DNS for `reply.heysloane.io` is the long-lead item — it's the gating
 step for Section 4 inbound replies **and** for the reply-forwarding toggle actually
 firing (forwarding only runs on a real inbound reply).
 
@@ -583,8 +583,8 @@ firing (forwarding only runs on a real inbound reply).
 - **DocuSign e-signature (V2 Section 8)** — `docusign_provider.py` seam ships
   "not connected"; OAuth + envelope creation + Connect webhook wire in once the
   developer integration key is approved and production partner review is in
-  hand. **Scoping rule:** Penny is not a forms library — DocuSign sends
-  documents Penny already has (extracted contracts, generated correspondence),
+  hand. **Scoping rule:** Sloane is not a forms library — DocuSign sends
+  documents Sloane already has (extracted contracts, generated correspondence),
   not state association forms.
 
 Hard limits (business/legal, not engineering — see `BLOCKERS.md`): state

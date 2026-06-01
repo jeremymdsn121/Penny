@@ -2,7 +2,7 @@
 
 Twilio calls POST /whatsapp/inbound for every message received on the configured
 WhatsApp number. We validate the Twilio signature, look up the sender, transcribe
-any voice memo, run the Penny agent, and reply via Twilio.
+any voice memo, run the Sloane agent, and reply via Twilio.
 
 V2 Section 1A adds:
   - PDF / image inbound → contract extraction → pending confirmation flow
@@ -26,7 +26,7 @@ from app.services import (
     ai_extract,
     compliance_checklist,
     media_extract,
-    penny_agent,
+    sloane_agent,
     workflow,
 )
 from app.services.twilio_client import (
@@ -87,7 +87,7 @@ def _normalise_phone(raw: str) -> str:
 
 
 def _is_contract_media(content_type_raw: str) -> bool:
-    """True for PDF and image content types Penny can extract contract data from."""
+    """True for PDF and image content types Sloane can extract contract data from."""
     return "pdf" in content_type_raw or content_type_raw.startswith("image/")
 
 
@@ -138,7 +138,7 @@ async def _handle_media_extraction(
         send_whatsapp_message(
             phone_number,
             f"That PDF is {mb} MB — too large for WhatsApp processing (15 MB limit). "
-            "Please compress it or upload via the Penny web dashboard.",
+            "Please compress it or upload via the Sloane web dashboard.",
         )
         return
 
@@ -187,7 +187,7 @@ async def _handle_media_extraction(
         send_whatsapp_message(
             phone_number,
             "I received your contract but AI extraction isn't configured yet. "
-            "Please upload it via the Penny web dashboard.",
+            "Please upload it via the Sloane web dashboard.",
         )
         return
     except ai_extract.AIExtractionError as exc:
@@ -271,7 +271,7 @@ async def _handle_pending_reply(
             address = tx.get("address") or "the property"
             reply = (
                 f"✅ Transaction created for {address}! "
-                "You can view and edit all the details in the Penny dashboard."
+                "You can view and edit all the details in the Sloane dashboard."
             )
         except sb.SupabaseError as exc:
             reply = (
@@ -366,7 +366,7 @@ async def inbound(request: Request) -> Any:
             send_whatsapp_message(
                 phone_number,
                 "Hi! I don't recognise this number. Please ask your broker to "
-                "register your WhatsApp number in Penny first.",
+                "register your WhatsApp number in Sloane first.",
             )
         except TwilioNotConfigured:
             pass
@@ -438,8 +438,8 @@ async def inbound(request: Request) -> Any:
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "your brokerage")
 
-    # ── Run Penny agent ────────────────────────────────────────────────────── #
-    reply = await penny_agent.run_penny_agent(
+    # ── Run Sloane agent ────────────────────────────────────────────────────── #
+    reply = await sloane_agent.run_sloane_agent(
         brokerage_id=brokerage_id,
         brokerage_name=brokerage_name,
         contact_display_name=display_name,
@@ -516,12 +516,12 @@ async def remove_contact(
 async def whatsapp_config(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
-    """Return Penny's WhatsApp number so the frontend can display it."""
+    """Return Sloane's WhatsApp number so the frontend can display it."""
     raw = settings.TWILIO_WHATSAPP_FROM or ""
-    penny_number = _strip_scheme(raw) if raw else None
+    sloane_number = _strip_scheme(raw) if raw else None
     return {
-        "penny_whatsapp_number": penny_number,
-        "configured": penny_number is not None,
+        "sloane_whatsapp_number": sloane_number,
+        "configured": sloane_number is not None,
     }
 
 
@@ -529,7 +529,7 @@ async def whatsapp_config(
 # Brokerage messaging settings (reply routing) — protected
 # --------------------------------------------------------------------------- #
 
-# Brokerage-level toggles that govern how Penny routes communications. Kept here
+# Brokerage-level toggles that govern how Sloane routes communications. Kept here
 # (with the Messaging page's other APIs) rather than under compliance settings.
 _MESSAGING_SETTINGS_FIELDS = ("forward_replies_to_agent",)
 

@@ -1,6 +1,6 @@
 """MLS listing prep (PRD task ``mls-entry``).
 
-Upload a listing packet (PDF) → Penny extracts MLS-ready fields → the agent
+Upload a listing packet (PDF) → Sloane extracts MLS-ready fields → the agent
 reviews/edits and saves a `listings` record → optionally pushes to the MLS.
 Pushing goes through ``mls_provider`` (a seam that reports "not connected"
 today; per-market write integration is deferred). Listings are brokerage-scoped

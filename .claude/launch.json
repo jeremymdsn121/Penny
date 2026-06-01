@@ -2,16 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "penny-frontend",
+      "name": "sloane-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\penny\\frontend", "run", "dev"],
+      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\sloane\\frontend", "run", "dev"],
       "port": 5173
     },
     {
-      "name": "penny-preview",
+      "name": "sloane-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\penny\\frontend", "run", "preview", "--", "--port", "4173"],
+      "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\sloane\\frontend", "run", "preview", "--", "--port", "4173"],
       "port": 4173
+    },
+    {
+      "name": "madison-site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\Jeremy\\madison-solutions-website", "-l", "3333"],
+      "port": 3333
     }
   ]
 }
