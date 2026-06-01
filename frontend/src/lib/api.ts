@@ -591,6 +591,7 @@ export interface ReviewItem {
 export interface ReviewQueue {
   compliance_attention: ReviewItem[]
   closing_soon_incomplete: ReviewItem[]
+  past_closing_not_closed: ReviewItem[]
   overdue_deadlines: ReviewItem[]
   emd_overdue: ReviewItem[]
   stale_transactions: ReviewItem[]
@@ -602,6 +603,32 @@ export const brokerApi = {
   addReviewNote: (txId: string, note: string) =>
     api
       .post<{ notes: string | null }>(`/broker/transactions/${txId}/review-note`, { note })
+      .then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
+// Home-page briefing — prioritized next actions across active deals
+// --------------------------------------------------------------------------- //
+
+export interface NextAction {
+  priority: number
+  transaction_id: string
+  address: string
+  headline: string
+  offer: string
+  prompt: string
+}
+
+export interface NextActionsBriefing {
+  actions: NextAction[]
+  remaining: number
+  total: number
+}
+
+export const briefingApi = {
+  nextActions: (limit = 3) =>
+    api
+      .get<NextActionsBriefing>('/briefing/next-actions', { params: { limit } })
       .then((r) => r.data),
 }
 

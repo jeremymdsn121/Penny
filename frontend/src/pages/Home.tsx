@@ -15,7 +15,15 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import PennyMark from '../components/PennyMark'
-import { brokerApi, chatApi, transactionsApi, type ChatTurn, type Transaction } from '../lib/api'
+import {
+  briefingApi,
+  brokerApi,
+  chatApi,
+  transactionsApi,
+  type ChatTurn,
+  type NextAction,
+  type Transaction,
+} from '../lib/api'
 import { useAuthStore } from '../store/auth'
 import { useUiStore } from '../store/ui'
 
@@ -192,6 +200,7 @@ export default function Home() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [reviewCount, setReviewCount] = useState(0)
+  const [nextActions, setNextActions] = useState<NextAction[]>([])
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -209,6 +218,7 @@ export default function Home() {
   useEffect(() => {
     transactionsApi.list().then(setTransactions).catch(() => {})
     brokerApi.reviewQueue().then((q) => setReviewCount(q.total)).catch(() => {})
+    briefingApi.nextActions().then((b) => setNextActions(b.actions)).catch(() => {})
   }, [])
 
   // Keep the latest message in view as the thread grows.
@@ -432,6 +442,46 @@ export default function Home() {
       <div className={`mt-8 ${riseClass}`} style={rise(170)}>
         {ChatBar}
       </div>
+
+      {/* Next actions — Penny's prioritized "what I'd tackle" list. Clicking
+          one hands the task straight to her in chat. */}
+      {nextActions.length > 0 && (
+        <div className={`mt-6 ${riseClass}`} style={rise(200)}>
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">
+            <Sparkles size={14} />
+            What I'd tackle first
+          </div>
+          <div className="space-y-2">
+            {nextActions.map((a, i) => (
+              <button
+                key={`${a.transaction_id}-${i}`}
+                onClick={() => send(a.prompt)}
+                className="card group flex w-full items-start gap-3 p-3.5 text-left transition-colors hover:bg-surface-3"
+              >
+                <span
+                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                    a.priority <= 1
+                      ? 'bg-red-500'
+                      : a.priority <= 2
+                        ? 'bg-amber-500'
+                        : 'bg-ink-subtle'
+                  }`}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-ink">{a.headline}</span>
+                  <span className="mt-0.5 block text-xs text-ink-muted">
+                    I can {a.offer}
+                  </span>
+                </span>
+                <ArrowUp
+                  size={15}
+                  className="mt-0.5 shrink-0 rotate-45 text-ink-subtle transition-colors group-hover:text-penny"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Starter chips — contextual, clickable shortcuts */}
       <div className={`mt-3 flex flex-wrap justify-center gap-2 ${riseClass}`} style={rise(230)}>
