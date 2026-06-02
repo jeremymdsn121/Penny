@@ -121,10 +121,10 @@
   }
   .sloane-mark--in .sloane-mark__door {
     animation: sloane-appear 350ms ease 820ms both,
-               sloane-blink 5s ease-in-out 2600ms infinite;
+               sloane-blink 5s ease-in-out 1500ms infinite;
   }
-  .sloane-mark--in .sloane-mark__ring--1 { animation: sloane-ping 900ms ease-out 560ms forwards; }
-  .sloane-mark--in .sloane-mark__ring--2 { animation: sloane-ping 900ms ease-out 720ms forwards; }
+  .sloane-mark--in .sloane-mark__ring--1 { animation: sloane-ping 1100ms ease-out 520ms forwards; }
+  .sloane-mark--in .sloane-mark__ring--2 { animation: sloane-ping 1100ms ease-out 700ms forwards; }
   .sloane-mark--in .sloane-mark__contact { animation: sloane-contact 1000ms ease-out both; }
 
   @keyframes sloane-drop {
@@ -143,15 +143,15 @@
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.03); }
   }
-  /* The door pinches shut and reopens — a friendly blink near the end of
-     each idle cycle. */
+  /* The door pinches shut and reopens — a friendly blink early in each idle
+     cycle (so the first one lands ~2s after settling, not 7s). */
   @keyframes sloane-blink {
-    0%, 88%, 100% { transform: scaleY(1); }
-    92%           { transform: scaleY(0.1); }
+    0%, 9%, 16%, 100% { transform: scaleY(1); }
+    12.5%             { transform: scaleY(0.1); }
   }
   @keyframes sloane-ping {
-    0%   { opacity: 0.55; transform: scale(0.25); }
-    100% { opacity: 0;    transform: scale(1.1); }
+    0%   { opacity: 0.6; transform: scale(0.3); }
+    100% { opacity: 0;   transform: scale(1.7); }
   }
   @keyframes sloane-contact {
     0%, 40% { opacity: 0;    transform: scaleX(0.4); }

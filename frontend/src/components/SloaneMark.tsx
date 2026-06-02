@@ -115,9 +115,9 @@ export default function SloaneMark({
             show during the drop-in (idle/static keep them hidden). */}
         <ellipse className="sloane-mark__contact" cx="60" cy="104" rx="16" ry="3.4" fill="#000000" />
         <ellipse className="sloane-mark__ring sloane-mark__ring--1" cx="60" cy="103" rx="22" ry="7"
-          fill="none" stroke="#A78BFA" strokeWidth="2" />
+          fill="none" stroke="#A78BFA" strokeWidth="2.5" />
         <ellipse className="sloane-mark__ring sloane-mark__ring--2" cx="60" cy="103" rx="22" ry="7"
-          fill="none" stroke="#A78BFA" strokeWidth="2" />
+          fill="none" stroke="#A78BFA" strokeWidth="2.5" />
 
         {/* The mark drops + squashes on impact; the inner group breathes. */}
         <g className="sloane-mark__mark" filter={`url(#shadow${uid})`}>
