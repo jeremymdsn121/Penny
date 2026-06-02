@@ -382,9 +382,7 @@ export default function Home() {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
-                <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sloane to-sloane-bright text-xs font-bold text-white">
-                  {assistant.charAt(0)}
-                </div>
+                <SloaneMark size={28} className="mr-3 mt-0.5 shrink-0" />
               )}
               <div
                 className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
@@ -399,9 +397,7 @@ export default function Home() {
           ))}
           {sending && (
             <div className="flex justify-start">
-              <div className="mr-3 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sloane to-sloane-bright text-xs font-bold text-white">
-                {assistant.charAt(0)}
-              </div>
+              <SloaneMark size={28} className="mr-3 mt-0.5 shrink-0" />
               <div className="flex items-center gap-1 rounded-2xl border border-hairline bg-surface px-4 py-3">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.3s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.15s]" />
