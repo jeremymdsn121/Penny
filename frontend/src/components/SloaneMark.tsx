@@ -1,57 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 /**
- * SloaneMark — Sloane's wordmark-logo (the letter S), drawn as one continuous
- * stroke. Two opposing arcs meeting at the waist, like how you'd draw an S
- * with a single pen stroke: top arc hooks from right to left, transitions
- * through the middle, bottom arc hooks from left to right.
+ * SloaneMark — Sloane's brand mark: a location pin with a house tucked inside
+ * (roof + door), in the brand purple with a glossy, rounded 3-D surface. House
+ * + pin reads instantly as "real estate, tied to a place"; the rounded forms
+ * keep it warm.
  *
  * Animation is opt-in via the `animated` prop:
- *   - default (static)  → the full S, no motion. Sidebar, login, favicon-ish.
- *   - animated          → the stroke draws itself top-to-bottom (~1.4s), then
- *                         the whole S breathes (~4% scale) forever. Use on
+ *   - default (static)  → the settled mark, no motion. Sidebar, login, favicon.
+ *   - animated          → the pin drops in, squashes on impact, pings its
+ *                         location (a ripple), the house settles in, then it
+ *                         idles: a gentle breathe and an occasional door
+ *                         "blink" (the door doubles as a friendly eye). Use on
  *                         the landing page only.
  *
- * Pure SVG + CSS — no new deps. Honours `prefers-reduced-motion` (renders
- * the final frame, no motion). Depth treatment: inner highlight stroke
- * (rounded-surface sheen) + soft purple drop shadow (subtle lift).
+ * Pure SVG + CSS — no new deps. Honours `prefers-reduced-motion` (renders the
+ * settled mark, no motion). Per-instance ids (useId) so two marks on one page
+ * (sidebar + landing) don't share gradient / clip / filter ids.
  *
  * Usage:
- *   <SloaneMark size={160} animated />   // landing
+ *   <SloaneMark size={120} animated />   // landing
  *   <SloaneMark size={32} />             // sidebar / login / inline
  */
 interface SloaneMarkProps {
   size?: number
-  /** Animate on mount + breathe forever. Off by default. */
+  /** Run the drop-in + idle (breathe/blink) animation. Off by default. */
   animated?: boolean
   label?: string
   className?: string
 }
 
-/**
- * Single-stroke S path (viewBox 0 0 120 120).
- *
- * Geometry: two opposing arcs joined by a cubic bezier through the waist.
- *   M 86 32                      → start at the top-right of the S (natural
- *                                  pen-start point)
- *   A 24 22 0 0 0 38 36          → top arc curves left, down, and around
- *                                  to the start of the waist
- *   C 30 50 90 70 82 84          → cubic through the waist — the belly of
- *                                  the S. Control points pull outward so
- *                                  the transition has sway, not a straight
- *                                  diagonal.
- *   A 24 22 0 0 0 34 88          → bottom arc curves right, down, and
- *                                  around to the bottom-left of the S.
- *
- * Stroke width 16, rounded caps + joins. Same depth treatment as the
- * previous P mark. Whole letterform fits inside a 120×120 viewBox with
- * breathing room.
- *
- * Path length comes out around ~245 in viewBox units; we measure the real
- * length at runtime via getTotalLength() so the draw is pixel-accurate.
- */
-const S_PATH = 'M 86 32 A 24 22 0 0 0 38 36 C 30 50 90 70 82 84 A 24 22 0 0 0 34 88'
-const PATH_LENGTH = 300
+/** Point-up teardrop pin (viewBox 0 0 120 120). */
+const PIN = 'M 60 17 C 45 34 28 51 28 73 A 32 32 0 1 0 92 73 C 92 51 75 34 60 17 Z'
+/** The house roof tucked inside the pin (sharp chevron — the resting look). */
+const ROOF = 'M 41 63 L 60 45 L 79 63'
+/** Curved smile the roof morphs into when it swings down on the idle loop. */
+const SMILE = 'M 40 61 Q 60 46 80 61'
 
 export default function SloaneMark({
   size = 120,
@@ -59,18 +43,14 @@ export default function SloaneMark({
   label = 'Sloane',
   className = '',
 }: SloaneMarkProps) {
-  // Gate the build-in to first paint so the keyframes actually run.
+  // Gate the build-in to first paint so the keyframes actually run (and so the
+  // pre-frame state is applied first, avoiding a flash of the settled mark).
   const [armed, setArmed] = useState(false)
-  // Measure the real path length on mount so the draw-in is pixel-accurate
-  // regardless of font/SVG rendering quirks.
-  const pathRef = useRef<SVGPathElement | null>(null)
-  const [pathLen, setPathLen] = useState<number>(PATH_LENGTH)
+
+  // Unique per-instance id suffix.
+  const uid = useId().replace(/:/g, '')
 
   useEffect(() => {
-    if (pathRef.current) {
-      const measured = pathRef.current.getTotalLength()
-      if (measured > 0) setPathLen(measured)
-    }
     if (!animated) return
     const id = requestAnimationFrame(() => setArmed(true))
     return () => cancelAnimationFrame(id)
@@ -83,44 +63,47 @@ export default function SloaneMark({
       role="img"
       aria-label={label}
       className={`sloane-mark sloane-mark--${phase} ${className}`}
-      style={
-        {
-          width: size,
-          height: size,
-          // Pass the measured path length to CSS via a custom property so
-          // the keyframes can use it for the stroke-draw effect.
-          ['--sloane-mark-path-length' as string]: pathLen,
-        } as React.CSSProperties
-      }
+      style={{ width: size, height: size }}
     >
       <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden="true">
         <defs>
-          {/* Main stroke gradient — the body of the S. */}
-          <linearGradient id="sloaneMarkStroke" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#A78BFA" />
-            <stop offset="100%" stopColor="#7C3AED" />
+          {/* Body gradient — top-lit lavender easing to a deep purple base. */}
+          <linearGradient id={`g${uid}`} x1="0.12" y1="0.05" x2="0.85" y2="1">
+            <stop offset="0%" stopColor="#CBBAFB" />
+            <stop offset="50%" stopColor="#8B5CF6" />
+            <stop offset="100%" stopColor="#5E22C6" />
           </linearGradient>
-          {/* Inner highlight — soft sheen at top-left, fades out diagonally.
-              Low peak opacity + wider stroke (10px on a 16px body) reads as
-              a rounded surface catching light, not a second line. */}
-          <linearGradient id="sloaneMarkHighlight" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
-            <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.08" />
+          {/* Sheen — gloss across the upper-left of the rounded surface. */}
+          <linearGradient id={`sheen${uid}`} x1="0.12" y1="0.02" x2="0.5" y2="0.8">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.6" />
+            <stop offset="34%" stopColor="#FFFFFF" stopOpacity="0.05" />
             <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
           </linearGradient>
-          {/* Purple-tinted drop shadow — brand-native, soft, lifts the S
-              off the surface without a halo. */}
-          <filter id="sloaneMarkShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="3.5" />
-            <feOffset dx="0" dy="2.5" result="offsetblur" />
+          {/* Specular hotspot on the shoulder. */}
+          <radialGradient id={`hot${uid}`} cx="35%" cy="30%" r="24%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          </radialGradient>
+          {/* Form shadow pooling lower-right — gives the body roundness. */}
+          <radialGradient id={`form${uid}`} cx="70%" cy="82%" r="46%">
+            <stop offset="0%" stopColor="#2E1065" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#2E1065" stopOpacity="0" />
+          </radialGradient>
+          <clipPath id={`clip${uid}`}>
+            <path d={PIN} />
+          </clipPath>
+          {/* Purple-tinted drop shadow — brand-native lift. */}
+          <filter id={`shadow${uid}`} x="-35%" y="-30%" width="170%" height="175%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" />
+            <feOffset dy="3.5" />
             <feComponentTransfer>
-              <feFuncA type="linear" slope="0.6" />
+              <feFuncA type="linear" slope="0.5" />
             </feComponentTransfer>
             <feColorMatrix
               type="matrix"
-              values="0 0 0 0 0.486
-                      0 0 0 0 0.227
-                      0 0 0 0 0.929
+              values="0 0 0 0 0.28
+                      0 0 0 0 0.11
+                      0 0 0 0 0.58
                       0 0 0 1 0"
             />
             <feMerge>
@@ -130,31 +113,49 @@ export default function SloaneMark({
           </filter>
         </defs>
 
-        {/* The whole mark scales together during breathe. Drop shadow is
-            applied to the group so the shadow scales with the stroke. */}
-        <g className="sloane-mark__p" filter="url(#sloaneMarkShadow)">
-          {/* Body stroke — this one carries the draw-in animation. */}
-          <path
-            ref={pathRef}
-            className="sloane-mark__stroke"
-            d={S_PATH}
-            fill="none"
-            stroke="url(#sloaneMarkStroke)"
-            strokeWidth="16"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {/* Inner highlight stroke — thinner, lighter, in lockstep with
-              the body so it traces the same path during build-in. */}
-          <path
-            className="sloane-mark__highlight"
-            d={S_PATH}
-            fill="none"
-            stroke="url(#sloaneMarkHighlight)"
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        {/* Contact shadow + location-ping ripples sit behind the pin and only
+            show during the drop-in (idle/static keep them hidden). */}
+        <ellipse className="sloane-mark__contact" cx="60" cy="104" rx="16" ry="3.4" fill="#000000" />
+        <ellipse className="sloane-mark__ring sloane-mark__ring--1" cx="60" cy="103" rx="22" ry="7"
+          fill="none" stroke="#A78BFA" strokeWidth="2.5" />
+        <ellipse className="sloane-mark__ring sloane-mark__ring--2" cx="60" cy="103" rx="22" ry="7"
+          fill="none" stroke="#A78BFA" strokeWidth="2.5" />
+
+        {/* The mark drops + squashes on impact; the inner group breathes. */}
+        <g className="sloane-mark__mark" filter={`url(#shadow${uid})`}>
+          <g className="sloane-mark__breathe">
+            <path d={PIN} fill={`url(#g${uid})`} />
+            <g clipPath={`url(#clip${uid})`}>
+              <rect width="120" height="120" fill={`url(#form${uid})`} />
+              <rect width="120" height="120" fill={`url(#sheen${uid})`} />
+              <ellipse cx="44" cy="44" rx="15" ry="19" fill={`url(#hot${uid})`} />
+            </g>
+            {/* House: roof + door. On the idle loop the roof group swings down
+                around the drop and crossfades chevron→curve (so it becomes a
+                proper smile, not a sharp v) while the door double-blinks like
+                an eye, then swings back up into the roof. */}
+            <g className="sloane-mark__roof">
+              <path
+                className="sloane-mark__roof-sharp"
+                d={ROOF}
+                fill="none"
+                stroke="#F4F0FE"
+                strokeWidth="8.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                className="sloane-mark__roof-curved"
+                d={SMILE}
+                fill="none"
+                stroke="#F4F0FE"
+                strokeWidth="8.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+            <rect className="sloane-mark__door" x="53" y="67" width="14" height="17" rx="4.5" fill="#F4F0FE" />
+          </g>
         </g>
       </svg>
     </div>
