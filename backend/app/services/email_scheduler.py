@@ -4,9 +4,9 @@ A scheduled job hits POST /email/run-scheduled-replies (same idempotent-scan
 pattern as deadline reminders — no in-process scheduler). For each brokerage's
 armed/held suggested replies:
 
-- 'scheduled' (time trigger): once scheduled_send_at has passed, AUTO-SEND the
-  pre-approved draft to the outside party, log it, and confirm to the agent. The
-  agent already approved the content; only timing was deferred.
+- 'scheduled' (time trigger): once scheduled_send_at has passed, RE-SURFACE for
+  the agent's final confirm (status → 'pending', briefed by email). Never
+  auto-sent — Sloane never sends to an outside party without a fresh human tap.
 - 'awaiting_event' (event trigger): when the event becomes true on the deal,
   RE-SURFACE for the agent's final confirm (status → 'pending', briefed by
   email). Never auto-sent — the deal may have changed.
@@ -132,48 +132,23 @@ async def _notify_agent(tx: dict[str, Any], subject: str, body: str) -> None:
         pass
 
 
-async def _send_reply(row: dict[str, Any], brokerage: dict[str, Any]) -> bool:
-    to_email = (row.get("to_email") or "").strip()
-    body = (row.get("draft_body") or "").strip()
-    subject = (row.get("subject") or "").strip()
-    if not to_email or not body:
-        return False
-    html_body = _html_body(body)
-    sent = await asyncio.to_thread(
-        email_client.send_email,
-        to_emails=[to_email],
-        subject=subject,
-        html=html_body,
-        plain=body,
-        reply_to=email_client.reply_to_address(row["transaction_id"]),
-        disclosure=email_client.disclosure_text(brokerage),
+def _resurface_brief(who: str, address: str, lead: str, draft_body: str) -> str:
+    """The body Sloane emails the agent when a deferred reply comes due."""
+    return (
+        f"{lead} You asked me to hold a reply to {who} on {address}. Want me to "
+        "send it now? Reply \"send it\" to go ahead (or tell me to change it or "
+        f"keep waiting).\n\nDraft:\n{draft_body}"
     )
-    if not sent:
-        return False
-    await sb.update_pending_email_reply(
-        row["id"], {"status": "sent", "resolved_at": _now().isoformat()}
-    )
-    try:
-        await sb.insert_transaction_email(
-            {
-                "transaction_id": row["transaction_id"],
-                "direction": "outbound",
-                "sender_email": email_client.from_email(),
-                "recipient_emails": [to_email],
-                "subject": subject,
-                "body_text": body,
-                "body_html": html_body,
-                "read": True,
-            }
-        )
-    except sb.SupabaseError:
-        pass
-    return True
 
 
 async def run_for_brokerage(brokerage_id: str) -> dict[str, int]:
-    """Process armed/held suggested replies for one brokerage. Idempotent."""
-    counts = {"sent": 0, "resurfaced": 0, "reminded": 0}
+    """Process armed/held suggested replies for one brokerage. Idempotent.
+
+    Nothing is sent here — due time triggers and met event triggers both
+    re-surface for the agent's final confirm. The actual send only ever happens
+    when the agent approves (approve_and_send_reply in the agent loop).
+    """
+    counts = {"resurfaced": 0, "reminded": 0}
     try:
         rows = await sb.list_email_replies_by_statuses(
             brokerage_id, ["scheduled", "awaiting_event", "held"]
@@ -183,7 +158,6 @@ async def run_for_brokerage(brokerage_id: str) -> dict[str, int]:
     if not rows:
         return counts
 
-    brokerage = await sb.get_brokerage(brokerage_id)
     now = _now()
     # Cache transactions across rows on the same deal.
     tx_cache: dict[str, dict[str, Any] | None] = {}
@@ -204,33 +178,37 @@ async def run_for_brokerage(brokerage_id: str) -> dict[str, int]:
         who = row.get("to_name") or row.get("to_email") or "the other party"
         address = tx.get("address") or "a transaction"
 
+        draft_body = (row.get("draft_body") or "").strip()
+
         if status == "scheduled":
             when = _parse_dt(row.get("scheduled_send_at"))
             if when and when <= now:
-                if await _send_reply(row, brokerage or {}):
-                    counts["sent"] += 1
-                    await _notify_agent(
-                        tx,
-                        f"Sent your reply to {who} on {address}",
-                        f"As scheduled, I just sent your reply to {who} on {address}.",
-                    )
-
-        elif status == "awaiting_event":
-            if await _event_met(tx, row.get("trigger_event") or ""):
-                # Re-surface for a final confirm — do NOT auto-send.
+                # The time the agent set has arrived — re-surface for a final
+                # confirm. Never auto-sent.
                 await sb.update_pending_email_reply(
                     row["id"], {"status": "pending", "trigger_type": "none"}
                 )
                 counts["resurfaced"] += 1
                 await _notify_agent(
                     tx,
-                    f"Ready to send on {address}? — {_event_label(row.get('trigger_event') or '')}",
-                    (
-                        f"{_event_label(row.get('trigger_event') or '').capitalize()}. You asked me "
-                        f"to hold a reply to {who} until then. Want me to send it now? Reply "
-                        "\"send it\" to go ahead (or tell me to change it or keep waiting).\n\n"
-                        f"Draft:\n{(row.get('draft_body') or '').strip()}"
+                    f"Ready to send on {address}?",
+                    _resurface_brief(
+                        who, address, "The time you set to reply has arrived.", draft_body
                     ),
+                )
+
+        elif status == "awaiting_event":
+            if await _event_met(tx, row.get("trigger_event") or ""):
+                # The event happened — re-surface for a final confirm. Never auto-sent.
+                await sb.update_pending_email_reply(
+                    row["id"], {"status": "pending", "trigger_type": "none"}
+                )
+                counts["resurfaced"] += 1
+                label = _event_label(row.get("trigger_event") or "")
+                await _notify_agent(
+                    tx,
+                    f"Ready to send on {address}? — {label}",
+                    _resurface_brief(who, address, f"{label.capitalize()}.", draft_body),
                 )
 
         elif status == "held":

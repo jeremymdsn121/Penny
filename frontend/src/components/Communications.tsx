@@ -30,7 +30,7 @@ function eventLabel(event?: string | null): string {
 // A short badge describing a deferred send, or '' when awaiting a first decision.
 function deferLabel(r: PendingEmailReply): string {
   if (r.status === 'scheduled' && r.scheduled_send_at)
-    return `Sends ${fmtWhen(r.scheduled_send_at)}`
+    return `Resurfaces ${fmtWhen(r.scheduled_send_at)}`
   if (r.status === 'awaiting_event') return `Waiting until ${eventLabel(r.trigger_event)}`
   if (r.status === 'held') return 'On hold'
   return ''

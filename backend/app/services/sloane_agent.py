@@ -569,17 +569,19 @@ _TOOLS: list[dict[str, Any]] = [
         "name": "schedule_reply",
         "description": (
             "Defer sending a suggested reply to an outside party until a trigger. "
-            "Use when the agent says to wait. trigger_type:\n"
-            "- 'time': send automatically at send_at. Convert phrases like 'Friday "
-            "9am' or 'in 2 hours' to an ISO-8601 datetime using today's date and "
-            "the deal's timezone.\n"
-            "- 'event': re-surface for the agent's final confirm when the event "
-            "becomes true. Valid event values: 'stage:<stage>' (e.g. "
-            "'stage:pending', 'stage:closed'), 'emd_received', or "
-            "'checklist:<item label>' (a checklist item completing).\n"
+            "Use when the agent says to wait. Nothing is ever sent automatically — "
+            "when the trigger fires, the draft re-surfaces for the agent's final "
+            "confirm. trigger_type:\n"
+            "- 'time': hold until send_at, then re-surface for the agent's confirm. "
+            "Convert phrases like 'Friday 9am' or 'in 2 hours' to an ISO-8601 "
+            "datetime using today's date and the deal's timezone.\n"
+            "- 'event': re-surface for the agent's confirm when the event becomes "
+            "true. Valid event values: 'stage:<stage>' (e.g. 'stage:pending', "
+            "'stage:closed'), 'emd_received', or 'checklist:<item label>' (a "
+            "checklist item completing).\n"
             "- 'manual': a free-form hold Sloane can't detect ('after I talk to my "
-            "client'). Sloane holds the draft and reminds the agent; it is never "
-            "auto-sent. Put the agent's wording in hold_note."
+            "client'). Sloane holds the draft and reminds the agent. Put the "
+            "agent's wording in hold_note."
         ),
         "input_schema": {
             "type": "object",
@@ -1543,8 +1545,9 @@ async def _exec_schedule_reply(brokerage_id: str, inputs: dict) -> str:
             },
         )
         return (
-            f"Got it — I'll send the reply to {row.get('to_name') or row.get('to_email')} "
-            f"on {when.strftime('%b %-d at %-I:%M %p')}."
+            f"Got it — I'll hold the reply to {row.get('to_name') or row.get('to_email')} "
+            f"and check back with you on {when.strftime('%b %-d at %-I:%M %p')} before "
+            "anything goes out."
         )
     if trigger_type == "event":
         event = (inputs.get("event") or "").strip()

@@ -4,15 +4,16 @@
 -- Sloane now also writes a plain-language SUMMARY of what they said and a
 -- RECOMMENDATION for the agent ("the seller's agent wants to discuss closing
 -- costs — I can respond if you'd like"), notifies the deal's agent in-channel,
--- and lets the agent approve OR defer the send until a trigger:
---   trigger_type = 'time'   → auto-send the pre-approved draft at scheduled_send_at
+-- and lets the agent approve OR defer the send until a trigger. Nothing is ever
+-- auto-sent to an outside party — every deferral re-surfaces for a fresh confirm:
+--   trigger_type = 'time'   → at scheduled_send_at, re-surface for a final confirm
 --   trigger_type = 'event'  → re-surface for a final confirm when trigger_event
---                             becomes true on the transaction (never auto-sent)
+--                             becomes true on the transaction
 --   trigger_type = 'manual' → free-form hold (hold_note); Sloane only reminds
---   trigger_type = 'none'   → awaiting the agent's first decision (status 'pending')
+--   trigger_type = 'none'   → awaiting the agent's decision (status 'pending')
 --
--- A scheduled job hits POST /email/run-scheduled-replies to fire time triggers,
--- re-surface met event triggers, and nudge on held drafts (same cron pattern as
+-- A scheduled job hits POST /email/run-scheduled-replies to re-surface due time
+-- triggers and met event triggers, and nudge on held drafts (same cron pattern as
 -- deadline reminders). Run after 018.
 
 alter table pending_email_replies

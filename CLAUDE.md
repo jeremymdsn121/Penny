@@ -276,11 +276,13 @@ first thing to check (ngrok inspector: http://localhost:4040).
   ∈ `stage:<x>`/`emd_received`/`checklist:<label>`; `manual` → free-form `hold_note`),
   `edit_reply`, `dismiss_reply`. Firing is an idempotent scan
   `POST /email/run-scheduled-replies` (cron, same pattern as deadline reminders):
-  **time triggers auto-send** the pre-approved draft (agent approved content, only
-  deferred timing — the one outside-party send without a fresh tap), **event triggers
-  re-surface** for a final confirm (status → `pending`, agent briefed; never auto-sent),
-  **manual holds** only get periodic reminders. The Communications card shows the
-  summary/recommendation and a defer badge.
+  **nothing is ever auto-sent to an outside party** — both time triggers (when
+  `scheduled_send_at` passes) and event triggers (when `trigger_event` becomes true)
+  **re-surface for a fresh agent confirm** (status → `pending`, agent briefed by
+  email), and **manual holds** only get periodic reminders. The only outside-party
+  send is `approve_and_send_reply` from the agent loop (the agent's approval is the
+  confirmation). The Communications card shows the summary/recommendation and a
+  defer badge.
 - **EMD tracking (5):** Columns added to `transactions` (migration 013) —
   `emd_amount`, `emd_due_date`, `emd_received`, `emd_received_date`,
   `emd_receipt_document_url`, `emd_held_by` ∈ {title, brokerage, escrow, other},
@@ -435,11 +437,11 @@ WhatsApp specifics:
   the same agent loop as WhatsApp/web chat, just over email. For **outside parties**
   the human gate still holds: Sloane drafts a suggested reply into the
   `pending_email_replies` queue (`email_outside_draft_enabled`) and an agent
-  confirm-sends it. **Sloane never sends to an outside party on her own initiative**
-  — the only unattended send is a reply the agent already approved and explicitly
-  deferred to a time (Phase 2 `schedule_reply` time trigger); event triggers
-  re-surface for a fresh confirm and manual holds never send. Automated/no-reply/
-  bulk senders are never answered (loop guard in `email_autoreply.py`).
+  confirm-sends it. **Sloane never sends to an outside party unattended** — Phase 2
+  deferrals (`schedule_reply`: time / event / manual) only ever **re-surface the
+  draft for a fresh agent confirm** when the trigger fires; the single outside-party
+  send path is the agent explicitly approving (`approve_and_send_reply`). Automated/
+  no-reply/bulk senders are never answered (loop guard in `email_autoreply.py`).
 - Build phases in spec order (V1 = Phases 1–3, V2 = sections 1A–8); resist scope creep.
 - **Sloane's name is fixed** ("Sloane", not user-editable) and Sloane is referred to as
   **she/her** in copy, never "it".
