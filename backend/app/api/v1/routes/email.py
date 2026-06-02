@@ -10,15 +10,18 @@ endpoints, which require auth.
 """
 
 import asyncio
+import html
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 
 from app.config import settings
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import email_client, twilio_client
+from app.services import email_autoreply, email_client, twilio_client
 
 router = APIRouter(tags=["email"])
 
@@ -103,7 +106,7 @@ async def inbound_email(request: Request) -> Any:
     body_text = data.get("text") or ""
     body_html = data.get("html")
 
-    await sb.insert_transaction_email(
+    inbound_row = await sb.insert_transaction_email(
         {
             "transaction_id": transaction_id,
             "direction": "inbound",
@@ -116,6 +119,7 @@ async def inbound_email(request: Request) -> Any:
             "read": False,
         }
     )
+    inbound_id = inbound_row.get("id") if isinstance(inbound_row, dict) else None
 
     # Resolve the deal's agent — used to target the nudge and (optionally)
     # forward the reply to their inbox.
@@ -154,13 +158,44 @@ async def inbound_email(request: Request) -> Any:
             except Exception:  # noqa: BLE001 — forwarding is best-effort
                 pass
 
+    # ── Two-way email: reply to our own agents, draft for outside parties ──── #
+    # Phase 1. Internal-agent emails get a real reply (opt-in, default on);
+    # outside-party emails get a queued suggested reply for the agent to approve.
+    outcome = "skipped"
+    try:
+        outcome = await email_autoreply.maybe_autorespond(
+            tx=tx,
+            brokerage=brokerage or {},
+            inbound_email_id=inbound_id,
+            sender_name=sender_name,
+            sender_email=sender_email,
+            subject=subject,
+            body_text=body_text,
+            raw_form=data,
+        )
+    except Exception:  # noqa: BLE001 — never break the webhook
+        outcome = "skipped"
+
+    # When we've already replied to the agent in-thread, a WhatsApp nudge about
+    # their own message would be noise — skip it.
+    if outcome == "agent_replied":
+        return {"ok": True, "matched": True, "action": outcome}
+
     # ── Targeted WhatsApp nudge: the deal's agent, not the whole brokerage ── #
-    nudge = (
-        f"📨 Reply received on {address}\n"
-        f"From: {who}\n"
-        f'"{preview}"\n\n'
-        "View the full message in the Sloane dashboard."
-    )
+    if outcome == "outside_drafted":
+        nudge = (
+            f"📨 Reply received on {address}\n"
+            f"From: {who}\n"
+            f'"{preview}"\n\n'
+            "I drafted a suggested reply — review and send it in the dashboard."
+        )
+    else:
+        nudge = (
+            f"📨 Reply received on {address}\n"
+            f"From: {who}\n"
+            f'"{preview}"\n\n'
+            "View the full message in the Sloane dashboard."
+        )
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
         if agent_id:
@@ -184,7 +219,123 @@ async def inbound_email(request: Request) -> Any:
     except sb.SupabaseError:
         pass
 
-    return {"ok": True, "matched": True}
+    return {"ok": True, "matched": True, "action": outcome}
+
+
+# --------------------------------------------------------------------------- #
+# Suggested-reply queue (outside-party drafts) — protected, confirm-gated send.
+# Sloane drafts a reply when an outside party emails; the agent reviews and
+# sends. Sends to outside parties are NEVER automatic.
+# --------------------------------------------------------------------------- #
+
+class SendPendingReplyIn(BaseModel):
+    # Allow the agent to edit before sending; fall back to the stored draft.
+    subject: str | None = None
+    body: str | None = None
+    confirmed: bool = False
+
+
+@router.get("/email/pending-replies")
+async def list_pending_replies(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> list[dict[str, Any]]:
+    """Outstanding suggested replies awaiting the agent's review."""
+    return await sb.list_pending_email_replies(brokerage["id"])
+
+
+@router.get("/transactions/{transaction_id}/pending-replies")
+async def list_pending_replies_for_transaction(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> list[dict[str, Any]]:
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return await sb.list_pending_email_replies_for_transaction(transaction_id)
+
+
+@router.post("/email/pending-replies/{reply_id}/send")
+async def send_pending_reply(
+    reply_id: str,
+    body: SendPendingReplyIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Send a reviewed suggested reply to the outside party. Confirm-gated."""
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required before sending.",
+        )
+    row = await sb.get_pending_email_reply(reply_id)
+    if row is None or row.get("brokerage_id") != brokerage["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    if row.get("status") != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Already resolved."
+        )
+    to_email = (row.get("to_email") or "").strip()
+    if not to_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient on file."
+        )
+    subject = (body.subject if body.subject is not None else row.get("subject")) or ""
+    text = (body.body if body.body is not None else row.get("draft_body")) or ""
+    html_body = (
+        '<html><body><div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
+        f'white-space:pre-wrap;color:#111827;font-size:15px;line-height:1.6;">{html.escape(text)}</div></body></html>'
+    )
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=[to_email],
+        subject=subject,
+        html=html_body,
+        plain=text,
+        reply_to=email_client.reply_to_address(row["transaction_id"]),
+        disclosure=email_client.disclosure_text(brokerage),
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not send — email isn't configured or the send failed.",
+        )
+    await sb.update_pending_email_reply(
+        reply_id,
+        {"status": "sent", "resolved_at": datetime.now(timezone.utc).isoformat(), "resolved_by": user.get("id")},
+    )
+    try:
+        await sb.insert_transaction_email(
+            {
+                "transaction_id": row["transaction_id"],
+                "direction": "outbound",
+                "sender_email": email_client.from_email(),
+                "recipient_emails": [to_email],
+                "subject": subject,
+                "body_text": text,
+                "body_html": html_body,
+                "read": True,
+            }
+        )
+    except sb.SupabaseError:
+        pass
+    return {"sent": True, "recipient": to_email}
+
+
+@router.post("/email/pending-replies/{reply_id}/dismiss")
+async def dismiss_pending_reply(
+    reply_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Discard a suggested reply without sending it."""
+    row = await sb.get_pending_email_reply(reply_id)
+    if row is None or row.get("brokerage_id") != brokerage["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    await sb.update_pending_email_reply(
+        reply_id,
+        {"status": "dismissed", "resolved_at": datetime.now(timezone.utc).isoformat(), "resolved_by": user.get("id")},
+    )
+    return {"ok": True}
 
 
 @router.get("/transactions/{transaction_id}/emails")

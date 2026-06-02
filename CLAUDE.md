@@ -253,7 +253,18 @@ first thing to check (ngrok inspector: http://localhost:4040).
   still logs the thread (the agent's own replies aren't echoed back). All existing
   SendGrid sends log to `transaction_emails` with `direction='outbound'`. Reply UX: the
   Communications tab opens a draft via the doc-generation flow — human reviews and
-  confirms send. **Never auto-reply.**
+  confirms send. **Two-way email (Phase 1, migration 018, `app/services/email_autoreply.py`):**
+  after logging an inbound reply the handler may respond, scoped by sender. If the
+  sender is one of the brokerage's **own agents** (`sb.get_agent_by_email`) and
+  `brokerages.email_agent_autoreply_enabled` (default on), it runs the **same**
+  `run_sloane_agent` loop (`channel="email"`) over the email thread and replies in-thread
+  (no WhatsApp nudge in that case). If the sender is an **outside party** and
+  `email_outside_draft_enabled` (default on), Sloane drafts a suggested reply into
+  `pending_email_replies` and nudges the agent to review it — `GET /transactions/{id}/pending-replies`
+  feeds a card in the Communications tab; `POST /email/pending-replies/{id}/send`
+  (confirm-gated) and `/dismiss` resolve it. **Never auto-sends to outside parties;
+  never answers automated/no-reply/bulk senders** (loop guard). Both toggles live on
+  the Messaging page's "Reply Handling" card (`GET`/`PUT /whatsapp/settings`).
 - **EMD tracking (5):** Columns added to `transactions` (migration 013) —
   `emd_amount`, `emd_due_date`, `emd_received`, `emd_received_date`,
   `emd_receipt_document_url`, `emd_held_by` ∈ {title, brokerage, escrow, other},
@@ -329,6 +340,10 @@ Post-V2 (web-app work):
   Inbound email threading (4) bullet.
 - `017_doc_routing.sql` — `doc_routing_rules` + `pending_doc_routes` (Autonomy
   task `doc-routing`). See the Document routing bullet.
+- `018_email_autoreply.sql` — two-way email (Phase 1). `brokerages`
+  `email_agent_autoreply_enabled` + `email_outside_draft_enabled` (both default
+  **true**) + `pending_email_replies` (the outside-party suggested-reply queue).
+  See the Inbound email threading (4) bullet.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
@@ -393,7 +408,14 @@ WhatsApp specifics:
 - Never let compliance review run autonomously — always surface findings to the agent.
 - EMD is receipt tracking only. No calculations, disbursements, or trust math —
   Sloane is not accounting software. UI label is "EMD Receipt Tracking."
-- Never auto-reply to inbound emails — Sloane drafts on request, human reviews and sends.
+- Inbound email auto-reply is scoped (two-way email, Phase 1): Sloane may reply
+  by email **only to the brokerage's own agents** (sender matches an `agents.email`
+  row), gated by the opt-in `email_agent_autoreply_enabled` (default on) — this is
+  the same agent loop as WhatsApp/web chat, just over email. For **outside parties**
+  the human gate still holds: Sloane drafts a suggested reply into the
+  `pending_email_replies` queue (`email_outside_draft_enabled`) and an agent
+  confirm-sends it. **Never auto-send to outside parties.** Automated/no-reply/
+  bulk senders are never answered (loop guard in `email_autoreply.py`).
 - Build phases in spec order (V1 = Phases 1–3, V2 = sections 1A–8); resist scope creep.
 - **Sloane's name is fixed** ("Sloane", not user-editable) and Sloane is referred to as
   **she/her** in copy, never "it".

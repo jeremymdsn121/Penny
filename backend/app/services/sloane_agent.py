@@ -1394,6 +1394,27 @@ async def run_sloane_agent(
             "- If you cannot find a transaction, say so and suggest the agent be more specific.\n"
             "- Never invent data. Only report what the tools return.\n\n"
         )
+    elif channel == "email":
+        channel_intro = (
+            "You are replying to one of the brokerage's own agents over email — they "
+            "emailed you about a deal and you answer by email, in the same thread."
+        )
+        style_block = (
+            "Communication style:\n"
+            "- This is an email reply to a colleague. Be professional but warm, and get "
+            "to the point — a short paragraph or a few dash-prefixed lines.\n"
+            "- Write PLAIN TEXT only (it is rendered as an email body). No markdown: no "
+            "** for bold, no # headers, no tables. Plain dashes for lists.\n"
+            "- Do NOT add a greeting line with the recipient's name unless it reads "
+            "naturally, and do NOT sign off with a name — the email already carries the "
+            "Sloane signature and disclosure.\n"
+            "- Numbers and dates should be human-readable (e.g. 'May 26, 2026', '$450,000').\n"
+            "- If you cannot find a transaction, say so and ask the agent to clarify.\n"
+            "- Never invent data. Only report what the tools return.\n"
+            "- You are emailing the agent, not an outside party. Anything that sends or "
+            "commits to outside parties (intro email, document send, notifying parties) "
+            "still requires the agent's explicit confirmation.\n\n"
+        )
     else:
         channel_intro = "You help agents manage their transactions via WhatsApp."
         style_block = (
