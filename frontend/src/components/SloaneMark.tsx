@@ -26,6 +26,13 @@ interface SloaneMarkProps {
   size?: number
   /** Run the drop-in + idle (breathe/blink) animation. Off by default. */
   animated?: boolean
+  /**
+   * ms to hold off-screen before the pin falls (animated only). Lets the rest
+   * of the page arrive first so the pin reads as a real drop from the top. The
+   * whole cycle (impact, ping, settle, idle) is unchanged — just shifted by
+   * this delay. Default 0 (drop immediately).
+   */
+  dropDelay?: number
   label?: string
   className?: string
 }
@@ -40,23 +47,25 @@ const SMILE = 'M 40 61 Q 60 46 80 61'
 export default function SloaneMark({
   size = 120,
   animated = false,
+  dropDelay = 0,
   label = 'Sloane',
   className = '',
 }: SloaneMarkProps) {
-  // Gate the build-in to first paint so the keyframes actually run (and so the
-  // pre-frame state is applied first, avoiding a flash of the settled mark).
-  const [armed, setArmed] = useState(false)
+  // Hold the pin off-screen (pre) for `dropDelay`, then run the cycle (in).
+  // The pre state and the drop keyframe's 0% share the same off-screen
+  // transform, so `both` fill means there's no flash even before this fires.
+  const [dropped, setDropped] = useState(false)
 
   // Unique per-instance id suffix.
   const uid = useId().replace(/:/g, '')
 
   useEffect(() => {
     if (!animated) return
-    const id = requestAnimationFrame(() => setArmed(true))
-    return () => cancelAnimationFrame(id)
-  }, [animated])
+    const t = setTimeout(() => setDropped(true), dropDelay)
+    return () => clearTimeout(t)
+  }, [animated, dropDelay])
 
-  const phase = !animated ? 'static' : armed ? 'in' : 'pre'
+  const phase = !animated ? 'static' : dropped ? 'in' : 'pre'
 
   return (
     <div

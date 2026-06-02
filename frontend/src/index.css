@@ -109,8 +109,8 @@
   .sloane-mark__ring,
   .sloane-mark__contact { opacity: 0; }
 
-  /* --- Pre: hold the first frame so there's no flash of the settled mark. */
-  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-50px) scaleY(1.04) scaleX(0.98); }
+  /* --- Pre: hold the pin off-screen above the page until the drop fires. */
+  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-60vh) scaleY(1.04) scaleX(0.98); }
   .sloane-mark--pre .sloane-mark__roof,
   .sloane-mark--pre .sloane-mark__door  { opacity: 0; }
 
@@ -140,7 +140,7 @@
      accelerates (no decel before contact), the squash fires the instant it
      lands (no hang), then it bounces back and settles. */
   @keyframes sloane-drop {
-    0%   { transform: translateY(-50px) scaleY(1.04) scaleX(0.98);
+    0%   { transform: translateY(-60vh) scaleY(1.04) scaleX(0.98);
            animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.52); }
     38%  { transform: translateY(0)     scaleY(1.02) scaleX(0.99);
            animation-timing-function: cubic-bezier(0.22, 0, 0.3, 1); }
