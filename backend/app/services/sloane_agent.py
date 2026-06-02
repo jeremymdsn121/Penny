@@ -41,6 +41,13 @@ MAX_TOKENS = 1024
 # personal style rules on top of the brokerage's (V2 Section 1B).
 _current_agent_id: ContextVar[str | None] = ContextVar("sloane_current_agent_id", default=None)
 
+# Set on the email channel: the transaction the inbound reply thread is about, so
+# the suggested-reply tools (approve / schedule / edit / dismiss) know which deal
+# they operate on without the agent having to name it.
+_current_transaction_id: ContextVar[str | None] = ContextVar(
+    "sloane_current_transaction_id", default=None
+)
+
 # --------------------------------------------------------------------------- #
 # Tool definitions
 # --------------------------------------------------------------------------- #
@@ -530,6 +537,108 @@ _TOOLS: list[dict[str, Any]] = [
                         "Optional. Part of the property address to scope to one "
                         "transaction. Omit for a brokerage-wide synthesis."
                     ),
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "approve_and_send_reply",
+        "description": (
+            "Send a suggested reply to the OUTSIDE party now. Use this when the "
+            "agent approves the drafted reply (e.g. 'send it', 'go ahead', 'yes "
+            "send that'). The agent's approval IS the required confirmation. You "
+            "may pass edited_body/edited_subject if the agent asked for changes "
+            "before sending. Only call this when there's a suggested reply on the "
+            "current deal and the agent has clearly approved sending it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reply_id": {
+                    "type": "string",
+                    "description": "The suggested-reply id. Omit if there's only one open suggestion on this deal.",
+                },
+                "edited_subject": {"type": "string", "description": "Optional revised subject."},
+                "edited_body": {"type": "string", "description": "Optional revised body to send instead of the draft."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "schedule_reply",
+        "description": (
+            "Defer sending a suggested reply to an outside party until a trigger. "
+            "Use when the agent says to wait. trigger_type:\n"
+            "- 'time': send automatically at send_at. Convert phrases like 'Friday "
+            "9am' or 'in 2 hours' to an ISO-8601 datetime using today's date and "
+            "the deal's timezone.\n"
+            "- 'event': re-surface for the agent's final confirm when the event "
+            "becomes true. Valid event values: 'stage:<stage>' (e.g. "
+            "'stage:pending', 'stage:closed'), 'emd_received', or "
+            "'checklist:<item label>' (a checklist item completing).\n"
+            "- 'manual': a free-form hold Sloane can't detect ('after I talk to my "
+            "client'). Sloane holds the draft and reminds the agent; it is never "
+            "auto-sent. Put the agent's wording in hold_note."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trigger_type": {
+                    "type": "string",
+                    "enum": ["time", "event", "manual"],
+                },
+                "send_at": {
+                    "type": "string",
+                    "description": "ISO-8601 datetime, required when trigger_type='time'.",
+                },
+                "event": {
+                    "type": "string",
+                    "description": "Event spec, required when trigger_type='event'. e.g. 'stage:pending', 'emd_received', 'checklist:Inspection'.",
+                },
+                "hold_note": {
+                    "type": "string",
+                    "description": "The agent's wording, required when trigger_type='manual'.",
+                },
+                "reply_id": {
+                    "type": "string",
+                    "description": "The suggested-reply id. Omit if there's only one open suggestion on this deal.",
+                },
+            },
+            "required": ["trigger_type"],
+        },
+    },
+    {
+        "name": "edit_reply",
+        "description": (
+            "Revise a suggested reply's draft text without sending it (the agent "
+            "wants changes but hasn't said to send yet). Updates the stored draft."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+                "reply_id": {
+                    "type": "string",
+                    "description": "The suggested-reply id. Omit if there's only one open suggestion on this deal.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "dismiss_reply",
+        "description": (
+            "Discard a suggested reply without sending it (the agent says not to "
+            "respond, or to drop it)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reply_id": {
+                    "type": "string",
+                    "description": "The suggested-reply id. Omit if there's only one open suggestion on this deal.",
                 },
             },
             "required": [],
@@ -1285,6 +1394,216 @@ async def _exec_suggest_next_actions(brokerage_id: str, inputs: dict) -> str:
     return "\n".join(lines)
 
 
+# --------------------------------------------------------------------------- #
+# Suggested-reply tools (two-way email): act on a queued reply to an outside
+# party. Scoped to the email thread's transaction via _current_transaction_id.
+# --------------------------------------------------------------------------- #
+
+_OPEN_REPLY_STATUSES = ["pending", "scheduled", "awaiting_event", "held"]
+
+
+def _html_escape(text: str) -> str:
+    import html as _h
+
+    return _h.escape(text)
+
+
+def _parse_dt(raw: str) -> datetime | None:
+    """Parse an ISO-8601 datetime (tolerating a trailing 'Z'); assume UTC if naive."""
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _event_label(event: str) -> str:
+    """Human phrasing for an event trigger spec."""
+    e = (event or "").strip()
+    if e.startswith("stage:"):
+        return f"the deal moves to {e.split(':', 1)[1].replace('_', ' ')}"
+    if e == "emd_received":
+        return "the EMD is marked received"
+    if e.startswith("checklist:"):
+        return f"\"{e.split(':', 1)[1]}\" is checked off"
+    return e or "that happens"
+
+
+async def _resolve_reply(
+    brokerage_id: str, inputs: dict
+) -> tuple[dict | None, str | None]:
+    """Find the suggested reply the agent means, scoped to the current deal."""
+    tx_id = _current_transaction_id.get()
+    if not tx_id:
+        return None, (
+            "I can only manage a suggested reply from inside the email thread it "
+            "belongs to."
+        )
+    reply_id = inputs.get("reply_id")
+    if reply_id:
+        row = await sb.get_pending_email_reply(reply_id)
+        if (
+            row is None
+            or row.get("brokerage_id") != brokerage_id
+            or row.get("transaction_id") != tx_id
+        ):
+            return None, "I couldn't find that suggested reply on this deal."
+        if row.get("status") not in _OPEN_REPLY_STATUSES:
+            return None, "That suggested reply was already resolved."
+        return row, None
+    rows = await sb.list_pending_email_replies_for_transaction(tx_id)
+    rows = [r for r in rows if r.get("status") in _OPEN_REPLY_STATUSES]
+    if not rows:
+        return None, "There's no open suggested reply on this deal right now."
+    if len(rows) > 1:
+        listing = "; ".join(
+            f"{r.get('to_name') or r.get('to_email')}: \"{(r.get('subject') or '').strip()}\""
+            for r in rows
+        )
+        return None, (
+            "There are a few open suggested replies on this deal — which one? "
+            + listing
+        )
+    return rows[0], None
+
+
+async def _exec_approve_and_send_reply(brokerage_id: str, inputs: dict) -> str:
+    row, err = await _resolve_reply(brokerage_id, inputs)
+    if err:
+        return err
+    assert row is not None
+    subject = (inputs.get("edited_subject") or row.get("subject") or "").strip()
+    body = (inputs.get("edited_body") or row.get("draft_body") or "").strip()
+    to_email = (row.get("to_email") or "").strip()
+    if not to_email:
+        return "There's no recipient address on that reply, so I can't send it."
+    if not body:
+        return "The draft is empty — tell me what to say and I'll send it."
+    brokerage = await sb.get_brokerage(brokerage_id)
+    html_body = (
+        '<html><body><div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
+        "white-space:pre-wrap;color:#111827;font-size:15px;line-height:1.6;\">"
+        f"{_html_escape(body)}</div></body></html>"
+    )
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=[to_email],
+        subject=subject,
+        html=html_body,
+        plain=body,
+        reply_to=email_client.reply_to_address(row["transaction_id"]),
+        disclosure=email_client.disclosure_text(brokerage),
+    )
+    if not sent:
+        return "I couldn't send it — email isn't configured or the send failed."
+    await sb.update_pending_email_reply(
+        row["id"],
+        {"status": "sent", "resolved_at": datetime.now(timezone.utc).isoformat()},
+    )
+    try:
+        await sb.insert_transaction_email(
+            {
+                "transaction_id": row["transaction_id"],
+                "direction": "outbound",
+                "sender_email": email_client.from_email(),
+                "recipient_emails": [to_email],
+                "subject": subject,
+                "body_text": body,
+                "body_html": html_body,
+                "read": True,
+            }
+        )
+    except sb.SupabaseError:
+        pass
+    return f"Sent to {row.get('to_name') or to_email}."
+
+
+async def _exec_schedule_reply(brokerage_id: str, inputs: dict) -> str:
+    row, err = await _resolve_reply(brokerage_id, inputs)
+    if err:
+        return err
+    assert row is not None
+    trigger_type = (inputs.get("trigger_type") or "").strip()
+    if trigger_type == "time":
+        raw = (inputs.get("send_at") or "").strip()
+        when = _parse_dt(raw)
+        if when is None:
+            return "I couldn't read that send time — give me a date and time."
+        await sb.update_pending_email_reply(
+            row["id"],
+            {
+                "status": "scheduled",
+                "trigger_type": "time",
+                "scheduled_send_at": when.isoformat(),
+                "trigger_event": None,
+            },
+        )
+        return (
+            f"Got it — I'll send the reply to {row.get('to_name') or row.get('to_email')} "
+            f"on {when.strftime('%b %-d at %-I:%M %p')}."
+        )
+    if trigger_type == "event":
+        event = (inputs.get("event") or "").strip()
+        if not event:
+            return "Which event should I wait for (e.g. it goes pending, EMD received)?"
+        await sb.update_pending_email_reply(
+            row["id"],
+            {
+                "status": "awaiting_event",
+                "trigger_type": "event",
+                "trigger_event": event,
+                "scheduled_send_at": None,
+            },
+        )
+        return (
+            f"Will do — I'll hold the reply and check back with you when {_event_label(event)}, "
+            "before anything goes out."
+        )
+    if trigger_type == "manual":
+        note = (inputs.get("hold_note") or "").strip()
+        await sb.update_pending_email_reply(
+            row["id"],
+            {"status": "held", "trigger_type": "manual", "hold_note": note or None},
+        )
+        return (
+            "Holding it for now — I won't send anything until you tell me to, and I'll "
+            "remind you it's waiting."
+        )
+    return "I can hold a reply until a time, a deal event, or just on hold — which one?"
+
+
+async def _exec_edit_reply(brokerage_id: str, inputs: dict) -> str:
+    row, err = await _resolve_reply(brokerage_id, inputs)
+    if err:
+        return err
+    assert row is not None
+    patch: dict[str, Any] = {}
+    if inputs.get("subject") is not None:
+        patch["subject"] = inputs["subject"]
+    if inputs.get("body") is not None:
+        patch["draft_body"] = inputs["body"]
+    if not patch:
+        return "Tell me what to change and I'll update the draft."
+    await sb.update_pending_email_reply(row["id"], patch)
+    return "Updated the draft. Say the word when you want me to send it."
+
+
+async def _exec_dismiss_reply(brokerage_id: str, inputs: dict) -> str:
+    row, err = await _resolve_reply(brokerage_id, inputs)
+    if err:
+        return err
+    assert row is not None
+    await sb.update_pending_email_reply(
+        row["id"],
+        {"status": "dismissed", "resolved_at": datetime.now(timezone.utc).isoformat()},
+    )
+    return "Done — I won't send that one."
+
+
 _TOOL_MAP = {
     "list_transactions": _exec_list_transactions,
     "get_transaction_details": _exec_get_transaction_details,
@@ -1307,6 +1626,10 @@ _TOOL_MAP = {
     "get_pending_tasks": _exec_get_pending_tasks,
     "mark_task_complete": _exec_mark_task_complete,
     "suggest_next_actions": _exec_suggest_next_actions,
+    "approve_and_send_reply": _exec_approve_and_send_reply,
+    "schedule_reply": _exec_schedule_reply,
+    "edit_reply": _exec_edit_reply,
+    "dismiss_reply": _exec_dismiss_reply,
 }
 
 
@@ -1322,6 +1645,7 @@ async def run_sloane_agent(
     current_message: str,
     agent_id: str | None = None,
     channel: str = "whatsapp",
+    transaction_id: str | None = None,
 ) -> str:
     """Run the Sloane conversational agent and return a reply.
 
@@ -1348,11 +1672,52 @@ async def run_sloane_agent(
         )
 
     _current_agent_id.set(agent_id)
+    _current_transaction_id.set(transaction_id)
 
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     today = date.today().strftime("%B %d, %Y")
     agent_label = contact_display_name or "the agent"
+
+    # On the email channel we know the deal the thread is about. Surface any open
+    # suggested replies to outside parties so the agent can approve / defer them
+    # in plain language (approve_and_send_reply / schedule_reply / edit / dismiss).
+    pending_reply_block = ""
+    if transaction_id:
+        try:
+            open_replies = [
+                r
+                for r in await sb.list_pending_email_replies_for_transaction(transaction_id)
+                if r.get("status") in _OPEN_REPLY_STATUSES
+            ]
+        except sb.SupabaseError:
+            open_replies = []
+        if open_replies:
+            parts = [
+                "\nSuggested replies awaiting this agent's decision on this deal:",
+            ]
+            for r in open_replies:
+                state = r.get("status")
+                when = ""
+                if state == "scheduled" and r.get("scheduled_send_at"):
+                    when = f" (currently scheduled for {r['scheduled_send_at']})"
+                elif state == "awaiting_event" and r.get("trigger_event"):
+                    when = f" (currently waiting for {_event_label(r['trigger_event'])})"
+                elif state == "held":
+                    when = " (currently on hold)"
+                parts.append(
+                    f"- id={r.get('id')} → reply to {r.get('to_name') or r.get('to_email')}, "
+                    f"subject \"{(r.get('subject') or '').strip()}\"{when}.\n"
+                    f"  Their message summary: {r.get('summary') or '(none)'}\n"
+                    f"  Proposed reply: {(r.get('draft_body') or '').strip()[:500]}"
+                )
+            parts.append(
+                "If the agent approves, call approve_and_send_reply (their approval is "
+                "the confirmation). If they want to wait, call schedule_reply. If they "
+                "want changes, call edit_reply. If they say drop it, call dismiss_reply. "
+                "When unsure which they mean, ask."
+            )
+            pending_reply_block = "\n".join(parts) + "\n\n"
 
     # Is this brokerage pre-authorised to send intro emails autonomously?
     intro_autonomous = False
@@ -1432,6 +1797,7 @@ async def run_sloane_agent(
         f"Today's date: {today}\n"
         f"You are speaking with: {agent_label}\n\n"
         f"{style_block}"
+        f"{pending_reply_block}"
         "Sending the intro email:\n"
         "- The intro email introduces every party on a deal (buyer, seller, agents, "
         "lender, title) to each other and presents you as the coordinator.\n"

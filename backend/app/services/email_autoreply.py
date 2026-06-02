@@ -91,6 +91,7 @@ async def maybe_autorespond(
     *,
     tx: dict[str, Any],
     brokerage: dict[str, Any],
+    agent: dict[str, Any] | None,
     inbound_email_id: str | None,
     sender_name: str | None,
     sender_email: str | None,
@@ -138,6 +139,7 @@ async def maybe_autorespond(
                 current_message=body_text,
                 agent_id=internal_agent.get("id"),
                 channel="email",
+                transaction_id=tx["id"],
             )
         except Exception:  # noqa: BLE001 — never break the webhook
             return "skipped"
@@ -173,7 +175,7 @@ async def maybe_autorespond(
             pass  # logging is best-effort
         return "agent_replied"
 
-    # ── Outside party → draft a suggested reply for the agent to approve ───── #
+    # ── Outside party → summarize, draft a reply, and brief the deal's agent ── #
     if (not internal_agent) and brokerage.get("email_outside_draft_enabled"):
         try:
             rules = await sb.get_confirmed_knowledge_rules(
@@ -182,22 +184,13 @@ async def maybe_autorespond(
         except sb.SupabaseError:
             rules = []
         who = sender_name or sender_email or "the other party"
-        instructions = (
-            f"An outside party ({who}) replied to us by email about this "
-            "transaction. Draft a reply to their message below in the brokerage's "
-            "voice. Be helpful and professional, but do NOT invent facts, make "
-            "commitments, or quote terms that aren't in the record — where the "
-            "agent needs to decide or supply something, leave a clearly bracketed "
-            f"[placeholder]. Their message:\n\n{body_text}"
-        )
         try:
-            draft = await doc_generate.generate_document(
+            draft = await doc_generate.generate_email_reply(
                 transaction=tx,
-                doc_type="custom",
                 brokerage_name=brokerage_name,
+                inbound_text=body_text,
+                sender_label=who,
                 style_rules=rules,
-                recipient=who,
-                instructions=instructions,
             )
         except (doc_generate.DocNotConfigured, doc_generate.DocGenerationError):
             return "skipped"
@@ -213,10 +206,110 @@ async def maybe_autorespond(
                     "to_name": sender_name,
                     "subject": draft.get("subject") or _reply_subject(subject),
                     "draft_body": draft.get("body") or "",
+                    "summary": draft.get("summary") or None,
+                    "recommendation": draft.get("recommendation") or None,
+                    "trigger_type": "none",
                 }
             )
         except sb.SupabaseError:
             return "skipped"
+        # Brief the deal's agent in the channel the reply arrived on (email),
+        # falling back to a WhatsApp nudge if we can't reach them by email.
+        await _notify_agent_of_draft(
+            tx=tx,
+            brokerage=brokerage,
+            agent=agent,
+            who=who,
+            summary=draft.get("summary") or "",
+            recommendation=draft.get("recommendation") or "",
+            draft_body=draft.get("body") or "",
+        )
         return "outside_drafted"
 
     return "skipped"
+
+
+def _notify_html(address: str, who: str, summary: str, recommendation: str, draft_body: str) -> str:
+    esc = _html.escape
+    return (
+        '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;font-size:15px;line-height:1.6;">'
+        f'<p>{esc(who)} replied on <strong>{esc(address)}</strong>.</p>'
+        f'<p style="margin:12px 0 4px;"><strong>What they said:</strong><br/>{esc(summary)}</p>'
+        f'<p style="margin:12px 0 4px;">{esc(recommendation)}</p>'
+        '<p style="margin:12px 0 4px;"><strong>Here\'s what I was thinking:</strong></p>'
+        f'<div style="white-space:pre-wrap;border-left:3px solid #E5E7EB;padding-left:12px;color:#374151;">{esc(draft_body)}</div>'
+        '<p style="margin-top:16px;color:#6B7280;font-size:13px;">Just reply to this email to tell me what to do — '
+        '"send it", "send it but change …", "hold until Friday", "wait until it goes pending", or "don\'t respond".</p>'
+        '</div>'
+    )
+
+
+def _notify_plain(address: str, who: str, summary: str, recommendation: str, draft_body: str) -> str:
+    return (
+        f"{who} replied on {address}.\n\n"
+        f"What they said:\n{summary}\n\n"
+        f"{recommendation}\n\n"
+        f"Here's what I was thinking:\n{draft_body}\n\n"
+        "Just reply to this email to tell me what to do — \"send it\", \"send it but "
+        "change …\", \"hold until Friday\", \"wait until it goes pending\", or \"don't respond\"."
+    )
+
+
+async def _notify_agent_of_draft(
+    *,
+    tx: dict[str, Any],
+    brokerage: dict[str, Any],
+    agent: dict[str, Any] | None,
+    who: str,
+    summary: str,
+    recommendation: str,
+    draft_body: str,
+) -> None:
+    """Email the deal's agent the summary + proposed reply; fall back to WhatsApp."""
+    address = tx.get("address") or "a transaction"
+    agent_email = (
+        (agent or {}).get("email")
+        or tx.get("listing_agent_email")
+        or tx.get("selling_agent_email")
+        or ""
+    ).strip()
+    if agent_email:
+        try:
+            sent = await asyncio.to_thread(
+                email_client.send_email,
+                to_emails=[agent_email],
+                subject=f"{who} replied on {address} — want me to respond?",
+                html=_notify_html(address, who, summary, recommendation, draft_body),
+                plain=_notify_plain(address, who, summary, recommendation, draft_body),
+                reply_to=email_client.reply_to_address(tx["id"]),
+            )
+            if sent:
+                return
+        except Exception:  # noqa: BLE001 — best-effort
+            pass
+    # Fallback: WhatsApp-nudge the deal's agent (or brokerage if unassigned).
+    try:
+        from app.services import twilio_client
+
+        contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
+        agent_id = tx.get("agent_id")
+        recipients = (
+            [c for c in contacts if c.get("agent_id") == agent_id] if agent_id else contacts
+        )
+        nudge = (
+            f"📨 {who} replied on {address}\n"
+            f"{recommendation or summary}\n\n"
+            "I drafted a reply — review and send it in the dashboard."
+        )
+        for c in recipients:
+            phone = c.get("phone_number")
+            if not phone:
+                continue
+            try:
+                await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, nudge)
+            except twilio_client.TwilioNotConfigured:
+                break
+            except Exception:  # noqa: BLE001
+                pass
+    except sb.SupabaseError:
+        pass

@@ -553,7 +553,13 @@ export interface PendingEmailReply {
   to_name?: string | null
   subject: string
   draft_body: string
-  status: 'pending' | 'sent' | 'dismissed'
+  summary?: string | null
+  recommendation?: string | null
+  trigger_type?: 'none' | 'time' | 'event' | 'manual' | null
+  scheduled_send_at?: string | null
+  trigger_event?: string | null
+  hold_note?: string | null
+  status: 'pending' | 'scheduled' | 'awaiting_event' | 'held' | 'sent' | 'dismissed'
   created_at: string
 }
 

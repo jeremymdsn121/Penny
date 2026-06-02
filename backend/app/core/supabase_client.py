@@ -1932,13 +1932,15 @@ async def get_pending_email_reply(reply_id: str) -> dict[str, Any] | None:
 async def list_pending_email_replies_for_transaction(
     transaction_id: str,
 ) -> list[dict[str, Any]]:
+    """All open suggested replies for a deal (awaiting, scheduled, or held)."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
             f"{REST_BASE}/pending_email_replies",
             params={
                 "transaction_id": f"eq.{transaction_id}",
-                "status": "eq.pending",
+                "status": "in.(pending,scheduled,awaiting_event,held)",
                 "select": "*",
+                "order": "created_at.desc",
             },
             headers=_service_headers(),
         )
@@ -1961,3 +1963,24 @@ async def update_pending_email_reply(
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if rows else {}
+
+
+async def list_email_replies_by_statuses(
+    brokerage_id: str, statuses: list[str]
+) -> list[dict[str, Any]]:
+    """Armed/held suggested replies for the scheduled-reply scan."""
+    joined = ",".join(statuses)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_email_replies",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "status": f"in.({joined})",
+                "select": "*",
+                "order": "created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()

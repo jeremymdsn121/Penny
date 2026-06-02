@@ -19,6 +19,23 @@ function fmtWhen(iso: string): string {
   }
 }
 
+function eventLabel(event?: string | null): string {
+  const e = (event || '').trim()
+  if (e.startsWith('stage:')) return `goes ${e.slice(6).replace(/_/g, ' ')}`
+  if (e === 'emd_received') return 'EMD is received'
+  if (e.startsWith('checklist:')) return `"${e.slice(10)}" is done`
+  return e
+}
+
+// A short badge describing a deferred send, or '' when awaiting a first decision.
+function deferLabel(r: PendingEmailReply): string {
+  if (r.status === 'scheduled' && r.scheduled_send_at)
+    return `Sends ${fmtWhen(r.scheduled_send_at)}`
+  if (r.status === 'awaiting_event') return `Waiting until ${eventLabel(r.trigger_event)}`
+  if (r.status === 'held') return 'On hold'
+  return ''
+}
+
 export default function Communications({
   txId,
   onReply,
@@ -141,14 +158,27 @@ export default function Communications({
                 key={r.id}
                 className="rounded-xl border border-violet-200 bg-violet-50/60 p-4"
               >
-                <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-violet-700">
+                <p className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-violet-700">
                   <span className="inline-block rounded bg-violet-200 px-1.5 py-0.5 text-[10px]">
                     Suggested reply
                   </span>
                   <span className="font-normal normal-case text-ink-subtle">
                     to {r.to_name || r.to_email}
                   </span>
+                  {deferLabel(r) && (
+                    <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] normal-case text-amber-700">
+                      {deferLabel(r)}
+                    </span>
+                  )}
                 </p>
+                {r.summary && (
+                  <p className="mb-1 text-sm text-ink">
+                    <span className="font-medium">They said:</span> {r.summary}
+                  </p>
+                )}
+                {r.recommendation && (
+                  <p className="mb-2 text-sm italic text-ink-muted">{r.recommendation}</p>
+                )}
                 <input
                   value={draft.subject}
                   onChange={(ev) =>

@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import email_autoreply, email_client, twilio_client
+from app.services import email_autoreply, email_client, email_scheduler, twilio_client
 
 router = APIRouter(tags=["email"])
 
@@ -166,6 +166,7 @@ async def inbound_email(request: Request) -> Any:
         outcome = await email_autoreply.maybe_autorespond(
             tx=tx,
             brokerage=brokerage or {},
+            agent=agent,
             inbound_email_id=inbound_id,
             sender_name=sender_name,
             sender_email=sender_email,
@@ -176,26 +177,20 @@ async def inbound_email(request: Request) -> Any:
     except Exception:  # noqa: BLE001 — never break the webhook
         outcome = "skipped"
 
-    # When we've already replied to the agent in-thread, a WhatsApp nudge about
-    # their own message would be noise — skip it.
-    if outcome == "agent_replied":
+    # Both two-way paths handle their own agent-facing notification:
+    #  - agent_replied:   Sloane already answered the agent in-thread.
+    #  - outside_drafted: the service briefed the agent (email, or WhatsApp fallback).
+    # Only the plain log-and-notify case falls through to the generic nudge.
+    if outcome in ("agent_replied", "outside_drafted"):
         return {"ok": True, "matched": True, "action": outcome}
 
     # ── Targeted WhatsApp nudge: the deal's agent, not the whole brokerage ── #
-    if outcome == "outside_drafted":
-        nudge = (
-            f"📨 Reply received on {address}\n"
-            f"From: {who}\n"
-            f'"{preview}"\n\n'
-            "I drafted a suggested reply — review and send it in the dashboard."
-        )
-    else:
-        nudge = (
-            f"📨 Reply received on {address}\n"
-            f"From: {who}\n"
-            f'"{preview}"\n\n'
-            "View the full message in the Sloane dashboard."
-        )
+    nudge = (
+        f"📨 Reply received on {address}\n"
+        f"From: {who}\n"
+        f'"{preview}"\n\n'
+        "View the full message in the Sloane dashboard."
+    )
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
         if agent_id:
@@ -319,6 +314,19 @@ async def send_pending_reply(
     except sb.SupabaseError:
         pass
     return {"sent": True, "recipient": to_email}
+
+
+@router.post("/email/run-scheduled-replies")
+async def run_scheduled_replies(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Fire due time-triggers, re-surface met event-triggers, remind on holds.
+
+    Idempotent — safe to call repeatedly. Point a scheduled job at this (same
+    pattern as POST /deadlines/run-reminders); a dev button can also hit it.
+    """
+    counts = await email_scheduler.run_for_brokerage(brokerage["id"])
+    return {"ok": True, **counts}
 
 
 @router.post("/email/pending-replies/{reply_id}/dismiss")
