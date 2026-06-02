@@ -97,6 +97,11 @@
   .sloane-mark__mark    { transform-box: fill-box; transform-origin: 50% 100%; }
   .sloane-mark__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
   .sloane-mark__door    { transform-box: fill-box; transform-origin: 50% 50%; }
+  /* Pivot is the drop's centre (below the roof), so a 180° turn orbits the
+     roof down into a smile and back. 139% places the origin at viewBox y≈70. */
+  .sloane-mark__roof    { transform-box: fill-box; transform-origin: 50% 139%; }
+  /* The curved smile is hidden at rest; the sharp chevron is the resting roof. */
+  .sloane-mark__roof-curved { opacity: 0; }
   .sloane-mark__ring    { transform-box: fill-box; transform-origin: 50% 50%; }
   .sloane-mark__contact { transform-box: fill-box; transform-origin: 50% 50%; }
 
@@ -106,7 +111,7 @@
 
   /* --- Pre: hold the first frame so there's no flash of the settled mark. */
   .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-50px) scaleY(1.04) scaleX(0.98); }
-  .sloane-mark--pre .sloane-mark__house,
+  .sloane-mark--pre .sloane-mark__roof,
   .sloane-mark--pre .sloane-mark__door  { opacity: 0; }
 
   /* --- In: run the drop-in, then the idle loop. --- */
@@ -116,9 +121,13 @@
   .sloane-mark--in .sloane-mark__breathe {
     animation: sloane-breathe 4.5s ease-in-out 1300ms infinite;
   }
-  .sloane-mark--in .sloane-mark__house {
-    animation: sloane-appear 350ms ease 760ms both;
+  .sloane-mark--in .sloane-mark__roof {
+    animation: sloane-appear 350ms ease 760ms both,
+               sloane-roof 5s ease-in-out 1500ms infinite;
   }
+  /* Crossfade chevron→curve as it swings down, and back on the way up. */
+  .sloane-mark--in .sloane-mark__roof-sharp  { animation: sloane-roof-sharp  5s ease-in-out 1500ms infinite; }
+  .sloane-mark--in .sloane-mark__roof-curved { animation: sloane-roof-curved 5s ease-in-out 1500ms infinite; }
   .sloane-mark--in .sloane-mark__door {
     animation: sloane-appear 350ms ease 820ms both,
                sloane-blink 5s ease-in-out 1500ms infinite;
@@ -151,11 +160,34 @@
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.03); }
   }
-  /* The door pinches shut and reopens — a friendly blink early in each idle
-     cycle (so the first one lands ~2s after settling, not 7s). */
+  /* The roof orbits down around the drop into a smile, holds while the door
+     winks, then swings back up into a roof — once per idle cycle. */
+  @keyframes sloane-roof {
+    0%, 4%   { transform: rotate(0deg); }
+    11%      { transform: rotate(180deg); }
+    27%      { transform: rotate(180deg); }
+    34%      { transform: rotate(0deg); }
+    100%     { transform: rotate(0deg); }
+  }
+  /* Shape crossfade, synced to the swing: chevron out / curve in by the time
+     it reaches the bottom, and back before it returns to the top. */
+  @keyframes sloane-roof-sharp {
+    0%, 6%, 100% { opacity: 1; }
+    11%, 27%     { opacity: 0; }
+    32%          { opacity: 1; }
+  }
+  @keyframes sloane-roof-curved {
+    0%, 6%   { opacity: 0; }
+    11%, 27% { opacity: 1; }
+    32%, 100% { opacity: 0; }
+  }
+  /* The door (eye) does a quick double-blink while the smile is showing. */
   @keyframes sloane-blink {
-    0%, 9%, 16%, 100% { transform: scaleY(1); }
-    12.5%             { transform: scaleY(0.1); }
+    0%, 13%, 100% { transform: scaleY(1); }
+    16%           { transform: scaleY(0.1); }
+    19%           { transform: scaleY(1); }
+    22%           { transform: scaleY(0.1); }
+    25%           { transform: scaleY(1); }
   }
   @keyframes sloane-ping {
     0%   { opacity: 0.6; transform: scale(0.3); }
@@ -172,11 +204,15 @@
   /* Settle immediately: no drop, no blink, no ripple. */
   .sloane-mark--pre .sloane-mark__mark,
   .sloane-mark--in  .sloane-mark__mark  { transform: none !important; }
-  .sloane-mark--pre .sloane-mark__house,
+  .sloane-mark--pre .sloane-mark__roof,
   .sloane-mark--pre .sloane-mark__door  { opacity: 1 !important; }
+  .sloane-mark--in  .sloane-mark__roof,
+  .sloane-mark--in  .sloane-mark__door  { transform: none !important; }
   .sloane-mark__mark,
   .sloane-mark__breathe,
-  .sloane-mark__house,
+  .sloane-mark__roof,
+  .sloane-mark__roof-sharp,
+  .sloane-mark__roof-curved,
   .sloane-mark__door,
   .sloane-mark__ring,
   .sloane-mark__contact { animation: none !important; }

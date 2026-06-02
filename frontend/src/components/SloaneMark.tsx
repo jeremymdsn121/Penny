@@ -32,8 +32,10 @@ interface SloaneMarkProps {
 
 /** Point-up teardrop pin (viewBox 0 0 120 120). */
 const PIN = 'M 60 17 C 45 34 28 51 28 73 A 32 32 0 1 0 92 73 C 92 51 75 34 60 17 Z'
-/** The house roof tucked inside the pin. */
+/** The house roof tucked inside the pin (sharp chevron — the resting look). */
 const ROOF = 'M 41 63 L 60 45 L 79 63'
+/** Curved smile the roof morphs into when it swings down on the idle loop. */
+const SMILE = 'M 40 61 Q 60 46 80 61'
 
 export default function SloaneMark({
   size = 120,
@@ -128,16 +130,30 @@ export default function SloaneMark({
               <rect width="120" height="120" fill={`url(#sheen${uid})`} />
               <ellipse cx="44" cy="44" rx="15" ry="19" fill={`url(#hot${uid})`} />
             </g>
-            {/* House: roof + door (the door blinks like an eye when idle). */}
-            <path
-              className="sloane-mark__house"
-              d={ROOF}
-              fill="none"
-              stroke="#F4F0FE"
-              strokeWidth="8.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {/* House: roof + door. On the idle loop the roof group swings down
+                around the drop and crossfades chevron→curve (so it becomes a
+                proper smile, not a sharp v) while the door double-blinks like
+                an eye, then swings back up into the roof. */}
+            <g className="sloane-mark__roof">
+              <path
+                className="sloane-mark__roof-sharp"
+                d={ROOF}
+                fill="none"
+                stroke="#F4F0FE"
+                strokeWidth="8.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                className="sloane-mark__roof-curved"
+                d={SMILE}
+                fill="none"
+                stroke="#F4F0FE"
+                strokeWidth="8.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
             <rect className="sloane-mark__door" x="53" y="67" width="14" height="17" rx="4.5" fill="#F4F0FE" />
           </g>
         </g>
