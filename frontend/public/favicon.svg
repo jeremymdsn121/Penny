@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 12 94 94" role="img" aria-label="Sloane">
+  <defs>
+    <linearGradient id="g" x1="0.12" y1="0.05" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#CBBAFB"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#5E22C6"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0.12" y1="0.02" x2="0.5" y2="0.8">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="34%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="hot" cx="35%" cy="30%" r="24%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="form" cx="70%" cy="82%" r="46%">
+      <stop offset="0%" stop-color="#2E1065" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#2E1065" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="cl">
+      <path d="M 60 17 C 45 34 28 51 28 73 A 32 32 0 1 0 92 73 C 92 51 75 34 60 17 Z"/>
+    </clipPath>
+  </defs>
+  <path d="M 60 17 C 45 34 28 51 28 73 A 32 32 0 1 0 92 73 C 92 51 75 34 60 17 Z" fill="url(#g)"/>
+  <g clip-path="url(#cl)">
+    <rect width="120" height="120" fill="url(#form)"/>
+    <rect width="120" height="120" fill="url(#sheen)"/>
+    <ellipse cx="44" cy="44" rx="15" ry="19" fill="url(#hot)"/>
+  </g>
+  <path d="M 41 63 L 60 45 L 79 63" fill="none" stroke="#F4F0FE" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="53" y="67" width="14" height="17" rx="4.5" fill="#F4F0FE"/>
+</svg>
