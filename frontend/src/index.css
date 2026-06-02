@@ -73,69 +73,105 @@
 }
 
 /* ------------------------------------------------------------------ *
- * SloaneMark — single-stroke S wordmark.
- *   --static = full S, no motion (default everywhere)
- *   --pre    = pre-build-in (path hidden via dashoffset, no FOUC)
- *   --in     = stroke draws top-to-bottom, then breathes (landing only)
+ * SloaneMark — house-in-a-pin brand mark.
+ *   --static = settled mark, no motion (default everywhere)
+ *   --pre    = first-frame start state (pin lifted, house hidden, no FOUC)
+ *   --in     = drop → impact squash → location ping → house settles, then an
+ *              idle loop (gentle breathe + occasional door "blink"). Landing.
  *
- * The build-in is a stroke-dasharray draw: the dash length equals the
- * path length (passed in as --sloane-mark-path-length from the component),
- * and the offset animates from full-length → 0. After the draw, the
- * whole S breathes — a subtle scale loop centred on the mark so it feels
- * alive without bouncing like a button.
+ * Layering of animated parts:
+ *   __mark    — drops in + squashes on impact (transform-origin at the base
+ *               so the squash plants on the ground).
+ *   __breathe — inner group, subtle idle scale once the intro finishes.
+ *   __house   — roof; fades in after the pin lands.
+ *   __door    — fades in with the roof, then blinks like an eye on the idle
+ *               loop (scaleY pinch from its own centre).
+ *   __ring    — two location-ping ripples that expand + fade at impact.
+ *   __contact — ground contact shadow that widens on impact then settles.
+ * Rings/contact default to hidden so static + reduced-motion show neither.
  * ------------------------------------------------------------------ */
 @layer utilities {
   .sloane-mark { display: inline-block; }
   .sloane-mark svg { overflow: visible; display: block; }
 
-  /* Scale from the centre so the symmetric S breathes evenly, rather than
-     the whole mark zooming from a corner. */
-  .sloane-mark__letter { transform-box: fill-box; transform-origin: 50% 50%; }
+  .sloane-mark__mark    { transform-box: fill-box; transform-origin: 50% 100%; }
+  .sloane-mark__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
+  .sloane-mark__door    { transform-box: fill-box; transform-origin: 50% 50%; }
+  .sloane-mark__ring    { transform-box: fill-box; transform-origin: 50% 50%; }
+  .sloane-mark__contact { transform-box: fill-box; transform-origin: 50% 50%; }
 
-  /* --- Static (default): show the full stroke + highlight, no motion. --- */
-  .sloane-mark--static .sloane-mark__stroke,
-  .sloane-mark--static .sloane-mark__highlight {
-    stroke-dasharray: none;
-    stroke-dashoffset: 0;
-  }
+  /* Rings + contact shadow are part of the drop-in only. */
+  .sloane-mark__ring,
+  .sloane-mark__contact { opacity: 0; }
 
-  /* --- Pre: hide both strokes (offset by full path length). --- */
-  .sloane-mark--pre .sloane-mark__stroke,
-  .sloane-mark--pre .sloane-mark__highlight {
-    stroke-dasharray: var(--sloane-mark-path-length, 165);
-    stroke-dashoffset: var(--sloane-mark-path-length, 165);
-  }
+  /* --- Pre: hold the first frame so there's no flash of the settled mark. */
+  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-46px); }
+  .sloane-mark--pre .sloane-mark__house,
+  .sloane-mark--pre .sloane-mark__door  { opacity: 0; }
 
-  /* --- In: draw both strokes in lockstep, then breathe. --- */
-  .sloane-mark--in .sloane-mark__stroke,
-  .sloane-mark--in .sloane-mark__highlight {
-    stroke-dasharray: var(--sloane-mark-path-length, 165);
-    stroke-dashoffset: var(--sloane-mark-path-length, 165);
-    animation: sloane-draw 1400ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  /* --- In: run the drop-in, then the idle loop. --- */
+  .sloane-mark--in .sloane-mark__mark {
+    animation: sloane-drop 1000ms cubic-bezier(0.5, 0, 0.2, 1) both;
   }
-  .sloane-mark--in .sloane-mark__letter {
-    animation: sloane-breathe 4s ease-in-out 1600ms infinite;
+  .sloane-mark--in .sloane-mark__breathe {
+    animation: sloane-breathe 4.5s ease-in-out 1300ms infinite;
   }
+  .sloane-mark--in .sloane-mark__house {
+    animation: sloane-appear 350ms ease 760ms both;
+  }
+  .sloane-mark--in .sloane-mark__door {
+    animation: sloane-appear 350ms ease 820ms both,
+               sloane-blink 5s ease-in-out 2600ms infinite;
+  }
+  .sloane-mark--in .sloane-mark__ring--1 { animation: sloane-ping 900ms ease-out 560ms forwards; }
+  .sloane-mark--in .sloane-mark__ring--2 { animation: sloane-ping 900ms ease-out 720ms forwards; }
+  .sloane-mark--in .sloane-mark__contact { animation: sloane-contact 1000ms ease-out both; }
 
-  @keyframes sloane-draw {
-    to { stroke-dashoffset: 0; }
+  @keyframes sloane-drop {
+    0%   { transform: translateY(-46px); }
+    45%  { transform: translateY(0)   scaleY(1); }
+    58%  { transform: translateY(0)   scaleY(0.86) scaleX(1.06); }
+    74%  { transform: translateY(0)   scaleY(1.04) scaleX(0.98); }
+    88%  { transform: translateY(0)   scaleY(0.99); }
+    100% { transform: translateY(0)   scaleY(1); }
   }
-  /* Softer breath — the curves carry the "alive" feeling, so the scale
-     doesn't have to work as hard. */
+  @keyframes sloane-appear {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
   @keyframes sloane-breathe {
     0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.04); }
+    50%      { transform: scale(1.03); }
+  }
+  /* The door pinches shut and reopens — a friendly blink near the end of
+     each idle cycle. */
+  @keyframes sloane-blink {
+    0%, 88%, 100% { transform: scaleY(1); }
+    92%           { transform: scaleY(0.1); }
+  }
+  @keyframes sloane-ping {
+    0%   { opacity: 0.55; transform: scale(0.25); }
+    100% { opacity: 0;    transform: scale(1.1); }
+  }
+  @keyframes sloane-contact {
+    0%, 40% { opacity: 0;    transform: scaleX(0.4); }
+    58%     { opacity: 0.3;  transform: scaleX(1.15); }
+    100%    { opacity: 0.26; transform: scaleX(1); }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sloane-mark--pre .sloane-mark__stroke,
-  .sloane-mark--in  .sloane-mark__stroke {
-    stroke-dasharray: none !important;
-    stroke-dashoffset: 0 !important;
-  }
-  .sloane-mark__stroke,
-  .sloane-mark__letter { animation: none !important; }
+  /* Settle immediately: no drop, no blink, no ripple. */
+  .sloane-mark--pre .sloane-mark__mark,
+  .sloane-mark--in  .sloane-mark__mark  { transform: none !important; }
+  .sloane-mark--pre .sloane-mark__house,
+  .sloane-mark--pre .sloane-mark__door  { opacity: 1 !important; }
+  .sloane-mark__mark,
+  .sloane-mark__breathe,
+  .sloane-mark__house,
+  .sloane-mark__door,
+  .sloane-mark__ring,
+  .sloane-mark__contact { animation: none !important; }
 }
 
 @layer components {

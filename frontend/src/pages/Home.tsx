@@ -422,8 +422,8 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark — the animated SloaneMark signs itself in last, after the
-          rest of the launcher has settled. */}
+      {/* Brand mark — the animated SloaneMark drops in last (pin lands, pings,
+          house settles), after the rest of the launcher has settled. */}
       <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(360)}>
         <SloaneMark size={120} animated />
       </div>
