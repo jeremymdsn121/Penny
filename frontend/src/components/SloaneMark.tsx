@@ -31,27 +31,28 @@ interface SloaneMarkProps {
 /**
  * Single-stroke S path (viewBox 0 0 120 120).
  *
- * Geometry: two opposing arcs joined by a cubic bezier through the waist.
- *   M 86 32                      → start at the top-right of the S (natural
- *                                  pen-start point)
- *   A 24 22 0 0 0 38 36          → top arc curves left, down, and around
- *                                  to the start of the waist
- *   C 30 50 90 70 82 84          → cubic through the waist — the belly of
- *                                  the S. Control points pull outward so
- *                                  the transition has sway, not a straight
- *                                  diagonal.
- *   A 24 22 0 0 0 34 88          → bottom arc curves right, down, and
- *                                  around to the bottom-left of the S.
+ * Geometry: the S spine drawn top-to-bottom as three chained cubic beziers,
+ * the way you'd write the letter without lifting the pen. Each bezier is one
+ * counter of the S, and consecutive controls share a tangent so the spine
+ * flows without kinks (an arc-pair approach collapses into a sideways ∞ at
+ * these proportions — the cubic spine reads unambiguously as an S).
+ *   M 82 34                      → top-right terminal (pen-down point)
+ *   C 82 18 44 18 44 38          → over the top and down the left into the
+ *                                  upper counter
+ *   C 44 54 76 64 76 82          → the diagonal waist, swaying right as it
+ *                                  drops into the lower counter
+ *   C 76 100 40 100 36 84        → around the bottom and up to the
+ *                                  bottom-left terminal, curling closed
  *
  * Stroke width 16, rounded caps + joins. Same depth treatment as the
- * previous P mark. Whole letterform fits inside a 120×120 viewBox with
- * breathing room.
+ * previous P mark (inner highlight + soft purple shadow). The letterform
+ * fills the 120×120 viewBox with breathing room for the shadow.
  *
- * Path length comes out around ~245 in viewBox units; we measure the real
+ * Path length comes out around ~160 in viewBox units; we measure the real
  * length at runtime via getTotalLength() so the draw is pixel-accurate.
  */
-const S_PATH = 'M 86 32 A 24 22 0 0 0 38 36 C 30 50 90 70 82 84 A 24 22 0 0 0 34 88'
-const PATH_LENGTH = 300
+const S_PATH = 'M 82 34 C 82 18 44 18 44 38 C 44 54 76 64 76 82 C 76 100 40 100 36 84'
+const PATH_LENGTH = 165
 
 export default function SloaneMark({
   size = 120,
@@ -132,7 +133,7 @@ export default function SloaneMark({
 
         {/* The whole mark scales together during breathe. Drop shadow is
             applied to the group so the shadow scales with the stroke. */}
-        <g className="sloane-mark__p" filter="url(#sloaneMarkShadow)">
+        <g className="sloane-mark__letter" filter="url(#sloaneMarkShadow)">
           {/* Body stroke — this one carries the draw-in animation. */}
           <path
             ref={pathRef}
