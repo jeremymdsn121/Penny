@@ -418,10 +418,12 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark — the animated SloaneMark drops in last (pin lands, pings,
-          house settles), after the rest of the launcher has settled. */}
-      <div className={`mb-6 flex justify-center ${riseClass}`} style={rise(360)}>
-        <SloaneMark size={120} animated />
+      {/* Brand mark — does NOT fade up with the rest; it waits for the page to
+          arrive, then falls in from the top of the page (pin lands, pings,
+          house settles). The wrapper still reserves its space so nothing
+          reflows when the pin lands. */}
+      <div className="mb-6 flex justify-center">
+        <SloaneMark size={120} animated dropDelay={reduceMotion ? 0 : 1500} />
       </div>
 
       {/* Greeting + briefing */}
