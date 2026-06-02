@@ -151,22 +151,22 @@ function useTypewriter(phrases: string[], enabled: boolean): string {
         setDisplay(phrase.slice(0, charIdx))
         if (charIdx >= phrase.length) {
           phase = 'holding'
-          timer = setTimeout(tick, 3400)
+          timer = setTimeout(tick, 5200)
         } else {
-          timer = setTimeout(tick, 55)
+          timer = setTimeout(tick, 85)
         }
       } else if (phase === 'holding') {
         phase = 'deleting'
-        timer = setTimeout(tick, 30)
+        timer = setTimeout(tick, 45)
       } else {
         charIdx -= 1
         setDisplay(phrase.slice(0, Math.max(0, charIdx)))
         if (charIdx <= 0) {
           phase = 'typing'
           phraseIdx = (phraseIdx + 1) % phrases.length
-          timer = setTimeout(tick, 700)
+          timer = setTimeout(tick, 2200)
         } else {
-          timer = setTimeout(tick, 30)
+          timer = setTimeout(tick, 45)
         }
       }
     }
