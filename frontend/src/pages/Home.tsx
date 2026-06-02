@@ -24,7 +24,6 @@ import {
   type NextAction,
   type Transaction,
 } from '../lib/api'
-import { useAuthStore } from '../store/auth'
 import { useUiStore } from '../store/ui'
 
 const ACTIVE_STAGES = new Set(['under_contract', 'pending'])
@@ -194,8 +193,9 @@ interface Msg {
 
 export default function Home() {
   const navigate = useNavigate()
-  const brokerage = useAuthStore((s) => s.brokerage)
-  const assistant = brokerage?.assistant_name || 'Sloane'
+  // Sloane's name is fixed (not user-editable), so don't read it from the
+  // brokerage record — older brokerages may still hold a stale value.
+  const assistant = 'Sloane'
   const reduceMotion = useReducedMotion()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
