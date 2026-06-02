@@ -105,13 +105,13 @@
   .sloane-mark__contact { opacity: 0; }
 
   /* --- Pre: hold the first frame so there's no flash of the settled mark. */
-  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-46px); }
+  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-50px) scaleY(1.04) scaleX(0.98); }
   .sloane-mark--pre .sloane-mark__house,
   .sloane-mark--pre .sloane-mark__door  { opacity: 0; }
 
   /* --- In: run the drop-in, then the idle loop. --- */
   .sloane-mark--in .sloane-mark__mark {
-    animation: sloane-drop 1000ms cubic-bezier(0.5, 0, 0.2, 1) both;
+    animation: sloane-drop 1050ms linear both;
   }
   .sloane-mark--in .sloane-mark__breathe {
     animation: sloane-breathe 4.5s ease-in-out 1300ms infinite;
@@ -127,13 +127,21 @@
   .sloane-mark--in .sloane-mark__ring--2 { animation: sloane-ping 1100ms ease-out 700ms forwards; }
   .sloane-mark--in .sloane-mark__contact { animation: sloane-contact 1000ms ease-out both; }
 
+  /* Gravity in, snappy impact, springy rebound. Per-keyframe easing: the fall
+     accelerates (no decel before contact), the squash fires the instant it
+     lands (no hang), then it bounces back and settles. */
   @keyframes sloane-drop {
-    0%   { transform: translateY(-46px); }
-    45%  { transform: translateY(0)   scaleY(1); }
-    58%  { transform: translateY(0)   scaleY(0.86) scaleX(1.06); }
-    74%  { transform: translateY(0)   scaleY(1.04) scaleX(0.98); }
-    88%  { transform: translateY(0)   scaleY(0.99); }
-    100% { transform: translateY(0)   scaleY(1); }
+    0%   { transform: translateY(-50px) scaleY(1.04) scaleX(0.98);
+           animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.52); }
+    38%  { transform: translateY(0)     scaleY(1.02) scaleX(0.99);
+           animation-timing-function: cubic-bezier(0.22, 0, 0.3, 1); }
+    50%  { transform: translateY(0)     scaleY(0.70) scaleX(1.17);
+           animation-timing-function: cubic-bezier(0.18, 0.2, 0.3, 1); }
+    68%  { transform: translateY(0)     scaleY(1.09) scaleX(0.95);
+           animation-timing-function: ease-in-out; }
+    84%  { transform: translateY(0)     scaleY(0.975) scaleX(1.015);
+           animation-timing-function: ease-in-out; }
+    100% { transform: translateY(0)     scaleY(1)     scaleX(1); }
   }
   @keyframes sloane-appear {
     from { opacity: 0; }
