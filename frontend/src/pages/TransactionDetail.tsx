@@ -9,10 +9,12 @@ import SignaturesCard from '../components/SignaturesCard'
 import TaskPanel from '../components/TaskPanel'
 import type { TransactionEmail } from '../lib/api'
 import {
+  agentsApi,
   appointmentsApi,
   deadlinesApi,
   PARTY_ROLES,
   transactionsApi,
+  type Agent,
   type Appointment,
   type CompsResult,
   type ComplianceReview,
@@ -21,6 +23,7 @@ import {
   type PropertyRecord,
   type Transaction,
 } from '../lib/api'
+import { useAuthStore } from '../store/auth'
 
 const SECTION_NAV: SectionNavItem[] = [
   { id: 'details', label: 'Details' },
@@ -211,6 +214,11 @@ export default function TransactionDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Agent assignment
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [assigning, setAssigning] = useState(false)
+  const brokerageEmail = useAuthStore((s) => s.brokerage?.email)
+
   const [editMode, setEditMode] = useState(false)
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -284,7 +292,24 @@ export default function TransactionDetail() {
       .list(transaction_id)
       .then(setAppointments)
       .catch(() => {/* appointments degrade silently */})
+    agentsApi
+      .list()
+      .then(setAgents)
+      .catch(() => {/* agent list optional — assignment control just hides */})
   }, [transaction_id])
+
+  async function handleAssign(agentId: string | null) {
+    if (!tx) return
+    setAssigning(true)
+    try {
+      const updated = await transactionsApi.update(tx.id, { agent_id: agentId })
+      setTx(updated)
+    } catch {
+      /* best-effort; leave current assignment on failure */
+    } finally {
+      setAssigning(false)
+    }
+  }
 
   async function refreshDeadlines() {
     if (!transaction_id) return
@@ -576,6 +601,13 @@ export default function TransactionDetail() {
   }
 
   const title = tx.address || 'Transaction'
+  // The current user's agent record (matched by the brokerage's email), for the
+  // "Assign to me" shortcut. Undefined when no agent record matches.
+  const meAgentId = brokerageEmail
+    ? agents.find(
+        (a) => a.email && a.email.toLowerCase() === brokerageEmail.toLowerCase(),
+      )?.id
+    : undefined
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
@@ -584,6 +616,34 @@ export default function TransactionDetail() {
         <div className="flex min-w-0 items-center gap-3">
           <h1 className="truncate text-xl font-semibold tracking-tight text-ink">{title}</h1>
           {!editMode && <StageBadge stage={tx.stage} />}
+          {!editMode && (
+            <div className="flex shrink-0 items-center gap-2">
+              <select
+                aria-label="Assigned agent"
+                title="Assigned agent"
+                value={tx.agent_id ?? ''}
+                onChange={(e) => handleAssign(e.target.value || null)}
+                disabled={assigning}
+                className="rounded-lg border border-hairline bg-surface px-2 py-1 text-xs text-ink disabled:opacity-60"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name || a.email || 'Agent'}
+                  </option>
+                ))}
+              </select>
+              {meAgentId && tx.agent_id !== meAgentId && (
+                <button
+                  onClick={() => handleAssign(meAgentId)}
+                  disabled={assigning}
+                  className="text-xs font-medium text-penny hover:underline disabled:opacity-60"
+                >
+                  Assign to me
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="shrink-0">
           {editMode ? (
