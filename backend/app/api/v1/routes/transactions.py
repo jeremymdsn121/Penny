@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from pydantic import BaseModel
 
 from app.core import supabase_client as sb
-from app.core.security import get_current_brokerage
+from app.core.security import get_current_brokerage, get_current_user
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
 from app.services import (
     ai_extract,
@@ -109,14 +109,34 @@ async def extract(
     )
 
 
+async def _resolve_creator_agent_id(
+    brokerage_id: str, user: dict[str, Any]
+) -> str | None:
+    """Map the creating user to their agent record by email, for auto-assignment."""
+    email = (user or {}).get("email")
+    if not email:
+        return None
+    try:
+        agent = await sb.get_agent_by_email(brokerage_id, email)
+    except sb.SupabaseError:
+        return None
+    return agent.get("id") if agent else None
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create(
     body: TransactionCreate,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     data["brokerage_id"] = brokerage["id"]
     data.setdefault("stage", "under_contract")
+    # Auto-assign the deal to the creating agent (unless one was specified).
+    if not data.get("agent_id"):
+        agent_id = await _resolve_creator_agent_id(brokerage["id"], user)
+        if agent_id:
+            data["agent_id"] = agent_id
     tx = await sb.insert_transaction(data)
     await _run_post_create_hooks(tx)
     return tx
@@ -216,6 +236,7 @@ class ImportCommitIn(BaseModel):
 async def import_commit(
     body: ImportCommitIn,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Insert the confirmed rows. Each goes through the normal create hooks so an
     imported deal gets its checklist, workflow tasks, and routing."""
@@ -227,6 +248,7 @@ async def import_commit(
             detail=f"Too many rows (limit {csv_import.MAX_ROWS}).",
         )
 
+    creator_agent_id = await _resolve_creator_agent_id(brokerage["id"], user)
     allowed = set(TransactionCreate.model_fields)
     created = 0
     failed: list[dict[str, Any]] = []
@@ -237,6 +259,8 @@ async def import_commit(
             continue
         data["brokerage_id"] = brokerage["id"]
         data.setdefault("stage", "under_contract")
+        if creator_agent_id and not data.get("agent_id"):
+            data["agent_id"] = creator_agent_id
         try:
             tx = await sb.insert_transaction(data)
             await _run_post_create_hooks(tx)

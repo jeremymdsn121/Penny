@@ -262,6 +262,11 @@ async def _handle_pending_reply(
         tx_data.setdefault("stage", "under_contract")
         if pending.get("pdf_storage_url"):
             tx_data["contract_pdf_url"] = pending["pdf_storage_url"]
+        # Auto-assign to the agent who sent the contract, if their number is linked.
+        if not tx_data.get("agent_id"):
+            contact = await sb.lookup_whatsapp_contact(phone_number)
+            if contact and contact.get("agent_id"):
+                tx_data["agent_id"] = contact["agent_id"]
 
         try:
             tx = await sb.insert_transaction(tx_data)
