@@ -1894,54 +1894,91 @@ async def run_penny_agent(
     else:
         messages.append({"role": "user", "content": current_message})
 
-    # Agentic tool-use loop.
-    for _ in range(8):  # max 8 tool rounds to prevent runaway loops
-        response = await client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=system,
-            tools=_TOOLS,
-            messages=messages,
-        )
+    # Cache the stable prefix (tools + system) so it isn't re-billed on every
+    # tool-loop round or follow-up turn. The whole system string is one cached
+    # block: same brokerage + same day = cache hit; a new day just writes a
+    # fresh entry. Tools render before system, so this breakpoint caches both.
+    system_blocks = [
+        {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
+    ]
 
-        if response.stop_reason == "end_turn":
-            # Extract the final text reply.
+    # Accumulate token usage across all tool rounds; logged once on exit for
+    # per-brokerage unit-economics tracking.
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+
+    try:
+        # Agentic tool-use loop.
+        for _ in range(8):  # max 8 tool rounds to prevent runaway loops
+            response = await client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=system_blocks,
+                tools=_TOOLS,
+                messages=messages,
+            )
+
+            u = response.usage
+            usage["input_tokens"] += u.input_tokens or 0
+            usage["output_tokens"] += u.output_tokens or 0
+            usage["cache_creation_input_tokens"] += (
+                getattr(u, "cache_creation_input_tokens", 0) or 0
+            )
+            usage["cache_read_input_tokens"] += (
+                getattr(u, "cache_read_input_tokens", 0) or 0
+            )
+
+            if response.stop_reason == "end_turn":
+                # Extract the final text reply.
+                text_parts = [
+                    block.text for block in response.content if block.type == "text"
+                ]
+                return " ".join(text_parts).strip() or "Done."
+
+            if response.stop_reason == "tool_use":
+                # Add the assistant's tool-use turn to the conversation.
+                messages.append({"role": "assistant", "content": response.content})
+
+                # Execute all tool calls and collect results.
+                tool_results: list[dict[str, Any]] = []
+                for block in response.content:
+                    if block.type != "tool_use":
+                        continue
+                    executor = _TOOL_MAP.get(block.name)
+                    if executor is None:
+                        result_text = f"Unknown tool: {block.name}"
+                    else:
+                        try:
+                            result_text = await executor(brokerage_id, block.input)
+                        except Exception as exc:
+                            result_text = f"Tool error: {exc}"
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text,
+                    })
+
+                messages.append({"role": "user", "content": tool_results})
+                continue
+
+            # Unexpected stop reason — return whatever text we have.
             text_parts = [
                 block.text for block in response.content if block.type == "text"
             ]
-            return " ".join(text_parts).strip() or "Done."
+            return (
+                " ".join(text_parts).strip()
+                or "I'm not sure how to help with that."
+            )
 
-        if response.stop_reason == "tool_use":
-            # Add the assistant's tool-use turn to the conversation.
-            messages.append({"role": "assistant", "content": response.content})
-
-            # Execute all tool calls and collect results.
-            tool_results: list[dict[str, Any]] = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                executor = _TOOL_MAP.get(block.name)
-                if executor is None:
-                    result_text = f"Unknown tool: {block.name}"
-                else:
-                    try:
-                        result_text = await executor(brokerage_id, block.input)
-                    except Exception as exc:
-                        result_text = f"Tool error: {exc}"
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text,
-                })
-
-            messages.append({"role": "user", "content": tool_results})
-            continue
-
-        # Unexpected stop reason — return whatever text we have.
-        text_parts = [
-            block.text for block in response.content if block.type == "text"
-        ]
-        return " ".join(text_parts).strip() or "I'm not sure how to help with that."
-
-    return "I ran into a problem processing your request. Please try again."
+        return "I ran into a problem processing your request. Please try again."
+    finally:
+        if any(usage.values()):
+            try:
+                await sb.log_ai_usage(brokerage_id, f"agent_{channel}", MODEL, usage)
+            except Exception:
+                pass

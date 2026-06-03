@@ -18,6 +18,17 @@ from typing import Any
 from anthropic import AsyncAnthropic
 
 from app.config import settings
+from app.core import supabase_client as sb
+
+
+def _usage_dict(usage: Any) -> dict[str, int]:
+    """Pull token counts off an Anthropic response.usage object."""
+    return {
+        "input_tokens": getattr(usage, "input_tokens", 0) or 0,
+        "output_tokens": getattr(usage, "output_tokens", 0) or 0,
+        "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
+    }
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1500
@@ -121,6 +132,7 @@ async def extract_contract_fields_from_image(
     image_bytes: bytes,
     media_type: str,
     knowledge_rules: list[dict[str, Any]] | None = None,
+    brokerage_id: str | None = None,
 ) -> dict[str, Any]:
     """Extract contract fields from a JPEG or PNG image using vision.
 
@@ -158,6 +170,7 @@ async def extract_contract_fields_from_image(
         )
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
+    await sb.log_ai_usage(brokerage_id, "extract_image", MODEL, _usage_dict(response.usage))
     raw = "".join(block.text for block in response.content if block.type == "text")
     data = _parse_json(raw)
     return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}
@@ -203,7 +216,9 @@ async def parse_correction(
 
 
 async def extract_contract_fields(
-    pdf_bytes: bytes, knowledge_rules: list[dict[str, Any]] | None = None
+    pdf_bytes: bytes,
+    knowledge_rules: list[dict[str, Any]] | None = None,
+    brokerage_id: str | None = None,
 ) -> dict[str, Any]:
     """Extract structured fields from a contract PDF.
 
@@ -240,6 +255,7 @@ async def extract_contract_fields(
         )
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
+    await sb.log_ai_usage(brokerage_id, "extract_pdf", MODEL, _usage_dict(response.usage))
     raw = "".join(block.text for block in response.content if block.type == "text")
     data = _parse_json(raw)
     return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}

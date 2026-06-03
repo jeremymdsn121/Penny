@@ -243,6 +243,34 @@ async def insert_agent(data: dict[str, Any]) -> dict[str, Any]:
     return rows[0] if isinstance(rows, list) and rows else rows
 
 
+async def log_ai_usage(
+    brokerage_id: str | None,
+    feature: str,
+    model: str,
+    usage: dict[str, int],
+) -> None:
+    """Best-effort: record one AI call's token usage (ai_usage, migration 020).
+
+    For per-brokerage unit-economics tracking. Never raises — a logging failure
+    must not break the user-facing call, and the table may not exist yet on an
+    environment where 020 hasn't been applied.
+    """
+    row = {
+        "brokerage_id": brokerage_id,
+        "feature": feature,
+        "model": model,
+        "input_tokens": int(usage.get("input_tokens", 0) or 0),
+        "output_tokens": int(usage.get("output_tokens", 0) or 0),
+        "cache_creation_input_tokens": int(usage.get("cache_creation_input_tokens", 0) or 0),
+        "cache_read_input_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.post(f"{REST_BASE}/ai_usage", json=row, headers=_service_headers())
+    except Exception:
+        pass
+
+
 async def update_agent(
     brokerage_id: str, agent_id: str, data: dict[str, Any]
 ) -> dict[str, Any] | None:

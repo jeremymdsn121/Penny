@@ -152,7 +152,9 @@ async def _handle_media_extraction(
             path = f"{brokerage_id}/{uuid.uuid4()}.pdf"
             await sb.upload_object(CONTRACTS_BUCKET, path, media_bytes, "application/pdf")
             pdf_storage_url = path
-            fields = await ai_extract.extract_contract_fields(media_bytes, rules)
+            fields = await ai_extract.extract_contract_fields(
+                media_bytes, rules, brokerage_id=brokerage_id
+            )
             await sb.save_whatsapp_message(
                 brokerage_id, phone_number,
                 direction="inbound", body="[PDF contract received]",
@@ -176,7 +178,7 @@ async def _handle_media_extraction(
                 img_type = _image_media_type(content_type_raw)
 
             fields = await ai_extract.extract_contract_fields_from_image(
-                image_bytes, img_type, rules
+                image_bytes, img_type, rules, brokerage_id=brokerage_id
             )
             await sb.save_whatsapp_message(
                 brokerage_id, phone_number,
