@@ -440,14 +440,23 @@ async def inbound(request: Request) -> Any:
     brokerage_name = (brokerage or {}).get("name", "your brokerage")
 
     # ── Run Penny agent ────────────────────────────────────────────────────── #
-    reply = await penny_agent.run_penny_agent(
-        brokerage_id=brokerage_id,
-        brokerage_name=brokerage_name,
-        contact_display_name=display_name,
-        history=history,
-        current_message=message_body,
-        agent_id=contact.get("agent_id"),
-    )
+    # Never let a model/tool error become silence — the inbound is already saved,
+    # so on failure send a graceful note instead of dropping the conversation.
+    try:
+        reply = await penny_agent.run_penny_agent(
+            brokerage_id=brokerage_id,
+            brokerage_name=brokerage_name,
+            contact_display_name=display_name,
+            history=history,
+            current_message=message_body,
+            agent_id=contact.get("agent_id"),
+        )
+    except Exception as exc:  # noqa: BLE001 — surface, don't crash the webhook
+        print(f"[whatsapp] agent error: {exc!r}")
+        reply = (
+            "Sorry, I'm having trouble on my end right now and couldn't get to "
+            "that. Please try me again in a few minutes."
+        )
 
     # ── Send reply & persist outbound message ──────────────────────────────── #
     try:
