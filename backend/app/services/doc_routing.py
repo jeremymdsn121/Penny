@@ -1,7 +1,7 @@
 """Document routing engine (Autonomy task ``doc-routing``).
 
 When a transaction enters a stage, any enabled routing rule whose ``trigger_stage``
-matches fires: Sloane resolves the rule's recipient roles to email addresses on the
+matches fires: Penny resolves the rule's recipient roles to email addresses on the
 deal, grabs the source document (the contract PDF for now), and either
 
   * sends it immediately — only when the brokerage's ``doc-routing`` task is
@@ -86,8 +86,8 @@ async def _nudge_agent(tx: dict[str, Any], route: dict[str, Any], roles: list[st
     role_list = ", ".join(roles) if roles else "the selected parties"
     msg = (
         f"📄 {address} entered {route.get('trigger_stage')}.\n"
-        f"Sloane has the contract ready to send to {role_list}.\n\n"
-        "Approve the send in the Sloane dashboard (Document routing)."
+        f"Penny has the contract ready to send to {role_list}.\n\n"
+        "Approve the send in the Penny dashboard (Document routing)."
     )
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])

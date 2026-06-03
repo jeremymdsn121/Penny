@@ -131,10 +131,10 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
       <div>
         <h2 className="text-lg font-semibold text-ink">Document routing</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          When a deal enters a stage, Sloane sends the contract to the parties you choose.
+          When a deal enters a stage, Penny sends the contract to the parties you choose.
           {autonomous
-            ? ' Document routing is autonomous, so Sloane sends automatically.'
-            : ' Document routing needs approval, so Sloane queues each send for you below.'}
+            ? ' Document routing is autonomous, so Penny sends automatically.'
+            : ' Document routing needs approval, so Penny queues each send for you below.'}
         </p>
       </div>
 
@@ -146,7 +146,7 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
 
       {loading ? (
         <div className="flex justify-center py-10">
-          <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
         </div>
       ) : (
         <>
@@ -177,7 +177,7 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
                       type="button"
                       onClick={() => toggleRule(rule)}
                       disabled={busyId === rule.id}
-                      className="text-xs font-medium text-sloane hover:underline disabled:opacity-50"
+                      className="text-xs font-medium text-penny hover:underline disabled:opacity-50"
                     >
                       {rule.enabled ? 'Disable' : 'Enable'}
                     </button>
@@ -226,8 +226,8 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
                       onClick={() => toggleRole(r.key)}
                       className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                         on
-                          ? 'border-sloane bg-sloane-light text-sloane-dark'
-                          : 'border-hairline text-ink-muted hover:border-sloane'
+                          ? 'border-penny bg-penny-light text-penny-dark'
+                          : 'border-hairline text-ink-muted hover:border-penny'
                       }`}
                     >
                       {r.label}

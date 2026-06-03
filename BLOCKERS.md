@@ -1,4 +1,4 @@
-# Sloane V2 — Blockers
+# Penny V2 — Blockers
 
 Items here are **not engineering problems**. Each requires a business or legal
 action, or external credentials/approval, before the corresponding code path can
@@ -11,10 +11,10 @@ once a blocker is cleared. Do not attempt to engineer around these.
 
 Dotloop and zipForm hold licensing agreements with NAR and state associations
 (CAR, TAR, etc.) to distribute and pre-fill state-promulgated contract forms.
-Sloane cannot generate, pre-fill, or reproduce these forms without equivalent
+Penny cannot generate, pre-fill, or reproduce these forms without equivalent
 licensing.
 
-- **Sloane can:** extract data from forms the agent already has, track them in the
+- **Penny can:** extract data from forms the agent already has, track them in the
   compliance file, send them for signature (once DocuSign is connected).
 - **Requires a business deal:** distributing the actual forms.
 - **Action:** if form distribution becomes a roadmap goal, engage NAR + the

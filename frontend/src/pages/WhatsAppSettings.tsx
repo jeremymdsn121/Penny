@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import {
   smsApi,
   whatsappApi,
@@ -16,7 +16,7 @@ const WA_GREEN = '#25D366'
 // Grouped capability summary (not the full ~20-tool list) — keep it skimmable.
 const CAPABILITIES: { title: string; detail: string }[] = [
   { title: 'Manage deals', detail: 'pipeline summary, look up any deal, update its stage, add notes' },
-  { title: 'Set up a deal from a contract', detail: 'text a PDF or photo; Sloane extracts the details and creates it' },
+  { title: 'Set up a deal from a contract', detail: 'text a PDF or photo; Penny extracts the details and creates it' },
   { title: 'Deadlines & next steps', detail: 'add deadlines (with automatic reminders) and see what’s due' },
   { title: 'Check the file', detail: 'what’s missing for compliance, run a review, track earnest money' },
   { title: 'Comps & scheduling', detail: 'a value estimate and comps for any address; propose and book showings' },
@@ -125,7 +125,7 @@ export default function WhatsAppSettings() {
     }
   }
 
-  const sloaneNumber = config?.sloane_whatsapp_number
+  const pennyNumber = config?.penny_whatsapp_number
 
   return (
     <div className="min-h-screen bg-surface-2">
@@ -141,11 +141,11 @@ export default function WhatsAppSettings() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <SloaneBubble>
+        <PennyBubble>
           Register your agents so they can reach me from the field. WhatsApp adds voice
           memos and contract photos; plain SMS works for anyone without WhatsApp. Pick the
           channel each agent prefers, or both.
-        </SloaneBubble>
+        </PennyBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -155,22 +155,22 @@ export default function WhatsAppSettings() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
           </div>
         ) : (
           <>
-            {/* ── Sloane's number ── */}
+            {/* ── Penny's number ── */}
             <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
               <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">
-                Sloane's WhatsApp Number
+                Penny's WhatsApp Number
               </h2>
-              {sloaneNumber ? (
+              {pennyNumber ? (
                 <>
                   <p className="mt-3 font-mono text-2xl font-semibold text-ink">
-                    {sloaneNumber}
+                    {pennyNumber}
                   </p>
                   <p className="mt-2 text-sm text-ink-muted">
-                    Save this number as <strong>Sloane</strong> in your phone's contacts,
+                    Save this number as <strong>Penny</strong> in your phone's contacts,
                     then text or send a voice message to get started.
                   </p>
 
@@ -207,8 +207,8 @@ export default function WhatsAppSettings() {
                 Reply Handling
               </h2>
               <p className="mb-4 text-xs text-ink-subtle">
-                When a party replies to one of Sloane's emails, the reply is always saved to the
-                transaction and the deal's agent is nudged on WhatsApp. You can also have Sloane
+                When a party replies to one of Penny's emails, the reply is always saved to the
+                transaction and the deal's agent is nudged on WhatsApp. You can also have Penny
                 forward each reply to that agent's email inbox.
               </p>
               <label className="flex items-start gap-3">
@@ -217,12 +217,12 @@ export default function WhatsAppSettings() {
                   checked={forwardReplies}
                   disabled={forwardSaving}
                   onChange={(e) => toggleForwardReplies(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-hairline text-sloane focus:ring-sloane disabled:opacity-50"
+                  className="mt-0.5 h-4 w-4 rounded border-hairline text-penny focus:ring-penny disabled:opacity-50"
                 />
                 <span className="text-sm text-ink">
                   Forward email replies to the agent's inbox
                   <span className="mt-0.5 block text-xs text-ink-subtle">
-                    The agent can reply straight from their email. Sloane still logs the thread on
+                    The agent can reply straight from their email. Penny still logs the thread on
                     the transaction.
                   </span>
                 </span>
@@ -246,7 +246,7 @@ export default function WhatsAppSettings() {
                 ))}
               </ul>
               <p className="mt-4 text-xs text-ink-subtle">
-                Send a voice memo for any of these and Sloane transcribes it. Anything that
+                Send a voice memo for any of these and Penny transcribes it. Anything that
                 sends or changes something asks you to confirm first, unless you’ve set it to
                 run automatically (e.g. intro emails, in Autonomy settings).
               </p>
@@ -259,7 +259,7 @@ export default function WhatsAppSettings() {
                   Registered Agents
                 </h2>
                 <p className="mt-1 text-xs text-ink-subtle">
-                  Only numbers listed here can message Sloane. Unrecognised numbers are
+                  Only numbers listed here can message Penny. Unrecognised numbers are
                   politely rejected.
                 </p>
               </div>
@@ -368,10 +368,10 @@ export default function WhatsAppSettings() {
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
                   SMS Channel
                 </h2>
-                {smsConfig?.sloane_sms_number ? (
+                {smsConfig?.penny_sms_number ? (
                   <p className="mt-1 text-xs text-ink-subtle">
-                    Sloane’s SMS number:{' '}
-                    <span className="font-mono text-ink">{smsConfig.sloane_sms_number}</span>.
+                    Penny’s SMS number:{' '}
+                    <span className="font-mono text-ink">{smsConfig.penny_sms_number}</span>.
                     Text-only. No voice memos or photos on this channel.
                   </p>
                 ) : (

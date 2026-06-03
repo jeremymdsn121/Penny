@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import {
   knowledgeApi,
   type KnowledgeDocument,
@@ -135,11 +135,11 @@ export default function Knowledge() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <SloaneBubble>
+        <PennyBubble>
           Upload your letterheads, sample letters, or email templates and I'll learn your
           brand's voice and formatting. I'll suggest style rules from each one — you confirm
           which to keep, and I'll follow them whenever I draft documents for you.
-        </SloaneBubble>
+        </PennyBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -182,7 +182,7 @@ export default function Knowledge() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
           </div>
         ) : (
           <>
@@ -193,7 +193,7 @@ export default function Knowledge() {
                   Proposed rules — needs review
                 </h2>
                 <p className="mt-1 text-xs text-ink-subtle">
-                  Confirm the rules that match your brand. Only confirmed rules guide Sloane.
+                  Confirm the rules that match your brand. Only confirmed rules guide Penny.
                 </p>
               </div>
               {pending.length === 0 ? (
@@ -216,7 +216,7 @@ export default function Knowledge() {
                       <div className="flex shrink-0 gap-3">
                         <button
                           onClick={() => confirmRule(r.id)}
-                          className="text-xs font-semibold text-sloane hover:underline"
+                          className="text-xs font-semibold text-penny hover:underline"
                         >
                           Confirm
                         </button>
@@ -240,7 +240,7 @@ export default function Knowledge() {
                   Confirmed style rules
                 </h2>
                 <p className="mt-1 text-xs text-ink-subtle">
-                  These are injected into Sloane's prompts so she stays on brand.
+                  These are injected into Penny's prompts so she stays on brand.
                 </p>
               </div>
               {confirmed.length === 0 ? (

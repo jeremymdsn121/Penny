@@ -1,6 +1,6 @@
--- Sloane V2 — AI disclosure & party consent (Section 6).
+-- Penny V2 — AI disclosure & party consent (Section 6).
 -- Several states have or are passing AI-disclosure requirements for real estate
--- communications. Sloane appends a disclosure footer to outbound email (on by
+-- communications. Penny appends a disclosure footer to outbound email (on by
 -- default) and can optionally collect explicit acknowledgment from parties.
 -- Run after 013_emd_tracking.sql.
 

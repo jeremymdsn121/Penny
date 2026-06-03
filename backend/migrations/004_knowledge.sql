@@ -1,13 +1,13 @@
--- Sloane — knowledge base / brand & style ingestion.
+-- Penny — knowledge base / brand & style ingestion.
 -- Creates:
 --   knowledge_documents — uploaded style references (letterheads, sample
 --                         letters, templates) stored in the private
 --                         "knowledge-docs" bucket, with processing status.
 -- Also links knowledge_rules back to the document they were extracted from.
 --
--- Flow: a brokerage admin uploads a document → Sloane reads it and proposes
+-- Flow: a brokerage admin uploads a document → Penny reads it and proposes
 -- style rules into knowledge_rules (confirmed=false) → the admin confirms →
--- confirmed rules are injected into Sloane's AI prompts.
+-- confirmed rules are injected into Penny's AI prompts.
 --
 -- Run this in the Supabase SQL Editor after 003_whatsapp.sql.
 

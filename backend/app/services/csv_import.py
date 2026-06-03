@@ -2,7 +2,7 @@
 book of business (e.g. deals already living in Dotloop / SkySlope / a spreadsheet).
 
 Rather than per-vendor parsers (which would mean coding blind against export
-formats we can't see), this accepts a documented Sloane column set AND aliases the
+formats we can't see), this accepts a documented Penny column set AND aliases the
 common header variants those tools emit, so a lightly-edited export maps without
 manual renaming. Everything here is pure (no DB/IO) so it's unit-testable; the
 route layer supplies the existing-address set for duplicate detection.
@@ -22,7 +22,7 @@ from typing import Any
 
 # Canonical transaction field -> accepted header variants (normalized form:
 # lowercased, non-alphanumerics collapsed to single spaces, trimmed). The
-# canonical Sloane header for each field is the first listed.
+# canonical Penny header for each field is the first listed.
 FIELD_ALIASES: dict[str, list[str]] = {
     "address": ["address", "property address", "property", "street address", "street", "subject property", "property street"],
     "city": ["city", "property city"],

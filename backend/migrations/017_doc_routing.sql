@@ -1,4 +1,4 @@
--- Sloane — Document routing (Autonomy task `doc-routing`).
+-- Penny — Document routing (Autonomy task `doc-routing`).
 -- Routes the contract to selected parties (e.g. title, lender) when a deal
 -- enters a chosen stage. Two tables, both brokerage-scoped:
 --   doc_routing_rules  — per-brokerage config: which stage fires, which roles

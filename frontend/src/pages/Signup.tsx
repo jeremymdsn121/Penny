@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import { useAuthStore } from '../store/auth'
 
 const schema = z.object({
@@ -37,9 +37,9 @@ export default function Signup() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4 py-10">
       <div className="w-full max-w-md space-y-6">
-        <SloaneBubble>
-          Hi, I&rsquo;m Sloane. Create your account and I&rsquo;ll walk you through setup next.
-        </SloaneBubble>
+        <PennyBubble>
+          Hi, I&rsquo;m Penny. Create your account and I&rsquo;ll walk you through setup next.
+        </PennyBubble>
 
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -72,7 +72,7 @@ export default function Signup() {
 
           <p className="text-center text-sm text-ink-muted">
             Already set up?{' '}
-            <Link to="/login" className="font-medium text-sloane hover:underline">
+            <Link to="/login" className="font-medium text-penny hover:underline">
               Log in
             </Link>
           </p>

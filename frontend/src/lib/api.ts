@@ -10,7 +10,7 @@ export function setAuthToken(token: string | null): void {
 
 // In dev, baseURL is '/api/v1' and Vite proxies it to the local backend. In a
 // deployed static build there's no proxy, so VITE_API_BASE_URL points at the
-// backend's public origin (e.g. "https://sloane-api.onrender.com/api/v1").
+// backend's public origin (e.g. "https://api.poweredbypenny.com/api/v1").
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
@@ -31,7 +31,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       authToken = null
       // Wipe the persisted Zustand store so ProtectedRoute redirects properly.
-      localStorage.removeItem('sloane-auth')
+      localStorage.removeItem('penny-auth')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -283,7 +283,7 @@ export interface WhatsAppContact {
 }
 
 export interface WhatsAppConfig {
-  sloane_whatsapp_number: string | null
+  penny_whatsapp_number: string | null
   configured: boolean
 }
 
@@ -306,7 +306,7 @@ export const whatsappApi = {
 }
 
 export interface SmsConfig {
-  sloane_sms_number: string | null
+  penny_sms_number: string | null
   configured: boolean
 }
 
@@ -375,7 +375,7 @@ export const transactionsApi = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'sloane-transactions-template.csv'
+    a.download = 'penny-transactions-template.csv'
     a.click()
     URL.revokeObjectURL(url)
   },
@@ -680,7 +680,7 @@ export const reportsApi = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `sloane-closed-${period}.csv`
+    a.download = `penny-closed-${period}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()

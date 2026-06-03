@@ -1,9 +1,9 @@
 """Anthropic-backed brand/style rule extraction for the knowledge base.
 
 A brokerage uploads a style reference — a letterhead, a sample letter, an email
-template — and Sloane proposes concrete, reusable style rules from it. The rules
+template — and Penny proposes concrete, reusable style rules from it. The rules
 land in ``knowledge_rules`` as *unconfirmed* (the admin reviews them) and, once
-confirmed, are injected into Sloane's document/email prompts so she stays on
+confirmed, are injected into Penny's document/email prompts so she stays on
 brand.
 
 Input handling by type:
@@ -110,7 +110,7 @@ def _docx_to_text(file_bytes: bytes) -> str:
 def _build_system() -> str:
     cats = ", ".join(_CATEGORIES)
     return (
-        "You are Sloane, a real estate transaction coordinator assistant. A "
+        "You are Penny, a real estate transaction coordinator assistant. A "
         "brokerage has uploaded a brand/style reference document (e.g. a "
         "letterhead, a sample letter, or an email template). Your job is to "
         "identify concrete, reusable style guidelines the brokerage applies, so "

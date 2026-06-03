@@ -1,6 +1,6 @@
 """Compliance review (PRD task ``compliance`` — locked, human-confirmed).
 
-Sloane reviews a transaction for compliance gaps and **surfaces findings for a
+Penny reviews a transaction for compliance gaps and **surfaces findings for a
 human to act on** — it never approves anything itself. Per the hard rule,
 compliance review can never run autonomously.
 
@@ -34,7 +34,7 @@ MAX_TOKENS = 2000
 
 DISCLAIMER = (
     "These are checklist prompts to verify, not legal advice. Confirm current "
-    "state and local requirements; Sloane surfaces issues but never approves "
+    "state and local requirements; Penny surfaces issues but never approves "
     "compliance — a human must review and sign off."
 )
 
@@ -217,7 +217,7 @@ def _client() -> AsyncAnthropic:
 def _build_system(ruleset_state: str, rules: list[dict[str, str]]) -> str:
     rule_lines = "\n".join(f'- {r["id"]}: {r["requirement"]}' for r in rules)
     return (
-        "You are Sloane, a real estate transaction coordinator assistant performing a "
+        "You are Penny, a real estate transaction coordinator assistant performing a "
         "COMPLIANCE REVIEW of a purchase contract. You surface possible issues for a "
         "human to verify — you do NOT approve anything and you never give legal advice.\n\n"
         f"Compliance checklist for {ruleset_state}:\n{rule_lines}\n\n"

@@ -14,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import SloaneMark from '../components/SloaneMark'
+import PennyMark from '../components/PennyMark'
 import {
   briefingApi,
   brokerApi,
@@ -193,9 +193,9 @@ interface Msg {
 
 export default function Home() {
   const navigate = useNavigate()
-  // Sloane's name is fixed (not user-editable), so don't read it from the
+  // Penny's name is fixed (not user-editable), so don't read it from the
   // brokerage record — older brokerages may still hold a stale value.
-  const assistant = 'Sloane'
+  const assistant = 'Penny'
   const reduceMotion = useReducedMotion()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -327,7 +327,7 @@ export default function Home() {
   }
 
   const ChatBar = (
-    <div className="rounded-2xl border border-hairline bg-surface shadow-soft transition-colors focus-within:border-sloane">
+    <div className="rounded-2xl border border-hairline bg-surface shadow-soft transition-colors focus-within:border-penny">
       <textarea
         ref={inputRef}
         value={input}
@@ -361,7 +361,7 @@ export default function Home() {
             onClick={() => send(input)}
             disabled={!input.trim() || sending}
             title="Send"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-sloane text-white transition-colors hover:bg-sloane-dark disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-penny text-white transition-colors hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             {sending ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
@@ -382,12 +382,12 @@ export default function Home() {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
-                <SloaneMark size={28} className="mr-3 mt-0.5 shrink-0" />
+                <PennyMark size={28} className="mr-3 mt-0.5 shrink-0" />
               )}
               <div
                 className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-sloane text-white'
+                    ? 'bg-penny text-white'
                     : 'border border-hairline bg-surface text-ink'
                 }`}
               >
@@ -397,7 +397,7 @@ export default function Home() {
           ))}
           {sending && (
             <div className="flex justify-start">
-              <SloaneMark size={28} className="mr-3 mt-0.5 shrink-0" />
+              <PennyMark size={28} className="mr-3 mt-0.5 shrink-0" />
               <div className="flex items-center gap-1 rounded-2xl border border-hairline bg-surface px-4 py-3">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.3s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.15s]" />
@@ -423,7 +423,7 @@ export default function Home() {
           house settles). The wrapper still reserves its space so nothing
           reflows when the pin lands. */}
       <div className="mb-6 flex justify-center">
-        <SloaneMark size={120} animated dropDelay={reduceMotion ? 0 : 1500} />
+        <PennyMark size={120} animated dropDelay={reduceMotion ? 0 : 1500} />
       </div>
 
       {/* Greeting + briefing */}
@@ -441,7 +441,7 @@ export default function Home() {
         {ChatBar}
       </div>
 
-      {/* Next actions — Sloane's prioritized "what I'd tackle" list. Clicking
+      {/* Next actions — Penny's prioritized "what I'd tackle" list. Clicking
           one hands the task straight to her in chat. */}
       {nextActions.length > 0 && (
         <div className={`mt-6 ${riseClass}`} style={rise(200)}>
@@ -473,7 +473,7 @@ export default function Home() {
                 </span>
                 <ArrowUp
                   size={15}
-                  className="mt-0.5 shrink-0 rotate-45 text-ink-subtle transition-colors group-hover:text-sloane"
+                  className="mt-0.5 shrink-0 rotate-45 text-ink-subtle transition-colors group-hover:text-penny"
                 />
               </button>
             ))}
@@ -487,7 +487,7 @@ export default function Home() {
           <button
             key={s}
             onClick={() => send(s)}
-            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-sloane/40 hover:text-ink"
+            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-penny/40 hover:text-ink"
           >
             {s}
           </button>
@@ -510,7 +510,7 @@ export default function Home() {
                 className="card group flex flex-col gap-2 p-4 text-left transition-colors hover:bg-surface-3"
               >
                 <div className="flex items-center justify-between">
-                  <Icon size={18} className="text-sloane dark:text-sloane-bright" />
+                  <Icon size={18} className="text-penny dark:text-penny-bright" />
                   {p.to === '/review' && reviewCount > 0 && (
                     <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-500">
                       {reviewCount}

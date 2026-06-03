@@ -1,11 +1,11 @@
-"""Next-action synthesis — the single source of truth behind Sloane's
+"""Next-action synthesis — the single source of truth behind Penny's
 "what should I do?" answers and the home-page briefing.
 
 Cross-references pending workflow tasks, missing required checklist items, EMD
 status, upcoming deadlines, and missing party contacts across a brokerage's
 active deals into a prioritized list of concrete next moves. This module is
 pure data: it returns action dicts and the caller decides how to present them —
-``sloane_agent`` reads them aloud in chat; the ``/briefing/next-actions`` route
+``penny_agent`` reads them aloud in chat; the ``/briefing/next-actions`` route
 renders them as clickable cards.
 
 Each action dict carries:
@@ -13,8 +13,8 @@ Each action dict carries:
   - ``transaction_id`` : the deal it belongs to
   - ``address``        : human label for the deal
   - ``headline``       : what's wrong / due (UI display)
-  - ``offer``          : what Sloane can do about it, first person (UI display)
-  - ``prompt``         : the message to send Sloane when the user clicks "do it"
+  - ``offer``          : what Penny can do about it, first person (UI display)
+  - ``prompt``         : the message to send Penny when the user clicks "do it"
 
 Self-contained — depends only on stdlib + the Supabase client, so it can be
 imported from both the agent and the route layer without a circular import.
@@ -67,7 +67,7 @@ def action_for_task_label(label: str, address: str) -> tuple[str, str]:
     """Map a workflow-task label to (offer, prompt).
 
     ``offer`` is first-person prose for display; ``prompt`` is the imperative
-    message sent to Sloane when the user clicks to act on it.
+    message sent to Penny when the user clicks to act on it.
     """
     lower = (label or "").lower()
     if "inspection" in lower and "objection" not in lower:

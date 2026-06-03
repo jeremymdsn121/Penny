@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { brokerApi } from '../lib/api'
-import SloaneMark from './SloaneMark'
+import PennyMark from './PennyMark'
 import { useAuthStore } from '../store/auth'
 import { useThemeStore } from '../store/theme'
 import { useUiStore } from '../store/ui'
@@ -31,7 +31,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: '/', label: 'Ask Sloane', icon: Sparkles, exact: true },
+  { to: '/', label: 'Ask Penny', icon: Sparkles, exact: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/review', label: 'Needs Review', icon: ShieldAlert },
   { to: '/listings', label: 'Listings', icon: Home },
@@ -57,7 +57,7 @@ export default function AppShell() {
   // redundant there — hide it until the user advances (into a page or a chat).
   const onLanding = location.pathname === '/' && !chatStarted
 
-  const name = brokerage?.name ?? 'Sloane'
+  const name = brokerage?.name ?? 'Penny'
 
   useEffect(() => {
     brokerApi
@@ -80,7 +80,7 @@ export default function AppShell() {
       <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-hairline bg-surface-2">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
-          <SloaneMark size={32} />
+          <PennyMark size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
           </div>
@@ -90,7 +90,7 @@ export default function AppShell() {
         <div className="px-3 pb-2">
           <button
             onClick={() => navigate('/transactions/new')}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-sloane px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-sloane-dark"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-penny px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-penny-dark"
           >
             <Plus size={16} />
             New transaction

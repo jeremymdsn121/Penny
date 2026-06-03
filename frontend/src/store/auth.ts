@@ -61,7 +61,7 @@ export const useAuthStore = create<AuthState>()(
       setBrokerage: (brokerage) => set({ brokerage }),
     }),
     {
-      name: 'sloane-auth',
+      name: 'penny-auth',
       onRehydrateStorage: () => (state) => {
         if (state?.accessToken) setAuthToken(state.accessToken)
       },

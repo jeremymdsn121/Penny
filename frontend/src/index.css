@@ -43,7 +43,7 @@
   }
 
   ::selection {
-    @apply bg-sloane/30;
+    @apply bg-penny/30;
   }
 }
 
@@ -73,7 +73,7 @@
 }
 
 /* ------------------------------------------------------------------ *
- * SloaneMark — house-in-a-pin brand mark.
+ * PennyMark — house-in-a-pin brand mark.
  *   --static = settled mark, no motion (default everywhere)
  *   --pre    = first-frame start state (pin lifted, house hidden, no FOUC)
  *   --in     = drop → impact squash → location ping → house settles, then an
@@ -91,55 +91,55 @@
  * Rings/contact default to hidden so static + reduced-motion show neither.
  * ------------------------------------------------------------------ */
 @layer utilities {
-  .sloane-mark { display: inline-block; }
-  .sloane-mark svg { overflow: visible; display: block; }
+  .penny-mark { display: inline-block; }
+  .penny-mark svg { overflow: visible; display: block; }
 
-  .sloane-mark__mark    { transform-box: fill-box; transform-origin: 50% 100%; }
-  .sloane-mark__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
-  .sloane-mark__door    { transform-box: fill-box; transform-origin: 50% 50%; }
+  .penny-mark__mark    { transform-box: fill-box; transform-origin: 50% 100%; }
+  .penny-mark__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
+  .penny-mark__door    { transform-box: fill-box; transform-origin: 50% 50%; }
   /* Pivot is the drop's centre (below the roof), so a 180° turn orbits the
      roof down into a smile and back. 139% places the origin at viewBox y≈70. */
-  .sloane-mark__roof    { transform-box: fill-box; transform-origin: 50% 139%; }
+  .penny-mark__roof    { transform-box: fill-box; transform-origin: 50% 139%; }
   /* The curved smile is hidden at rest; the sharp chevron is the resting roof. */
-  .sloane-mark__roof-curved { opacity: 0; }
-  .sloane-mark__ring    { transform-box: fill-box; transform-origin: 50% 50%; }
-  .sloane-mark__contact { transform-box: fill-box; transform-origin: 50% 50%; }
+  .penny-mark__roof-curved { opacity: 0; }
+  .penny-mark__ring    { transform-box: fill-box; transform-origin: 50% 50%; }
+  .penny-mark__contact { transform-box: fill-box; transform-origin: 50% 50%; }
 
   /* Rings + contact shadow are part of the drop-in only. */
-  .sloane-mark__ring,
-  .sloane-mark__contact { opacity: 0; }
+  .penny-mark__ring,
+  .penny-mark__contact { opacity: 0; }
 
   /* --- Pre: hold the pin off-screen above the page until the drop fires. */
-  .sloane-mark--pre .sloane-mark__mark  { transform: translateY(-60vh) scaleY(1.04) scaleX(0.98); }
-  .sloane-mark--pre .sloane-mark__roof,
-  .sloane-mark--pre .sloane-mark__door  { opacity: 0; }
+  .penny-mark--pre .penny-mark__mark  { transform: translateY(-60vh) scaleY(1.04) scaleX(0.98); }
+  .penny-mark--pre .penny-mark__roof,
+  .penny-mark--pre .penny-mark__door  { opacity: 0; }
 
   /* --- In: run the drop-in, then the idle loop. --- */
-  .sloane-mark--in .sloane-mark__mark {
-    animation: sloane-drop 1050ms linear both;
+  .penny-mark--in .penny-mark__mark {
+    animation: penny-drop 1050ms linear both;
   }
-  .sloane-mark--in .sloane-mark__breathe {
-    animation: sloane-breathe 4.5s ease-in-out 1300ms infinite;
+  .penny-mark--in .penny-mark__breathe {
+    animation: penny-breathe 4.5s ease-in-out 1300ms infinite;
   }
-  .sloane-mark--in .sloane-mark__roof {
-    animation: sloane-appear 350ms ease 760ms both,
-               sloane-roof 8s ease-in-out 1500ms infinite;
+  .penny-mark--in .penny-mark__roof {
+    animation: penny-appear 350ms ease 760ms both,
+               penny-roof 8s ease-in-out 1500ms infinite;
   }
   /* Crossfade chevron→curve as it swings down, and back on the way up. */
-  .sloane-mark--in .sloane-mark__roof-sharp  { animation: sloane-roof-sharp  8s ease-in-out 1500ms infinite; }
-  .sloane-mark--in .sloane-mark__roof-curved { animation: sloane-roof-curved 8s ease-in-out 1500ms infinite; }
-  .sloane-mark--in .sloane-mark__door {
-    animation: sloane-appear 350ms ease 820ms both,
-               sloane-door 8s ease-in-out 1500ms infinite;
+  .penny-mark--in .penny-mark__roof-sharp  { animation: penny-roof-sharp  8s ease-in-out 1500ms infinite; }
+  .penny-mark--in .penny-mark__roof-curved { animation: penny-roof-curved 8s ease-in-out 1500ms infinite; }
+  .penny-mark--in .penny-mark__door {
+    animation: penny-appear 350ms ease 820ms both,
+               penny-door 8s ease-in-out 1500ms infinite;
   }
-  .sloane-mark--in .sloane-mark__ring--1 { animation: sloane-ping 1100ms ease-out 520ms forwards; }
-  .sloane-mark--in .sloane-mark__ring--2 { animation: sloane-ping 1100ms ease-out 700ms forwards; }
-  .sloane-mark--in .sloane-mark__contact { animation: sloane-contact 1000ms ease-out both; }
+  .penny-mark--in .penny-mark__ring--1 { animation: penny-ping 1100ms ease-out 520ms forwards; }
+  .penny-mark--in .penny-mark__ring--2 { animation: penny-ping 1100ms ease-out 700ms forwards; }
+  .penny-mark--in .penny-mark__contact { animation: penny-contact 1000ms ease-out both; }
 
   /* Gravity in, snappy impact, springy rebound. Per-keyframe easing: the fall
      accelerates (no decel before contact), the squash fires the instant it
      lands (no hang), then it bounces back and settles. */
-  @keyframes sloane-drop {
+  @keyframes penny-drop {
     0%   { transform: translateY(-60vh) scaleY(1.04) scaleX(0.98);
            animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.52); }
     38%  { transform: translateY(0)     scaleY(1.02) scaleX(0.99);
@@ -152,17 +152,17 @@
            animation-timing-function: ease-in-out; }
     100% { transform: translateY(0)     scaleY(1)     scaleX(1); }
   }
-  @keyframes sloane-appear {
+  @keyframes penny-appear {
     from { opacity: 0; }
     to   { opacity: 1; }
   }
-  @keyframes sloane-breathe {
+  @keyframes penny-breathe {
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.03); }
   }
   /* The roof orbits down around the drop into a smile, holds while the door
      winks, then swings back up into a roof — once per idle cycle. */
-  @keyframes sloane-roof {
+  @keyframes penny-roof {
     0%, 3%   { transform: rotate(0deg); }
     7%       { transform: rotate(180deg); }
     24%      { transform: rotate(180deg); }
@@ -171,12 +171,12 @@
   }
   /* Shape crossfade, synced to the swing: chevron out / curve in by the time
      it reaches the bottom, and back before it returns to the top. */
-  @keyframes sloane-roof-sharp {
+  @keyframes penny-roof-sharp {
     0%, 4%, 100% { opacity: 1; }
     7%, 24%      { opacity: 0; }
     28%          { opacity: 1; }
   }
-  @keyframes sloane-roof-curved {
+  @keyframes penny-roof-curved {
     0%, 4%   { opacity: 0; }
     7%, 24%  { opacity: 1; }
     28%, 100% { opacity: 0; }
@@ -184,7 +184,7 @@
   /* The door (eye) lifts up to clear the smile, double-blinks, holds the smile
      a beat, then drops back into the doorway. translate + scaleY share this one
      transform so they don't clobber each other. */
-  @keyframes sloane-door {
+  @keyframes penny-door {
     0%, 4%    { transform: translateY(0)     scaleY(1); }
     8%        { transform: translateY(-12px) scaleY(1); }
     10%       { transform: translateY(-12px) scaleY(0.1); }
@@ -193,11 +193,11 @@
     16%, 24%  { transform: translateY(-12px) scaleY(1); }
     28%, 100% { transform: translateY(0)     scaleY(1); }
   }
-  @keyframes sloane-ping {
+  @keyframes penny-ping {
     0%   { opacity: 0.6; transform: scale(0.3); }
     100% { opacity: 0;   transform: scale(1.7); }
   }
-  @keyframes sloane-contact {
+  @keyframes penny-contact {
     0%, 40% { opacity: 0;    transform: scaleX(0.4); }
     58%     { opacity: 0.3;  transform: scaleX(1.15); }
     100%    { opacity: 0.26; transform: scaleX(1); }
@@ -206,20 +206,20 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* Settle immediately: no drop, no blink, no ripple. */
-  .sloane-mark--pre .sloane-mark__mark,
-  .sloane-mark--in  .sloane-mark__mark  { transform: none !important; }
-  .sloane-mark--pre .sloane-mark__roof,
-  .sloane-mark--pre .sloane-mark__door  { opacity: 1 !important; }
-  .sloane-mark--in  .sloane-mark__roof,
-  .sloane-mark--in  .sloane-mark__door  { transform: none !important; }
-  .sloane-mark__mark,
-  .sloane-mark__breathe,
-  .sloane-mark__roof,
-  .sloane-mark__roof-sharp,
-  .sloane-mark__roof-curved,
-  .sloane-mark__door,
-  .sloane-mark__ring,
-  .sloane-mark__contact { animation: none !important; }
+  .penny-mark--pre .penny-mark__mark,
+  .penny-mark--in  .penny-mark__mark  { transform: none !important; }
+  .penny-mark--pre .penny-mark__roof,
+  .penny-mark--pre .penny-mark__door  { opacity: 1 !important; }
+  .penny-mark--in  .penny-mark__roof,
+  .penny-mark--in  .penny-mark__door  { transform: none !important; }
+  .penny-mark__mark,
+  .penny-mark__breathe,
+  .penny-mark__roof,
+  .penny-mark__roof-sharp,
+  .penny-mark__roof-curved,
+  .penny-mark__door,
+  .penny-mark__ring,
+  .penny-mark__contact { animation: none !important; }
 }
 
 @layer components {
@@ -230,12 +230,12 @@
   .input {
     @apply w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink
       shadow-sm outline-none transition-colors placeholder:text-ink-subtle
-      focus:border-sloane focus:ring-1 focus:ring-sloane;
+      focus:border-penny focus:ring-1 focus:ring-penny;
   }
 
   .btn-primary {
-    @apply rounded-lg bg-sloane px-4 py-2 text-sm font-medium text-white transition-colors
-      hover:bg-sloane-dark disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-lg bg-penny px-4 py-2 text-sm font-medium text-white transition-colors
+      hover:bg-penny-dark disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
@@ -251,6 +251,6 @@
   }
 
   .nav-item-active {
-    @apply bg-sloane/10 text-sloane dark:bg-sloane/15 dark:text-sloane-bright;
+    @apply bg-penny/10 text-penny dark:bg-penny/15 dark:text-penny-bright;
   }
 }

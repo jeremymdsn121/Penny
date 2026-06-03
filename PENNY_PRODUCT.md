@@ -1,20 +1,20 @@
-# Sloane — Virtual Transaction Coordinator
+# Penny — Virtual Transaction Coordinator
 ### Product Document for Critique & Pre-Commercialization Review
-*Intended audience: AI critique partner or expert human reviewer. Goal: surface product gaps, missing capabilities, competitive weaknesses, and anything a real estate professional would find lacking before Sloane goes to market.*
+*Intended audience: AI critique partner or expert human reviewer. Goal: surface product gaps, missing capabilities, competitive weaknesses, and anything a real estate professional would find lacking before Penny goes to market.*
 
 ---
 
-## What Sloane Is
+## What Penny Is
 
-Sloane is a virtual transaction coordinator (TC) embedded inside a real estate brokerage. It is not a dashboard, a CRM add-on, or a chatbot. It is a staff member — one that works every channel the brokerage already uses, never forgets a deadline, never sleeps, and is onboarded once to serve every agent on the team.
+Penny is a virtual transaction coordinator (TC) embedded inside a real estate brokerage. It is not a dashboard, a CRM add-on, or a chatbot. It is a staff member — one that works every channel the brokerage already uses, never forgets a deadline, never sleeps, and is onboarded once to serve every agent on the team.
 
-The brokerage's experience of Sloane is threefold:
+The brokerage's experience of Penny is threefold:
 
-1. **WhatsApp** — agents talk to Sloane the way they'd talk to a human TC: text a question, voice-memo an update, get a real answer.
+1. **WhatsApp** — agents talk to Penny the way they'd talk to a human TC: text a question, voice-memo an update, get a real answer.
 2. **Web dashboard** — the brokerage admin manages transactions, uploads contracts, reviews compliance, drafts correspondence, tracks deadlines, and preps listings from a browser.
-3. **Email** — Sloane can introduce itself to all parties on a deal (buyer, seller, both agents, lender, title) and send branded correspondence on the brokerage's behalf.
+3. **Email** — Penny can introduce itself to all parties on a deal (buyer, seller, both agents, lender, title) and send branded correspondence on the brokerage's behalf.
 
-Every action that has external consequences requires a human to confirm it first. Sloane never sends an email, books an appointment, or pushes a listing without a deliberate "yes." This is not a limitation — it is the product's core trust contract with the brokerage.
+Every action that has external consequences requires a human to confirm it first. Penny never sends an email, books an appointment, or pushes a listing without a deliberate "yes." This is not a limitation — it is the product's core trust contract with the brokerage.
 
 ---
 
@@ -22,17 +22,17 @@ Every action that has external consequences requires a human to confirm it first
 
 - **Primary buyer:** real estate brokerage owners (broker-of-record) who manage a team of agents and currently pay a human TC per file or per month.
 - **Daily users:** agents on that team, who interact primarily through WhatsApp.
-- **Indirect beneficiaries:** transaction parties (buyers, sellers, other-side agents, lenders, title reps) who receive communications Sloane drafts.
+- **Indirect beneficiaries:** transaction parties (buyers, sellers, other-side agents, lenders, title reps) who receive communications Penny drafts.
 
-Sloane is priced per agent seat, all features included, recurring. There are no tiers and no feature gating. A small brokerage with three agents gets the same Sloane as a 30-agent office.
+Penny is priced per agent seat, all features included, recurring. There are no tiers and no feature gating. A small brokerage with three agents gets the same Penny as a 30-agent office.
 
 ---
 
 ## How a Brokerage Gets Started
 
-1. **Signup & onboarding wizard (5 steps):** brokerage name, state, contact info, assistant name (they can rename Sloane), WhatsApp number registration.
-2. **Brand & style upload:** the admin drops in a letterhead, a sample letter, or a template. Sloane reads it, proposes style rules ("always use formal salutations," "sign off with the broker's name"), and the admin confirms each rule. Confirmed rules are injected into every document Sloane drafts from then on.
-3. **First contract:** the admin or agent uploads a purchase contract PDF. Sloane extracts ~25 fields (buyer/seller names, address, price, contingency dates, closing date, agent contacts, lender, title company) and pre-populates the transaction. The agent reviews, corrects if needed, and the transaction is live.
+1. **Signup & onboarding wizard (5 steps):** brokerage name, state, contact info, assistant name (they can rename Penny), WhatsApp number registration.
+2. **Brand & style upload:** the admin drops in a letterhead, a sample letter, or a template. Penny reads it, proposes style rules ("always use formal salutations," "sign off with the broker's name"), and the admin confirms each rule. Confirmed rules are injected into every document Penny drafts from then on.
+3. **First contract:** the admin or agent uploads a purchase contract PDF. Penny extracts ~25 fields (buyer/seller names, address, price, contingency dates, closing date, agent contacts, lender, title company) and pre-populates the transaction. The agent reviews, corrects if needed, and the transaction is live.
 
 ---
 
@@ -40,24 +40,24 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 1. WhatsApp Channel (Text + Voice)
 
-**What it does:** Agents text Sloane on WhatsApp. Sloane understands natural language, has context on every active transaction, and responds in plain text. Agents can also send voice memos — Sloane transcribes them (OpenAI Whisper) and processes them the same way.
+**What it does:** Agents text Penny on WhatsApp. Penny understands natural language, has context on every active transaction, and responds in plain text. Agents can also send voice memos — Penny transcribes them (OpenAI Whisper) and processes them the same way.
 
 **Agent-facing capabilities via WhatsApp:**
 - List transactions and get deal summaries
 - Ask about a specific transaction (parties, dates, stage, notes)
 - Update a transaction's stage ("mark 123 Main St as pending")
 - Add a note to a transaction
-- Ask Sloane to preview or send an intro email to all parties on a deal
+- Ask Penny to preview or send an intro email to all parties on a deal
 - Request a drafted document (status update, cover letter, follow-up, congratulations, custom)
 - Ask about upcoming deadlines
 - Add a deadline to a transaction
-- Ask Sloane to propose showing times (Sloane checks availability based on brokerage work hours and existing appointments, proposes up to 8 slots)
+- Ask Penny to propose showing times (Penny checks availability based on brokerage work hours and existing appointments, proposes up to 8 slots)
 - Book a showing slot (confirm-gated)
 - Ask about existing appointments
 - Request a compliance review of a transaction's contract
 - Get comparable sales and an AVM estimate for a property
 
-**Confirmation gate:** Any action with external effect (send email, book appointment, push listing) requires the agent to reply with explicit confirmation before Sloane acts. This prevents accidental sends.
+**Confirmation gate:** Any action with external effect (send email, book appointment, push listing) requires the agent to reply with explicit confirmation before Penny acts. This prevents accidental sends.
 
 **Autonomy exceptions:** For mature brokerages, the admin can mark specific tasks as autonomous (e.g., "party deadline notifications"). The WhatsApp agent respects this — if a task is autonomous, it acts without asking. The compliance task can never be made autonomous (hardcoded lock).
 
@@ -67,7 +67,7 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 2. Contract PDF Extraction
 
-**What it does:** The agent or admin drops a purchase contract PDF into the "New Transaction" flow. Sloane sends it to the AI as a native document (not OCR'd text) and extracts ~25 structured fields, returning a pre-populated transaction form for human review before anything is saved.
+**What it does:** The agent or admin drops a purchase contract PDF into the "New Transaction" flow. Penny sends it to the AI as a native document (not OCR'd text) and extracts ~25 structured fields, returning a pre-populated transaction form for human review before anything is saved.
 
 **Fields extracted:** buyer name/email/phone, seller name/email/phone, property address/city/state/zip, purchase price, earnest money, closing date, inspection deadline, financing deadline, appraisal deadline, title deadline, agent on each side (name/email/phone), lender name, title company, and transaction stage.
 
@@ -95,15 +95,15 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 4. Intro Email (Party Introduction)
 
-**What it does:** When a deal goes under contract, Sloane can introduce itself — and all the parties — to everyone involved. The email is addressed to buyer, seller, buyer's agent, listing agent, lender, and title rep simultaneously. It presents Sloane as the transaction coordinator and establishes the communication channel.
+**What it does:** When a deal goes under contract, Penny can introduce itself — and all the parties — to everyone involved. The email is addressed to buyer, seller, buyer's agent, listing agent, lender, and title rep simultaneously. It presents Penny as the transaction coordinator and establishes the communication channel.
 
 **Workflow:**
-1. Agent (via WhatsApp) asks Sloane to preview the intro email for a transaction.
-2. Sloane assembles the party list from the transaction record, drafts the email, and shows a preview in the WhatsApp conversation.
+1. Agent (via WhatsApp) asks Penny to preview the intro email for a transaction.
+2. Penny assembles the party list from the transaction record, drafts the email, and shows a preview in the WhatsApp conversation.
 3. Agent replies to confirm.
-4. Sloane sends via SendGrid and flips `intro_email_sent` to prevent double-sends.
+4. Penny sends via SendGrid and flips `intro_email_sent` to prevent double-sends.
 
-**Autonomy exception:** If the `intro-email` task is marked autonomous, Sloane skips the preview step and sends directly on request.
+**Autonomy exception:** If the `intro-email` task is marked autonomous, Penny skips the preview step and sends directly on request.
 
 **Under the hood:** `email_client.py` → `gather_parties_by_keys()` resolves party records → branded HTML assembled → `SendGrid` API call → `intro_email_sent` flag set in DB.
 
@@ -111,12 +111,12 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 5. Knowledge Base (Brand & Style)
 
-**What it does:** Sloane learns the brokerage's voice, visual style, and correspondence conventions from reference documents uploaded by the admin. Those rules are then injected into every AI prompt that generates correspondence.
+**What it does:** Penny learns the brokerage's voice, visual style, and correspondence conventions from reference documents uploaded by the admin. Those rules are then injected into every AI prompt that generates correspondence.
 
 **Workflow:**
 1. Admin uploads a letterhead, sample letter, or branded template (PDF, image, or .docx).
 2. File stored in Supabase Storage (`knowledge-docs` bucket).
-3. Sloane reads the document and proposes a set of style rules (e.g., "use 'Warm regards' as the sign-off," "always include the agent's license number in the footer," "do not use contractions in formal correspondence").
+3. Penny reads the document and proposes a set of style rules (e.g., "use 'Warm regards' as the sign-off," "always include the agent's license number in the footer," "do not use contractions in formal correspondence").
 4. Rules are surfaced in the web UI as "unconfirmed." Admin confirms or rejects each.
 5. Confirmed rules are fetched and prepended to document generation and email prompts from that point forward.
 
@@ -126,17 +126,17 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 6. Document Generation
 
-**What it does:** Sloane drafts formal correspondence for any transaction — in the brokerage's confirmed voice and style.
+**What it does:** Penny drafts formal correspondence for any transaction — in the brokerage's confirmed voice and style.
 
 **Document types:** status update, cover letter, follow-up, congratulations, custom (free-form prompt).
 
 **Workflow (web UI):**
 1. Agent selects document type and optional custom instructions.
-2. Sloane drafts the document, incorporating confirmed style rules and transaction details.
+2. Penny drafts the document, incorporating confirmed style rules and transaction details.
 3. Agent reviews and edits the draft directly in the UI.
-4. Agent confirms send → Sloane emails the document via SendGrid.
+4. Agent confirms send → Penny emails the document via SendGrid.
 
-**Draft-only path (WhatsApp):** Via WhatsApp, Sloane can draft a document and return the text in-chat. Sending from WhatsApp is not currently supported (would require a separate confirmation flow in the chat thread).
+**Draft-only path (WhatsApp):** Via WhatsApp, Penny can draft a document and return the text in-chat. Sending from WhatsApp is not currently supported (would require a separate confirmation flow in the chat thread).
 
 **Under the hood:** `doc_generate.py` → `get_confirmed_knowledge_rules()` prepended to prompt → Anthropic claude-sonnet with transaction context + document type → structured JSON `{subject, body}` → parsed (strict=False to tolerate multi-line) → returned as draft. `POST /transactions/:id/send-document` (confirm-gated) → SendGrid.
 
@@ -144,15 +144,15 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 7. Deadline Tracking & Reminders
 
-**What it does:** Sloane tracks every important date on a transaction and reminds the agent (and optionally all responsible parties) as deadlines approach.
+**What it does:** Penny tracks every important date on a transaction and reminds the agent (and optionally all responsible parties) as deadlines approach.
 
 **Deadline structure:** each deadline belongs to a transaction and has a label, date, list of responsible parties (buyer, seller, buyer's agent, listing agent, lender, title), and per-threshold reminder flags.
 
-**Reminder thresholds:** same-day (0 days), 2-day warning, 5-day warning. Sloane sends the most urgent uncommunicated reminder — if a deadline crossed the 5-day mark unseen, it fires the 5-day message; the 2-day fires separately when that threshold is crossed; same-day fires on the day. Each fires only once (flags flipped after send).
+**Reminder thresholds:** same-day (0 days), 2-day warning, 5-day warning. Penny sends the most urgent uncommunicated reminder — if a deadline crossed the 5-day mark unseen, it fires the 5-day message; the 2-day fires separately when that threshold is crossed; same-day fires on the day. Each fires only once (flags flipped after send).
 
 **Two reminder paths:**
-1. **Agent nudge (always):** Sloane sends a WhatsApp message to the brokerage's registered agent number describing the approaching deadline and what action is needed.
-2. **Party notification (autonomy-gated):** Sloane emails the responsible parties directly. This only fires if the `deadline-reminders` task is marked autonomous for that brokerage. If not, the admin must trigger party notifications explicitly (confirm-gated button in the web UI).
+1. **Agent nudge (always):** Penny sends a WhatsApp message to the brokerage's registered agent number describing the approaching deadline and what action is needed.
+2. **Party notification (autonomy-gated):** Penny emails the responsible parties directly. This only fires if the `deadline-reminders` task is marked autonomous for that brokerage. If not, the admin must trigger party notifications explicitly (confirm-gated button in the web UI).
 
 **Reminder trigger:** currently a manually triggered HTTP endpoint (`POST /deadlines/run-reminders`) with a "⏰ Run reminders" button on the Dashboard. In production, this would be called by an external cron (e.g., GitHub Actions schedule, Render cron job, etc.) — no in-process scheduler.
 
@@ -162,11 +162,11 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 8. Compliance Review
 
-**What it does:** Sloane reviews a transaction's contract against state-specific real estate compliance checklists and returns a structured finding report for a human to evaluate. It never makes a compliance determination — it surfaces findings, and a human approves or flags.
+**What it does:** Penny reviews a transaction's contract against state-specific real estate compliance checklists and returns a structured finding report for a human to evaluate. It never makes a compliance determination — it surfaces findings, and a human approves or flags.
 
 **Two layers of review:**
 1. **Structural checks (always run, no AI needed):** verifies that required fields are populated (buyer/seller name, address, price, closing date, all agent contacts), that the closing date hasn't already passed, and that a contract PDF is attached.
-2. **AI review (runs when contract PDF + Anthropic key are present):** Sloane reads the full contract as a native document and evaluates it against a per-state ruleset. State rulesets currently exist for DEFAULT (universal), TX, SC, FL, CA, and NY. Each ruleset is a list of verification questions (e.g., "Is the earnest money amount specified?", "Is the financing contingency period stated?"). The AI returns a status (`compliant`, `non_compliant`, `unclear`, `not_applicable`) and a note for each.
+2. **AI review (runs when contract PDF + Anthropic key are present):** Penny reads the full contract as a native document and evaluates it against a per-state ruleset. State rulesets currently exist for DEFAULT (universal), TX, SC, FL, CA, and NY. Each ruleset is a list of verification questions (e.g., "Is the earnest money amount specified?", "Is the financing contingency period stated?"). The AI returns a status (`compliant`, `non_compliant`, `unclear`, `not_applicable`) and a note for each.
 
 **Output:** findings list (with severity: error, warning, info), annotated state checklist with AI statuses, a suggested `compliance_status` (not_reviewed, needs_attention, approved). Only the `compliance_status` field is persisted — findings are recomputed on demand.
 
@@ -178,23 +178,23 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 9. Comparable Sales (Market Valuation)
 
-**What it does:** Sloane fetches an automated valuation model (AVM) estimate and a set of recent comparable sales for any transaction property, directly inside the transaction view.
+**What it does:** Penny fetches an automated valuation model (AVM) estimate and a set of recent comparable sales for any transaction property, directly inside the transaction view.
 
 **Output:** estimated value, low/high range, and up to 6 comparables (address, sale price, beds/baths, square footage, distance from subject).
 
 **Under the hood:** `rentcast.py` → `compose_address(tx)` builds a full address string → `GET /avm/value` on Rentcast API with `X-Api-Key` header → response parsed → comparables cleaned and returned. 503 if `RENTCAST_API_KEY` is not configured.
 
-**WhatsApp path:** Agent can ask "what are comps for 123 Main St?" — Sloane calls `get_comparable_sales` tool with a free-form address (not requiring an existing transaction).
+**WhatsApp path:** Agent can ask "what are comps for 123 Main St?" — Penny calls `get_comparable_sales` tool with a free-form address (not requiring an existing transaction).
 
 ---
 
 ### 10. Scheduling & Appointments
 
-**What it does:** Sloane proposes available showing times based on the brokerage's work hours, existing appointment load, and optional calendar sync — then books confirmed appointments.
+**What it does:** Penny proposes available showing times based on the brokerage's work hours, existing appointment load, and optional calendar sync — then books confirmed appointments.
 
-**Slot proposal:** Given a starting day and duration (default 30 minutes), Sloane generates candidate slots across the next N working days within configured work hours, excludes slots that collide with existing Sloane-managed appointments (plus future: live calendar busy intervals), and returns up to 8 options in the brokerage's local timezone (resolved from state).
+**Slot proposal:** Given a starting day and duration (default 30 minutes), Penny generates candidate slots across the next N working days within configured work hours, excludes slots that collide with existing Penny-managed appointments (plus future: live calendar busy intervals), and returns up to 8 options in the brokerage's local timezone (resolved from state).
 
-**Confirmation gate:** The agent selects a slot from WhatsApp or the web UI. Sloane asks for confirmation. On confirm, Sloane inserts the appointment record, and (once calendar sync is live) creates a calendar event.
+**Confirmation gate:** The agent selects a slot from WhatsApp or the web UI. Penny asks for confirmation. On confirm, Penny inserts the appointment record, and (once calendar sync is live) creates a calendar event.
 
 **Calendar sync seam:** `calendar_provider.py` is a documented no-op stub. `get_busy()` returns an empty list; `create_event()` does nothing. The OAuth flow (Google/Microsoft app registration, token exchange, refresh) is deferred until credentials are available. Slot proposal and appointment CRUD work now without live calendar sync.
 
@@ -204,13 +204,13 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ### 11. MLS Listing Preparation
 
-**What it does:** Sloane reads a listing packet PDF and extracts the fields required to enter a property into the MLS — dramatically reducing the manual data-entry step for a listing agent.
+**What it does:** Penny reads a listing packet PDF and extracts the fields required to enter a property into the MLS — dramatically reducing the manual data-entry step for a listing agent.
 
 **Fields extracted (23):** address/city/state/zip, property_type, list_price, bedrooms, bathrooms, square_footage, lot_size_sqft, year_built, stories, garage_spaces, hoa_fee, hoa_frequency, annual_taxes, parcel_number, mls_number, school_district, public_remarks, features (array), listing_agent_name/email, seller_name.
 
 **Workflow:**
 1. Agent uploads a listing packet PDF to the Listings page (drag-and-drop or browse).
-2. Sloane extracts fields and opens the listing detail view pre-populated.
+2. Penny extracts fields and opens the listing detail view pre-populated.
 3. Agent reviews, corrects, and saves.
 4. When ready, agent clicks "Push to MLS." The current response explains that direct MLS entry is a market-specific add-on and is not yet connected — the data is prepared and ready.
 
@@ -222,7 +222,7 @@ Sloane is priced per agent seat, all features included, recurring. There are no 
 
 ## Integration Map
 
-| Integration | What Sloane Uses It For | Status |
+| Integration | What Penny Uses It For | Status |
 |---|---|---|
 | **Anthropic (claude-sonnet-4-5)** | Contract extraction, MLS extraction, style rule extraction, document generation, compliance AI review, WhatsApp agent (tool-use loop) | Requires `ANTHROPIC_API_KEY` |
 | **Twilio WhatsApp** | Inbound/outbound WhatsApp messages; signature validation on inbound webhook | Requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` (sandbox or approved number) |
@@ -320,16 +320,16 @@ Browser → POST /api/v1/transactions (multipart, PDF)
 
 ## Capability Boundaries (Honest Limits)
 
-- **Sloane does not have memory across conversations beyond transaction context.** The WhatsApp agent is stateless except for the last N WhatsApp messages per contact. It does not remember what was said three weeks ago unless it's recorded in the transaction notes.
-- **Sloane cannot send or receive files via WhatsApp.** MMS/media inbound is not yet wired. Agents cannot text a PDF to Sloane and have it process it — contract upload goes through the web UI.
-- **Sloane does not integrate with agent-side tools** (dotloop, SkySlope, Docusign, etc.). It maintains its own transaction record. There is no sync or import from existing TC software.
-- **Sloane does not handle money.** No earnest money tracking, escrow verification, or commission calculation.
-- **Calendar sync is a no-op.** Slot proposals use only Sloane-managed appointment history and brokerage work hours. Live Google/Microsoft calendar free/busy data is not yet wired.
+- **Penny does not have memory across conversations beyond transaction context.** The WhatsApp agent is stateless except for the last N WhatsApp messages per contact. It does not remember what was said three weeks ago unless it's recorded in the transaction notes.
+- **Penny cannot send or receive files via WhatsApp.** MMS/media inbound is not yet wired. Agents cannot text a PDF to Penny and have it process it — contract upload goes through the web UI.
+- **Penny does not integrate with agent-side tools** (dotloop, SkySlope, Docusign, etc.). It maintains its own transaction record. There is no sync or import from existing TC software.
+- **Penny does not handle money.** No earnest money tracking, escrow verification, or commission calculation.
+- **Calendar sync is a no-op.** Slot proposals use only Penny-managed appointment history and brokerage work hours. Live Google/Microsoft calendar free/busy data is not yet wired.
 - **MLS push is a no-op.** The data is prepared; the actual submission to any MLS system is deferred.
-- **Compliance review is advisory only.** Sloane flags potential issues; it does not interpret law. The disclaimer is injected into every compliance response.
+- **Compliance review is advisory only.** Penny flags potential issues; it does not interpret law. The disclaimer is injected into every compliance response.
 - **State rulesets are manual.** Compliance checklists for TX, SC, FL, CA, NY exist. Every other state falls back to a DEFAULT ruleset. Expanding coverage requires adding rulesets to `compliance.py`.
-- **Sloane does not handle inbound calls.** Voice memos sent through WhatsApp are transcribed; live phone calls are not supported.
-- **One Sloane per brokerage.** There is no agent-level sub-account. All agents at a brokerage share the same Sloane instance and knowledge base.
+- **Penny does not handle inbound calls.** Voice memos sent through WhatsApp are transcribed; live phone calls are not supported.
+- **One Penny per brokerage.** There is no agent-level sub-account. All agents at a brokerage share the same Penny instance and knowledge base.
 
 ---
 

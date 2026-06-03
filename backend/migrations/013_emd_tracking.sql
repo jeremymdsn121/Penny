@@ -1,4 +1,4 @@
--- Sloane V2 — Earnest money deposit receipt tracking (Section 5).
+-- Penny V2 — Earnest money deposit receipt tracking (Section 5).
 -- Brokers are personally liable for trust-account handling in many states. If EMD
 -- isn't received by the deadline and no one noticed, that's a legal problem.
 -- This tracks *receipt only* — no calculations, no disbursements, no trust math.

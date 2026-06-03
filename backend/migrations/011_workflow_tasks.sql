@@ -1,6 +1,6 @@
--- Sloane V2 — Workflow task templates (Section 3).
+-- Penny V2 — Workflow task templates (Section 3).
 -- A human TC's core value is knowing what needs to happen next without being
--- asked. These templates let Sloane generate the right tasks at the right time
+-- asked. These templates let Penny generate the right tasks at the right time
 -- (on stage entry, or N days before a deadline), so she's proactive, not just
 -- reactive. Run after 010_review_queue.sql.
 

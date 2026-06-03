@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import DocRoutingSettings from '../components/DocRoutingSettings'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import TaskToggle from '../components/TaskToggle'
 import { autonomyApi, type TaskAutonomy } from '../lib/api'
 
@@ -53,15 +53,15 @@ export default function AutonomySettings() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Autonomy</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Choose what Sloane does on her own, and what she drafts for your approval.
+          Choose what Penny does on her own, and what she drafts for your approval.
         </p>
       </div>
 
-      <SloaneBubble>
+      <PennyBubble>
         I&rsquo;ll act on my own for anything you switch on here. Everything else I&rsquo;ll draft
         and hold for your approval. Compliance review always needs a human, so it can&rsquo;t be
         automated.
-      </SloaneBubble>
+      </PennyBubble>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -71,7 +71,7 @@ export default function AutonomySettings() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
         </div>
       ) : (
         <>

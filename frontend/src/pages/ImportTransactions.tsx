@@ -75,7 +75,7 @@ export default function ImportTransactions() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Import transactions</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Already have deals in another tool? Export them to CSV and bring them into Sloane.
+          Already have deals in another tool? Export them to CSV and bring them into Penny.
           A lightly-edited Dotloop, SkySlope, or spreadsheet export usually maps automatically.
         </p>
       </div>
@@ -91,7 +91,7 @@ export default function ImportTransactions() {
         <>
           <button
             onClick={downloadTemplate}
-            className="inline-flex items-center gap-2 text-sm font-medium text-sloane hover:underline"
+            className="inline-flex items-center gap-2 text-sm font-medium text-penny hover:underline"
           >
             <Download size={16} />
             Download CSV template
@@ -103,7 +103,7 @@ export default function ImportTransactions() {
             onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0] ?? null) }}
             onClick={() => fileRef.current?.click()}
             className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 text-center transition-colors ${
-              dragOver ? 'border-sloane bg-sloane-light/30' : 'border-hairline hover:border-sloane/50'
+              dragOver ? 'border-penny bg-penny-light/30' : 'border-hairline hover:border-penny/50'
             }`}
           >
             <FileSpreadsheet size={32} className="mb-3 text-ink-subtle" />

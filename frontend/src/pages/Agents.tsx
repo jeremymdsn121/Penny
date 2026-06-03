@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import { agentsApi, knowledgeApi, type Agent, type KnowledgeRule } from '../lib/api'
 
 function cap(s?: string | null): string {
@@ -126,7 +126,7 @@ function StyleProfile({ agent }: { agent: Agent }) {
                     <div className="flex shrink-0 gap-2">
                       <button
                         onClick={() => confirmRule(r.id)}
-                        className="text-xs font-semibold text-sloane hover:underline"
+                        className="text-xs font-semibold text-penny hover:underline"
                       >
                         Confirm
                       </button>
@@ -236,11 +236,11 @@ export default function Agents() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-10">
-        <SloaneBubble>
+        <PennyBubble>
           Add your agents here. Each can build a personal “My Style” profile — upload a sample
           email and I’ll match their voice when I draft documents for them. The brokerage’s
           Brand &amp; Style is the floor; an agent’s rules win where they differ.
-        </SloaneBubble>
+        </PennyBubble>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -281,7 +281,7 @@ export default function Agents() {
           </div>
           {loading ? (
             <div className="flex justify-center py-10">
-              <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+              <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
             </div>
           ) : agents.length === 0 ? (
             <p className="px-6 py-8 text-center text-sm text-ink-subtle">No agents yet.</p>
@@ -300,7 +300,7 @@ export default function Agents() {
                     <div className="flex shrink-0 items-center gap-3">
                       <button
                         onClick={() => setExpanded(expanded === a.id ? null : a.id)}
-                        className="text-xs font-semibold text-sloane hover:underline"
+                        className="text-xs font-semibold text-penny hover:underline"
                       >
                         {expanded === a.id ? 'Hide' : 'My Style'}
                       </button>

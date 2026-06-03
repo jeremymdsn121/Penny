@@ -3,7 +3,7 @@
 The SMS fallback channel mirrors the WhatsApp agent for realtors who don't use
 WhatsApp. Twilio calls POST /sms/inbound for every SMS to the configured number.
 We validate the signature, look up the sender in agent_channels (channel='sms'),
-run the same Sloane tool-use agent, and reply via standard SMS.
+run the same Penny tool-use agent, and reply via standard SMS.
 
 Differences from WhatsApp: text only — no voice transcription and no inbound
 media/PDF (WhatsApp handles document uploads). Replies originate from
@@ -19,11 +19,12 @@ from app.api.v1.routes.whatsapp import _normalise_phone
 from app.config import settings
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
-from app.services import sloane_agent
+from app.services import penny_agent
 from app.services.twilio_client import (
     TwilioNotConfigured,
     send_sms_message,
     validate_twilio_signature,
+    webhook_url,
 )
 
 router = APIRouter(prefix="/sms", tags=["sms"])
@@ -33,13 +34,13 @@ CHANNEL = "sms"
 
 @router.post("/inbound")
 async def inbound(request: Request) -> Any:
-    """Receive an inbound SMS from Twilio and reply via the Sloane agent."""
+    """Receive an inbound SMS from Twilio and reply via the Penny agent."""
     form = await request.form()
     form_data = {k: str(v) for k, v in form.items()}
 
     if not settings.TWILIO_SKIP_VALIDATION:
         signature = request.headers.get("X-Twilio-Signature", "")
-        url = str(request.url)
+        url = webhook_url(request)
         if not validate_twilio_signature(url, form_data, signature):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Twilio signature"
@@ -59,7 +60,7 @@ async def inbound(request: Request) -> Any:
             send_sms_message(
                 phone_number,
                 "Hi! I don't recognise this number. Please ask your broker to "
-                "register it for SMS in Sloane first.",
+                "register it for SMS in Penny first.",
             )
         except TwilioNotConfigured:
             pass
@@ -84,7 +85,7 @@ async def inbound(request: Request) -> Any:
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "your brokerage")
 
-    reply = await sloane_agent.run_sloane_agent(
+    reply = await penny_agent.run_penny_agent(
         brokerage_id=brokerage_id,
         brokerage_name=brokerage_name,
         contact_display_name=display_name,
@@ -151,6 +152,6 @@ async def remove_contact(
 async def sms_config(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
-    """Return Sloane's SMS number so the frontend can display it."""
+    """Return Penny's SMS number so the frontend can display it."""
     number = settings.TWILIO_SMS_FROM or None
-    return {"sloane_sms_number": number, "configured": number is not None}
+    return {"penny_sms_number": number, "configured": number is not None}

@@ -1,4 +1,4 @@
--- Sloane V2 — Broker reporting support (Section 7).
+-- Penny V2 — Broker reporting support (Section 7).
 -- Records when a deal closed so production metrics (count, volume, days-to-close)
 -- can be computed per period. closed_at is set on the stage transition to 'closed'.
 -- Run after 014_party_consents.sql.

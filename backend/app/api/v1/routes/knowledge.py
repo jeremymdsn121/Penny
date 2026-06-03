@@ -1,9 +1,9 @@
 """Knowledge base — brand & style document ingestion.
 
 A brokerage admin uploads a style reference (letterhead, sample letter, email
-template). We store the original in a private bucket, ask Sloane to propose style
+template). We store the original in a private bucket, ask Penny to propose style
 rules from it, and persist those rules as *unconfirmed* knowledge_rules. The
-admin reviews and confirms them; confirmed rules are injected into Sloane's AI
+admin reviews and confirms them; confirmed rules are injected into Penny's AI
 prompts (see supabase_client.get_confirmed_knowledge_rules).
 
 All endpoints require a valid JWT and are scoped to the caller's brokerage.

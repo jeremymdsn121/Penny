@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 
 /**
- * SloaneMark — Sloane's brand mark: a location pin with a house tucked inside
+ * PennyMark — Penny's brand mark: a location pin with a house tucked inside
  * (roof + door), in the brand purple with a glossy, rounded 3-D surface. House
  * + pin reads instantly as "real estate, tied to a place"; the rounded forms
  * keep it warm.
@@ -19,10 +19,10 @@ import { useEffect, useId, useState } from 'react'
  * (sidebar + landing) don't share gradient / clip / filter ids.
  *
  * Usage:
- *   <SloaneMark size={120} animated />   // landing
- *   <SloaneMark size={32} />             // sidebar / login / inline
+ *   <PennyMark size={120} animated />   // landing
+ *   <PennyMark size={32} />             // sidebar / login / inline
  */
-interface SloaneMarkProps {
+interface PennyMarkProps {
   size?: number
   /** Run the drop-in + idle (breathe/blink) animation. Off by default. */
   animated?: boolean
@@ -44,13 +44,13 @@ const ROOF = 'M 41 63 L 60 45 L 79 63'
 /** Curved smile the roof morphs into when it swings down on the idle loop. */
 const SMILE = 'M 40 61 Q 60 46 80 61'
 
-export default function SloaneMark({
+export default function PennyMark({
   size = 120,
   animated = false,
   dropDelay = 0,
-  label = 'Sloane',
+  label = 'Penny',
   className = '',
-}: SloaneMarkProps) {
+}: PennyMarkProps) {
   // Hold the pin off-screen (pre) for `dropDelay`, then run the cycle (in).
   // The pre state and the drop keyframe's 0% share the same off-screen
   // transform, so `both` fill means there's no flash even before this fires.
@@ -71,7 +71,7 @@ export default function SloaneMark({
     <div
       role="img"
       aria-label={label}
-      className={`sloane-mark sloane-mark--${phase} ${className}`}
+      className={`penny-mark penny-mark--${phase} ${className}`}
       style={{ width: size, height: size }}
     >
       <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden="true">
@@ -124,15 +124,15 @@ export default function SloaneMark({
 
         {/* Contact shadow + location-ping ripples sit behind the pin and only
             show during the drop-in (idle/static keep them hidden). */}
-        <ellipse className="sloane-mark__contact" cx="60" cy="104" rx="16" ry="3.4" fill="#000000" />
-        <ellipse className="sloane-mark__ring sloane-mark__ring--1" cx="60" cy="103" rx="22" ry="7"
+        <ellipse className="penny-mark__contact" cx="60" cy="104" rx="16" ry="3.4" fill="#000000" />
+        <ellipse className="penny-mark__ring penny-mark__ring--1" cx="60" cy="103" rx="22" ry="7"
           fill="none" stroke="#A78BFA" strokeWidth="2.5" />
-        <ellipse className="sloane-mark__ring sloane-mark__ring--2" cx="60" cy="103" rx="22" ry="7"
+        <ellipse className="penny-mark__ring penny-mark__ring--2" cx="60" cy="103" rx="22" ry="7"
           fill="none" stroke="#A78BFA" strokeWidth="2.5" />
 
         {/* The mark drops + squashes on impact; the inner group breathes. */}
-        <g className="sloane-mark__mark" filter={`url(#shadow${uid})`}>
-          <g className="sloane-mark__breathe">
+        <g className="penny-mark__mark" filter={`url(#shadow${uid})`}>
+          <g className="penny-mark__breathe">
             <path d={PIN} fill={`url(#g${uid})`} />
             <g clipPath={`url(#clip${uid})`}>
               <rect width="120" height="120" fill={`url(#form${uid})`} />
@@ -143,9 +143,9 @@ export default function SloaneMark({
                 around the drop and crossfades chevron→curve (so it becomes a
                 proper smile, not a sharp v) while the door double-blinks like
                 an eye, then swings back up into the roof. */}
-            <g className="sloane-mark__roof">
+            <g className="penny-mark__roof">
               <path
-                className="sloane-mark__roof-sharp"
+                className="penny-mark__roof-sharp"
                 d={ROOF}
                 fill="none"
                 stroke="#F4F0FE"
@@ -154,7 +154,7 @@ export default function SloaneMark({
                 strokeLinejoin="round"
               />
               <path
-                className="sloane-mark__roof-curved"
+                className="penny-mark__roof-curved"
                 d={SMILE}
                 fill="none"
                 stroke="#F4F0FE"
@@ -163,7 +163,7 @@ export default function SloaneMark({
                 strokeLinejoin="round"
               />
             </g>
-            <rect className="sloane-mark__door" x="53" y="67" width="14" height="17" rx="4.5" fill="#F4F0FE" />
+            <rect className="penny-mark__door" x="53" y="67" width="14" height="17" rx="4.5" fill="#F4F0FE" />
           </g>
         </g>
       </svg>

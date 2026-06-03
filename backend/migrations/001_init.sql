@@ -1,4 +1,4 @@
--- Sloane — initial schema (PRD Section 4) + row-level security.
+-- Penny — initial schema (PRD Section 4) + row-level security.
 -- Run this once in the Supabase SQL Editor.
 --
 -- Isolation model: every row is scoped to a brokerage. The authenticated user
@@ -32,7 +32,7 @@ $$;
 create table if not exists brokerages (
   id                    uuid primary key default gen_random_uuid(),
   name                  text not null,
-  assistant_name        text default 'Sloane',
+  assistant_name        text default 'Penny',
   state                 text,
   email                 text,
   phone                 text,

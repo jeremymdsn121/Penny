@@ -1,9 +1,10 @@
 """Twilio helper — send WhatsApp messages back to realtors.
 
 Intentionally thin: we only need to send text replies and (optionally) validate
-incoming webhook signatures. All AI logic lives in sloane_agent.py.
+incoming webhook signatures. All AI logic lives in penny_agent.py.
 """
 
+from starlette.requests import Request
 from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 
@@ -62,6 +63,22 @@ def send_sms_message(to_number: str, body: str) -> None:
         to=to_number,
         body=body,
     )
+
+
+def webhook_url(request: Request) -> str:
+    """Reconstruct the public URL Twilio actually signed.
+
+    Twilio signs the full https URL configured in the console, but behind a
+    TLS-terminating proxy (e.g. Render) uvicorn sees the forwarded request as
+    http unless it's been told to trust the proxy, so ``request.url.scheme`` is
+    ``http`` and the HMAC never matches. Honour ``X-Forwarded-Proto`` so
+    validation works regardless of the uvicorn start command.
+    """
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    url = request.url
+    if proto and proto != url.scheme:
+        url = url.replace(scheme=proto)
+    return str(url)
 
 
 def validate_twilio_signature(url: str, params: dict, signature: str) -> bool:

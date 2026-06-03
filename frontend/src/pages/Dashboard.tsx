@@ -75,13 +75,13 @@ function StatCard({
       disabled={!onClick}
       className={`card flex flex-col gap-3 p-5 text-left transition-colors ${
         onClick ? 'hover:bg-surface-3' : 'cursor-default'
-      } ${accent ? 'ring-1 ring-sloane/40' : ''}`}
+      } ${accent ? 'ring-1 ring-penny/40' : ''}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-subtle">
           {label}
         </span>
-        <Icon size={18} className={accent ? 'text-sloane dark:text-sloane-bright' : 'text-ink-subtle'} />
+        <Icon size={18} className={accent ? 'text-penny dark:text-penny-bright' : 'text-ink-subtle'} />
       </div>
       <span className="text-3xl font-semibold tracking-tight text-ink">{value}</span>
     </button>
@@ -167,7 +167,7 @@ export default function Dashboard() {
       </div>
 
       {reminderNote && (
-        <div className="mb-6 rounded-lg border border-sloane/30 bg-sloane/10 px-4 py-2.5 text-sm text-ink">
+        <div className="mb-6 rounded-lg border border-penny/30 bg-penny/10 px-4 py-2.5 text-sm text-ink">
           {reminderNote}
         </div>
       )}
@@ -194,7 +194,7 @@ export default function Dashboard() {
           </h2>
           <button
             onClick={() => navigate('/transactions/new')}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-sloane hover:text-sloane-dark dark:text-sloane-bright"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-penny hover:text-penny-dark dark:text-penny-bright"
           >
             <Plus size={16} />
             New transaction
@@ -203,14 +203,14 @@ export default function Dashboard() {
 
         {txLoading ? (
           <div className="flex justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-penny border-t-transparent" />
           </div>
         ) : transactions.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <p className="text-sm text-ink-subtle">No transactions yet.</p>
             <button
               onClick={() => navigate('/transactions/new')}
-              className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-sloane hover:underline dark:text-sloane-bright"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-penny hover:underline dark:text-penny-bright"
             >
               Upload your first contract <ArrowRight size={15} />
             </button>
@@ -239,7 +239,7 @@ export default function Dashboard() {
                       <div className="hidden items-center gap-2 sm:flex" title="Compliance file completion">
                         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-3">
                           <div
-                            className="h-full rounded-full bg-sloane dark:bg-sloane-bright"
+                            className="h-full rounded-full bg-penny dark:bg-penny-bright"
                             style={{ width: `${tx.checklist_pct}%` }}
                           />
                         </div>

@@ -1,8 +1,8 @@
--- Sloane — WhatsApp messaging tables (Task 17).
+-- Penny — WhatsApp messaging tables (Task 17).
 -- Creates:
 --   whatsapp_contacts  — maps realtor phone numbers to a brokerage
 --   whatsapp_messages  — conversation history (last N messages fed to Claude)
--- Also adds a notes column to transactions so Sloane can annotate deals.
+-- Also adds a notes column to transactions so Penny can annotate deals.
 -- Run this in the Supabase SQL Editor after 002_onboarding.sql.
 
 -- --------------------------------------------------------------------------- --

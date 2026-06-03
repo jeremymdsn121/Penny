@@ -69,7 +69,7 @@ export default function TaskPanel({ txId }: { txId: string }) {
     <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
       <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-muted">Tasks</h3>
       <p className="mb-4 text-xs text-ink-subtle">
-        Sloane generates these as the deal progresses — what needs to happen next.
+        Penny generates these as the deal progresses — what needs to happen next.
       </p>
 
       {error && (
@@ -108,7 +108,7 @@ export default function TaskPanel({ txId }: { txId: string }) {
                   <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() => setStatus(t, 'complete')}
-                      className="text-xs font-semibold text-sloane hover:underline"
+                      className="text-xs font-semibold text-penny hover:underline"
                     >
                       Done
                     </button>

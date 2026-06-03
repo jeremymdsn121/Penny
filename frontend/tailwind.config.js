@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        sloane: {
+        penny: {
           DEFAULT: '#7C3AED',
           dark: '#6D28D9',
           light: '#EDE9FE',

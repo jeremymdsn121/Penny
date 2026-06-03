@@ -1,4 +1,4 @@
--- Sloane V2 — Per-agent style profiles (Section 1B).
+-- Penny V2 — Per-agent style profiles (Section 1B).
 -- Brokerage-wide style rules are the floor; an individual agent can layer their
 -- own style on top. A rule with agent_id NULL is brokerage-wide; a rule with
 -- agent_id set applies only to that agent's generated documents and takes

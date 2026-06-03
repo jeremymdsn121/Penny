@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import SloaneBubble from '../components/SloaneBubble'
+import PennyBubble from '../components/PennyBubble'
 import { transactionsApi, type ExtractResult } from '../lib/api'
 
 // --------------------------------------------------------------------------- //
@@ -84,7 +84,7 @@ const EXTRACTED_KEYS = new Set([
 const BASE = 'w-full rounded-lg border px-3 py-2 text-sm text-ink shadow-sm outline-none'
 const FOUND_CLS = `${BASE} border-green-400 focus:border-green-500 focus:ring-1 focus:ring-green-500`
 const MISSING_CLS = `${BASE} border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500`
-const NEUTRAL_CLS = `${BASE} border-hairline focus:border-sloane focus:ring-1 focus:ring-sloane`
+const NEUTRAL_CLS = `${BASE} border-hairline focus:border-penny focus:ring-1 focus:ring-penny`
 
 function fieldClass(key: string, notFound: string[]): string {
   if (!EXTRACTED_KEYS.has(key)) return NEUTRAL_CLS
@@ -208,8 +208,8 @@ export default function NewTransaction() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
-        {/* Sloane message */}
-        <SloaneBubble>
+        {/* Penny message */}
+        <PennyBubble>
           {phase === 'upload' || phase === 'extracting'
             ? "Drop a PDF contract below. I'll pull out all the key details for you to review."
             : `I found ${foundCount} field${foundCount !== 1 ? 's' : ''}${
@@ -217,7 +217,7 @@ export default function NewTransaction() {
                   ? `. ${missingCount} field${missingCount !== 1 ? 's are' : ' is'} highlighted in red — fill those in before saving.`
                   : '. Everything looks complete — review and confirm below.'
               }`}
-        </SloaneBubble>
+        </PennyBubble>
 
         {/* Error banner */}
         {error && (
@@ -233,12 +233,12 @@ export default function NewTransaction() {
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
             className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-surface px-8 py-16 text-center transition-colors ${
-              dragOver ? 'border-sloane bg-sloane-light' : 'border-hairline'
+              dragOver ? 'border-penny bg-penny-light' : 'border-hairline'
             }`}
           >
             {phase === 'extracting' ? (
               <>
-                <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-sloane border-t-transparent" />
+                <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-penny border-t-transparent" />
                 <p className="text-sm font-medium text-ink">Extracting fields…</p>
                 <p className="mt-1 text-xs text-ink-subtle">This usually takes 10–20 seconds.</p>
               </>
@@ -275,7 +275,7 @@ export default function NewTransaction() {
         {phase === 'upload' && (
           <p className="text-center text-sm text-ink-subtle">
             Moving from another tool?{' '}
-            <Link to="/transactions/import" className="font-medium text-sloane hover:underline">
+            <Link to="/transactions/import" className="font-medium text-penny hover:underline">
               Import existing deals from CSV
             </Link>
           </p>
@@ -305,7 +305,7 @@ export default function NewTransaction() {
                   href={extractResult.signed_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm font-medium text-sloane hover:underline"
+                  className="text-sm font-medium text-penny hover:underline"
                 >
                   View PDF ↗
                 </a>

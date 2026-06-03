@@ -22,15 +22,15 @@ class Settings(BaseSettings):
     # SECRET_KEY when unset.
     CONSENT_SECRET: str | None = None
     # Public base URL of the backend, used to build absolute consent links in
-    # outbound email (e.g. "https://api.heysloane.io"). Defaults to localhost.
+    # outbound email (e.g. "https://api.poweredbypenny.com"). Defaults to localhost.
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     # Optional integrations, wired up in later phases.
     ANTHROPIC_API_KEY: str | None = None
     SENDGRID_API_KEY: str | None = None
     # "From" address for outbound email. Must be a verified sender in SendGrid.
-    SENDGRID_FROM_EMAIL: str = "hello@heysloane.io"
-    # Domain that routes inbound replies back to Sloane via SendGrid Inbound Parse
+    SENDGRID_FROM_EMAIL: str = "hello@poweredbypenny.com"
+    # Domain that routes inbound replies back to Penny via SendGrid Inbound Parse
     # (MX -> mx.sendgrid.net). Outbound mail sets Reply-To: tx-{id}@<this domain>.
     # When unset, reply threading is disabled (no Reply-To added).
     REPLY_EMAIL_DOMAIN: str | None = None
@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     ]
     # Additional comma-separated origins for deployed frontends, merged with
     # CORS_ORIGINS at startup. E.g.
-    # "https://sloane-web.onrender.com,https://app.heysloane.io".
+    # "https://penny-web.onrender.com,https://app.poweredbypenny.com".
     EXTRA_CORS_ORIGINS: str = ""
 
     @property

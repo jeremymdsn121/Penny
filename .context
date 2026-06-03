@@ -1,10 +1,10 @@
-# Sloane V2 — Build Context (condensed from SLOANE_V2_CLAUDE_CODE.md)
+# Penny V2 — Build Context (condensed from PENNY_V2_CLAUDE_CODE.md)
 
-Single working spec for V2 build. Source of truth is SLOANE_V2_CLAUDE_CODE.md;
+Single working spec for V2 build. Source of truth is PENNY_V2_CLAUDE_CODE.md;
 this is the navigational digest for future sessions. Read the full doc before
 implementing any section.
 
-> **Post-V2 note:** web-app work was layered on after V2 (Ask Sloane web chat,
+> **Post-V2 note:** web-app work was layered on after V2 (Ask Penny web chat,
 > chat-forward home + UI redesign, agent-targeted reply nudges + optional reply
 > forwarding, migration 016). That work is **not** in this digest or the V2 spec —
 > see the "Web app (post-V2)" and "Inbound email threading (4)" sections of CLAUDE.md.
@@ -149,9 +149,9 @@ UI: Tasks panel on transaction detail; overdue badge on transaction list.
 
 ### 4. Inbound Email Reply Threading (migration 009)
 
-DNS: `reply.heysloane.io` MX → `mx.sendgrid.net`. Configure Inbound Parse → `POST /api/v1/email/inbound`.
+DNS: `reply.poweredbypenny.com` MX → `mx.sendgrid.net`. Configure Inbound Parse → `POST /api/v1/email/inbound`.
 
-Outbound emails: `Reply-To: tx-{transaction_id}@reply.heysloane.io`
+Outbound emails: `Reply-To: tx-{transaction_id}@reply.poweredbypenny.com`
 
 Table `transaction_emails` (transaction_id, direction CHECK('outbound'|'inbound'),
 sender_email, sender_name, recipient_emails[], subject, body_text, body_html,
@@ -242,14 +242,14 @@ in `signed_contract_url` (or contract_pdf_url), add transaction note.
 UI: Signatures card — "Send for Signature" pre-fills from party contacts, confirm-gated,
 status indicator (Draft/Sent/Partial/Completed/Declined), link to signed doc.
 
-**Scoping constraint**: NOT a forms library. DocuSign sends documents Sloane already has
+**Scoping constraint**: NOT a forms library. DocuSign sends documents Penny already has
 (extracted contracts, generated correspondence). NOT generating state association forms
 (see Hard Limit 1).
 
 ## Hard Limits — Document in BLOCKERS.md, Do Not Engineer Around
 
 1. **State association forms** — Dotloop/zipForm have NAR + state assoc licensing.
-   Sloane can extract/track/sign, but cannot distribute forms. 6–18 month legal process.
+   Penny can extract/track/sign, but cannot distribute forms. 6–18 month legal process.
 
 2. **MLS write APIs** — ~580 MLSs, each needs separate data access agreement + creds
    (sometimes RESO Web API cert). Pursue per beachhead market only; `mls_provider` seam
@@ -285,10 +285,10 @@ status indicator (Draft/Sent/Partial/Completed/Declined), link to signed doc.
 ## Framing — Always
 
 User is a broker-owner running a 6-agent shop, also producing. Never had a TC.
-Comparing Sloane to her current chaos (Gmail + Sheet + DocuSign), not to SkySlope.
+Comparing Penny to her current chaos (Gmail + Sheet + DocuSign), not to SkySlope.
 Every feature should make Monday morning easier. If she has to think about it,
 simplify it. If she has to maintain a second system, she'll abandon it.
 
 ---
-Source: SLOANE_V2_CLAUDE_CODE.md v1.0 (compiled 2026-05-27, commit 829ca32).
+Source: PENNY_V2_CLAUDE_CODE.md v1.0 (compiled 2026-05-27, commit 829ca32).
 Read the full doc before implementing any section — this digest is for navigation.

@@ -1,7 +1,7 @@
 """SendGrid email service.
 
 Thin wrapper around the SendGrid API plus the **intro email** — the
-introduction Sloane sends to everyone on a transaction (buyer, seller, agents,
+introduction Penny sends to everyone on a transaction (buyer, seller, agents,
 lender, title) once a deal is underway, presenting herself as the coordinator
 (PRD task ``intro-email``).
 
@@ -371,7 +371,7 @@ def _intro_html(
         <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:{_WHITE};border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
           <tr>
             <td style="background:{_BRAND_VIOLET};padding:28px 40px;text-align:center;">
-              <p style="margin:0;color:{_WHITE};font-size:24px;font-weight:700;letter-spacing:-0.5px;">Sloane</p>
+              <p style="margin:0;color:{_WHITE};font-size:24px;font-weight:700;letter-spacing:-0.5px;">Penny</p>
               <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:13px;font-weight:500;">Transaction Coordinator · {brokerage_name}</p>
             </td>
           </tr>
@@ -381,7 +381,7 @@ def _intro_html(
                 Introductions for {address}
               </h1>
               <p style="margin:0 0 20px;font-size:15px;color:{_TEXT_DARK};line-height:1.6;">
-                Hi everyone — I'm Sloane, the transaction coordinator working with
+                Hi everyone — I'm Penny, the transaction coordinator working with
                 <strong>{brokerage_name}</strong> on the transaction at <strong>{address}</strong>.
                 I'll be helping keep everyone aligned through closing. I've put you all on this
                 thread so you have each other's contact details in one place.
@@ -400,7 +400,7 @@ def _intro_html(
           <tr>
             <td style="background:{_BG};padding:18px 40px;border-top:1px solid #E5E7EB;text-align:center;">
               <p style="margin:0;font-size:12px;color:{_TEXT_MUTED};">
-                Sent by Sloane on behalf of {brokerage_name}
+                Sent by Penny on behalf of {brokerage_name}
               </p>
             </td>
           </tr>
@@ -422,7 +422,7 @@ def _intro_plain(
         f"Introductions for {address}",
         "=" * 40,
         "",
-        f"Hi everyone — I'm Sloane, the transaction coordinator working with "
+        f"Hi everyone — I'm Penny, the transaction coordinator working with "
         f"{brokerage_name} on the transaction at {address}. I'll be helping keep "
         f"everyone aligned through closing. I've put you all on this thread so you "
         f"have each other's contact details in one place.",
@@ -440,6 +440,6 @@ def _intro_plain(
         "thread updated as we move toward closing.",
         "",
         "—",
-        f"Sent by Sloane on behalf of {brokerage_name}",
+        f"Sent by Penny on behalf of {brokerage_name}",
     ]
     return "\n".join(lines)

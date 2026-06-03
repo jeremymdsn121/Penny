@@ -2,13 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sloane-frontend",
+      "name": "penny-frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\sloane\\frontend", "run", "dev"],
       "port": 5173
     },
     {
-      "name": "sloane-preview",
+      "name": "penny-preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:\\Users\\Jeremy\\sloane\\frontend", "run", "preview", "--", "--port", "4173"],
       "port": 4173

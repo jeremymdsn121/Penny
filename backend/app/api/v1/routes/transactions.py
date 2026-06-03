@@ -177,7 +177,7 @@ async def import_template(
     return Response(
         content=csv_import.template_csv(),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="sloane-transactions-template.csv"'},
+        headers={"Content-Disposition": 'attachment; filename="penny-transactions-template.csv"'},
     )
 
 
