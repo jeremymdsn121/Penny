@@ -92,7 +92,14 @@ async def inbound_email(request: Request) -> Any:
     form = await request.form()
     data = {k: str(v) for k, v in form.items()}
 
-    transaction_id = _extract_tx_id(data.get("to", ""))
+    # Penny's tx-{id}@reply… address may be in To, CC, or only in the SMTP
+    # envelope (the true delivered recipient — covers BCC and forwards where
+    # she's CC'd rather than a primary recipient).
+    transaction_id = (
+        _extract_tx_id(data.get("to", ""))
+        or _extract_tx_id(data.get("cc", ""))
+        or _extract_tx_id(data.get("envelope", ""))
+    )
     if not transaction_id:
         # Nothing we can attribute this to — acknowledge so SendGrid stops retrying.
         return {"ok": True, "matched": False}
