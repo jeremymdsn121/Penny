@@ -289,6 +289,10 @@ export interface WhatsAppConfig {
 
 export interface MessagingSettings {
   forward_replies_to_agent?: boolean | null
+  // Two-way email (Phase 1): let Penny reply by email to the brokerage's own
+  // agents, and draft suggested replies to outside parties for agent approval.
+  email_agent_autoreply_enabled?: boolean | null
+  email_outside_draft_enabled?: boolean | null
 }
 
 export const whatsappApi = {
@@ -538,6 +542,41 @@ export const emailsApi = {
     api.get<TransactionEmail[]>(`/transactions/${txId}/emails`).then((r) => r.data),
   markRead: (txId: string) =>
     api.post<{ ok: boolean }>(`/transactions/${txId}/emails/read`).then((r) => r.data),
+}
+
+// Suggested replies to outside parties — Penny drafts, the agent confirm-sends.
+export interface PendingEmailReply {
+  id: string
+  transaction_id: string
+  inbound_email_id?: string | null
+  to_email: string
+  to_name?: string | null
+  subject: string
+  draft_body: string
+  summary?: string | null
+  recommendation?: string | null
+  trigger_type?: 'none' | 'time' | 'event' | 'manual' | null
+  scheduled_send_at?: string | null
+  trigger_event?: string | null
+  hold_note?: string | null
+  status: 'pending' | 'scheduled' | 'awaiting_event' | 'held' | 'sent' | 'dismissed'
+  created_at: string
+}
+
+export const pendingRepliesApi = {
+  listForTransaction: (txId: string) =>
+    api
+      .get<PendingEmailReply[]>(`/transactions/${txId}/pending-replies`)
+      .then((r) => r.data),
+  send: (id: string, data: { subject?: string; body?: string; confirmed: boolean }) =>
+    api
+      .post<{ sent: boolean; recipient: string }>(
+        `/email/pending-replies/${id}/send`,
+        data,
+      )
+      .then((r) => r.data),
+  dismiss: (id: string) =>
+    api.post<{ ok: boolean }>(`/email/pending-replies/${id}/dismiss`).then((r) => r.data),
 }
 
 // --------------------------------------------------------------------------- //

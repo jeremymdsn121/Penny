@@ -173,3 +173,95 @@ async def generate_document(
         raise DocGenerationError(f"Anthropic API error: {exc}") from exc
     raw = "".join(block.text for block in response.content if block.type == "text")
     return _parse(raw)
+
+
+# --------------------------------------------------------------------------- #
+# Outside-party reply drafting (two-way email). One call returns a summary of
+# what the outside party said, a recommendation framed for the internal agent,
+# and the proposed reply to the outside party.
+# --------------------------------------------------------------------------- #
+
+def _build_reply_system(brokerage_name: str, style_rules: list[dict[str, Any]]) -> str:
+    rules = "\n".join(f"- {r.get('category')}: {r.get('rule')}" for r in style_rules)
+    rules_block = rules or "None on file yet — use a clear, warm, professional tone."
+    return (
+        f"You are Penny, a transaction coordinator for {brokerage_name}. An OUTSIDE "
+        "party on a deal (e.g. the other side's agent, a lender, or title) has replied "
+        "to one of your emails. You are preparing material for the deal's own agent: a "
+        "short summary of what the outside party said, a one-line recommendation, and a "
+        "proposed reply you could send to the outside party on the agent's say-so.\n\n"
+        f"Brand & style rules (for the proposed reply):\n{rules_block}\n\n"
+        'Return ONLY a JSON object with exactly these keys: "summary", "recommendation", '
+        '"subject", "body".\n'
+        "Rules:\n"
+        "- summary: 1-2 sentences, plain language, what the outside party wants or said.\n"
+        "- recommendation: one sentence to the agent, e.g. \"The seller's agent wants to "
+        'discuss closing costs — I can respond if you\'d like.\"\n'
+        "- subject: the reply's subject line (keep the thread's subject, prefixed Re: if "
+        "appropriate).\n"
+        "- body: the proposed reply TO THE OUTSIDE PARTY, plain text, in the brokerage's "
+        "voice, ready to send after the agent approves.\n"
+        "- NEVER invent facts, make commitments, or quote terms not in the record. Where "
+        "the agent must decide or supply something, use a clearly-marked [placeholder].\n"
+        "- Return only the JSON object — no prose, no markdown fences."
+    )
+
+
+def _parse_reply(text: str) -> dict[str, str]:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        data = json.loads(text, strict=False)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise DocGenerationError("Model did not return JSON.")
+        try:
+            data = json.loads(match.group(0), strict=False)
+        except json.JSONDecodeError as exc:
+            raise DocGenerationError(f"Could not parse model JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise DocGenerationError("Model response was not a JSON object.")
+    body = str(data.get("body", "")).strip()
+    if not body:
+        raise DocGenerationError("Model returned an empty reply body.")
+    return {
+        "summary": str(data.get("summary", "")).strip(),
+        "recommendation": str(data.get("recommendation", "")).strip(),
+        "subject": str(data.get("subject", "")).strip(),
+        "body": body,
+    }
+
+
+async def generate_email_reply(
+    *,
+    transaction: dict[str, Any],
+    brokerage_name: str,
+    inbound_text: str,
+    sender_label: str,
+    style_rules: list[dict[str, Any]] | None = None,
+) -> dict[str, str]:
+    """Summarize an outside party's email and draft a proposed reply.
+
+    Returns ``{"summary", "recommendation", "subject", "body"}``. Raises
+    DocNotConfigured / DocGenerationError like ``generate_document``.
+    """
+    client = _client()
+    user = (
+        f"Transaction details:\n{_tx_context(transaction)}\n\n"
+        f"The outside party is: {sender_label}\n\n"
+        f"Their email message:\n{inbound_text}"
+    )
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=_build_reply_system(brokerage_name, style_rules or []),
+            messages=[{"role": "user", "content": user}],
+        )
+    except Exception as exc:
+        raise DocGenerationError(f"Anthropic API error: {exc}") from exc
+    raw = "".join(block.text for block in response.content if block.type == "text")
+    return _parse_reply(raw)

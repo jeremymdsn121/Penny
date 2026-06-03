@@ -38,6 +38,10 @@ export default function WhatsAppSettings() {
   // Reply-handling settings
   const [forwardReplies, setForwardReplies] = useState(false)
   const [forwardSaving, setForwardSaving] = useState(false)
+  // Two-way email (Phase 1)
+  const [agentAutoreply, setAgentAutoreply] = useState(true)
+  const [outsideDraft, setOutsideDraft] = useState(true)
+  const [emailSaving, setEmailSaving] = useState(false)
 
   // Add-contact form
   const [phone, setPhone] = useState('')
@@ -60,6 +64,8 @@ export default function WhatsAppSettings() {
         setSmsConfig(scfg)
         setSmsContacts(sctcts)
         setForwardReplies(!!settings.forward_replies_to_agent)
+        setAgentAutoreply(settings.email_agent_autoreply_enabled !== false)
+        setOutsideDraft(settings.email_outside_draft_enabled !== false)
       })
       .catch(() => setError('Could not load messaging settings.'))
       .finally(() => setLoading(false))
@@ -78,6 +84,38 @@ export default function WhatsAppSettings() {
       setError('Could not save the reply-forwarding setting.')
     } finally {
       setForwardSaving(false)
+    }
+  }
+
+  async function toggleAgentAutoreply(next: boolean) {
+    setAgentAutoreply(next) // optimistic
+    setEmailSaving(true)
+    try {
+      const saved: MessagingSettings = await whatsappApi.updateSettings({
+        email_agent_autoreply_enabled: next,
+      })
+      setAgentAutoreply(saved.email_agent_autoreply_enabled !== false)
+    } catch {
+      setAgentAutoreply(!next)
+      setError('Could not save the email-reply setting.')
+    } finally {
+      setEmailSaving(false)
+    }
+  }
+
+  async function toggleOutsideDraft(next: boolean) {
+    setOutsideDraft(next) // optimistic
+    setEmailSaving(true)
+    try {
+      const saved: MessagingSettings = await whatsappApi.updateSettings({
+        email_outside_draft_enabled: next,
+      })
+      setOutsideDraft(saved.email_outside_draft_enabled !== false)
+    } catch {
+      setOutsideDraft(!next)
+      setError('Could not save the suggested-reply setting.')
+    } finally {
+      setEmailSaving(false)
     }
   }
 
@@ -227,6 +265,47 @@ export default function WhatsAppSettings() {
                   </span>
                 </span>
               </label>
+
+              <div className="mt-5 border-t border-hairline pt-5">
+                <p className="mb-3 text-xs text-ink-subtle">
+                  Agents answer in whatever channel a message reaches them. These let email work
+                  as a two-way channel, so an agent never has to switch apps to act on a reply.
+                </p>
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agentAutoreply}
+                    disabled={emailSaving}
+                    onChange={(e) => toggleAgentAutoreply(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-hairline text-penny focus:ring-penny disabled:opacity-50"
+                  />
+                  <span className="text-sm text-ink">
+                    Let agents reply to Penny by email
+                    <span className="mt-0.5 block text-xs text-ink-subtle">
+                      When one of your agents emails Penny about a deal, she answers in the same
+                      thread, just like WhatsApp or chat.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="mt-4 flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={outsideDraft}
+                    disabled={emailSaving}
+                    onChange={(e) => toggleOutsideDraft(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-hairline text-penny focus:ring-penny disabled:opacity-50"
+                  />
+                  <span className="text-sm text-ink">
+                    Suggest replies to outside parties for approval
+                    <span className="mt-0.5 block text-xs text-ink-subtle">
+                      When a buyer, seller, or other agent replies, Penny drafts a suggested
+                      response on the transaction. She never sends to outside parties without your
+                      review.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </section>
 
             {/* ── What agents can do ── */}

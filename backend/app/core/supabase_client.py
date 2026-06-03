@@ -1840,3 +1840,147 @@ async def update_pending_doc_route(route_id: str, data: dict[str, Any]) -> dict[
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if rows else {}
+
+
+# --------------------------------------------------------------------------- #
+# Agent lookup by email — used to recognise an inbound email reply as coming
+# from one of the brokerage's own agents (vs. an outside party).
+# --------------------------------------------------------------------------- #
+
+async def get_agent_by_email(
+    brokerage_id: str, email: str
+) -> dict[str, Any] | None:
+    """Return the brokerage's agent whose email matches (case-insensitive), or None."""
+    clean = (email or "").strip()
+    if not clean:
+        return None
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/agents",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "email": f"ilike.{clean}",
+                "select": "*",
+                "limit": "1",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+# --------------------------------------------------------------------------- #
+# Pending email replies — the outside-party suggested-reply approval queue
+# (migration 018). Mirrors pending_doc_routes: Penny drafts, the agent
+# confirm-sends. Sends to outside parties are never automatic.
+# --------------------------------------------------------------------------- #
+
+async def insert_pending_email_reply(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Queue a suggested reply. Returns None on a unique-constraint conflict
+    (a pending suggestion already exists for this inbound message), keeping the
+    inbound handler idempotent across retried Inbound Parse deliveries."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/pending_email_replies",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code == 409:
+        return None
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_pending_email_replies(
+    brokerage_id: str, *, status_filter: str | None = "pending"
+) -> list[dict[str, Any]]:
+    params = {
+        "brokerage_id": f"eq.{brokerage_id}",
+        "select": "*",
+        "order": "created_at.desc",
+    }
+    if status_filter:
+        params["status"] = f"eq.{status_filter}"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_email_replies",
+            params=params,
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_pending_email_reply(reply_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_email_replies",
+            params={"id": f"eq.{reply_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_pending_email_replies_for_transaction(
+    transaction_id: str,
+) -> list[dict[str, Any]]:
+    """All open suggested replies for a deal (awaiting, scheduled, or held)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_email_replies",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "status": "in.(pending,scheduled,awaiting_event,held)",
+                "select": "*",
+                "order": "created_at.desc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def update_pending_email_reply(
+    reply_id: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/pending_email_replies",
+            params={"id": f"eq.{reply_id}"},
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else {}
+
+
+async def list_email_replies_by_statuses(
+    brokerage_id: str, statuses: list[str]
+) -> list[dict[str, Any]]:
+    """Armed/held suggested replies for the scheduled-reply scan."""
+    joined = ",".join(statuses)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_email_replies",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "status": f"in.({joined})",
+                "select": "*",
+                "order": "created_at.asc",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()

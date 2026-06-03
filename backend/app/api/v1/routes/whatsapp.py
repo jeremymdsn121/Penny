@@ -532,12 +532,22 @@ async def whatsapp_config(
 
 # Brokerage-level toggles that govern how Penny routes communications. Kept here
 # (with the Messaging page's other APIs) rather than under compliance settings.
-_MESSAGING_SETTINGS_FIELDS = ("forward_replies_to_agent",)
+_MESSAGING_SETTINGS_FIELDS = (
+    "forward_replies_to_agent",
+    "email_agent_autoreply_enabled",
+    "email_outside_draft_enabled",
+)
 
 
 class MessagingSettingsIn(BaseModel):
     # Forward each inbound email reply to the deal's agent inbox (opt-in).
     forward_replies_to_agent: bool | None = None
+    # Let Penny reply by email when one of the brokerage's own agents emails her
+    # about a deal (two-way email, Phase 1 — defaults on).
+    email_agent_autoreply_enabled: bool | None = None
+    # When an outside party emails, have Penny draft a suggested reply for the
+    # agent to review and send (never auto-sends to outside parties).
+    email_outside_draft_enabled: bool | None = None
 
 
 @router.get("/settings")
