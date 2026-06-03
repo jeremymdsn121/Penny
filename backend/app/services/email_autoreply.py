@@ -223,6 +223,7 @@ async def maybe_autorespond(
             summary=draft.get("summary") or "",
             recommendation=draft.get("recommendation") or "",
             draft_body=draft.get("body") or "",
+            sender_email=sender_email,
         )
         return "outside_drafted"
 
@@ -264,15 +265,35 @@ async def _notify_agent_of_draft(
     summary: str,
     recommendation: str,
     draft_body: str,
+    sender_email: str | None = None,
 ) -> None:
-    """Email the deal's agent the summary + proposed reply; fall back to WhatsApp."""
+    """Email a trusted internal recipient the summary + proposed reply.
+
+    Resolution order: the deal's assigned agent, then the brokerage's own
+    coordinator email, then the deal's listing/selling agent emails. We NEVER
+    notify the person who just replied (that would leak the internal draft to the
+    outside party) and skip Penny's own / reply-domain address. Falls back to a
+    WhatsApp nudge when no usable internal email is found.
+    """
     address = tx.get("address") or "a transaction"
-    agent_email = (
-        (agent or {}).get("email")
-        or tx.get("listing_agent_email")
-        or tx.get("selling_agent_email")
-        or ""
-    ).strip()
+    penny_from = (email_client.from_email() or "").strip().lower()
+    reply_domain = (settings.REPLY_EMAIL_DOMAIN or "").strip().lower()
+    skip = {penny_from, (sender_email or "").strip().lower()}
+    skip.discard("")
+    agent_email = ""
+    for cand in (
+        (agent or {}).get("email"),
+        (brokerage or {}).get("email"),
+        tx.get("listing_agent_email"),
+        tx.get("selling_agent_email"),
+    ):
+        c = (cand or "").strip()
+        if not c or c.lower() in skip:
+            continue
+        if reply_domain and c.lower().endswith("@" + reply_domain):
+            continue
+        agent_email = c
+        break
     if agent_email:
         try:
             sent = await asyncio.to_thread(
