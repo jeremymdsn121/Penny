@@ -14,6 +14,7 @@ from app.api.v1.routes import (
     doc_routing,
     email,
     knowledge,
+    legal,
     listings,
     onboarding,
     reports,
@@ -44,3 +45,4 @@ api_router.include_router(chat.router)
 api_router.include_router(autonomy.router)
 api_router.include_router(doc_routing.router)
 api_router.include_router(briefing.router)
+api_router.include_router(legal.router)
