@@ -1508,6 +1508,39 @@ async def insert_transaction_email(data: dict[str, Any]) -> dict[str, Any]:
     return rows[0] if isinstance(rows, list) and rows else rows
 
 
+async def insert_compliance_feedback(data: dict[str, Any]) -> dict[str, Any]:
+    """Record a broker's correct/incorrect verdict on an AI compliance finding
+    (BLOCKERS Hard Limit 5 — audit log only, never auto-tunes the model)."""
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/compliance_feedback", json=data, headers=headers
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def list_compliance_feedback(
+    brokerage_id: str, transaction_id: str | None = None
+) -> list[dict[str, Any]]:
+    params = {
+        "brokerage_id": f"eq.{brokerage_id}",
+        "select": "*",
+        "order": "created_at.desc",
+    }
+    if transaction_id:
+        params["transaction_id"] = f"eq.{transaction_id}"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/compliance_feedback", params=params, headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
 async def list_transaction_emails(transaction_id: str) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(

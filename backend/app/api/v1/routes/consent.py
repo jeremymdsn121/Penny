@@ -16,10 +16,17 @@ from pydantic import BaseModel
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
 from app.services import consent as consent_svc
+from app.services import retention
 
 router = APIRouter(tags=["consent"])
 
-_SETTINGS_FIELDS = ("ai_disclosure_enabled", "ai_disclosure_text", "request_ai_consent")
+_SETTINGS_FIELDS = (
+    "ai_disclosure_enabled",
+    "ai_disclosure_text",
+    "request_ai_consent",
+    "document_retention_years",
+    "document_retention_enabled",
+)
 
 
 def _page(message: str) -> HTMLResponse:
@@ -78,6 +85,8 @@ class ComplianceSettingsIn(BaseModel):
     ai_disclosure_enabled: bool | None = None
     ai_disclosure_text: str | None = None
     request_ai_consent: bool | None = None
+    document_retention_years: int | None = None
+    document_retention_enabled: bool | None = None
 
 
 @router.get("/compliance-settings")
@@ -95,6 +104,11 @@ async def update_settings(
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nothing to update")
+    if "document_retention_years" in data:
+        # Clamp to a sane window (1–30y) so the policy value is always meaningful.
+        data["document_retention_years"] = retention.clamp_years(
+            data["document_retention_years"]
+        )
     updated = await sb.update_brokerage(brokerage["id"], data)
     return {k: updated.get(k) for k in _SETTINGS_FIELDS}
 

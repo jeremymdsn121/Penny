@@ -28,6 +28,8 @@ export default function ComplianceSettingsPage() {
         ai_disclosure_enabled: settings.ai_disclosure_enabled ?? true,
         ai_disclosure_text: settings.ai_disclosure_text ?? '',
         request_ai_consent: settings.request_ai_consent ?? false,
+        document_retention_years: settings.document_retention_years ?? 7,
+        document_retention_enabled: settings.document_retention_enabled ?? false,
       })
       setSettings(updated)
       setNotice('Saved.')
@@ -124,6 +126,53 @@ export default function ComplianceSettingsPage() {
                 </span>
               </span>
             </label>
+
+            <div className="border-t border-hairline pt-5">
+              <h2 className="text-sm font-semibold text-ink">Document retention</h2>
+              <p className="mt-1 text-xs text-ink-subtle">
+                State your record-keeping policy for transaction documents. Real estate
+                commonly requires keeping files for several years (7 is typical). This is
+                shown to brokers asking about data handling.
+              </p>
+
+              <label className="mt-4 block">
+                <span className="mb-1 block text-xs font-medium text-ink-muted">
+                  Retention period (years)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={settings.document_retention_years ?? 7}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      document_retention_years: Number(e.target.value),
+                    }))
+                  }
+                  className="w-28 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink"
+                />
+              </label>
+
+              <label className="mt-4 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.document_retention_enabled ?? false}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, document_retention_enabled: e.target.checked }))
+                  }
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-ink">
+                  Enforce this policy
+                  <span className="block text-xs text-ink-subtle">
+                    Records your intent to purge documents past the window. Automated
+                    deletion is not enabled yet — it ships as a separately-reviewed step, so
+                    nothing is deleted today. Off by default.
+                  </span>
+                </span>
+              </label>
+            </div>
 
             <button onClick={save} disabled={saving} className="btn-primary">
               {saving ? 'Saving…' : 'Save settings'}

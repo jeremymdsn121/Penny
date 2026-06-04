@@ -388,6 +388,12 @@ Post-V2 (web-app work):
   `trigger_event` / `hold_note` / `last_reminder_at` to `pending_email_replies`
   and widens `status` (`scheduled`/`awaiting_event`/`held`). See the Inbound
   email threading (4) bullet.
+- `020_ai_usage.sql` — per-brokerage AI token-usage log (prompt-caching /
+  cost accounting).
+- `021_compliance_feedback.sql` — `compliance_feedback` (broker correct/incorrect
+  verdicts on AI compliance findings; BLOCKERS Hard Limit 5). Audit log only.
+- `022_document_retention.sql` — `brokerages.document_retention_years` (default 7)
+  + `document_retention_enabled` (default false); BLOCKERS Hard Limit 6 interim.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
@@ -634,9 +640,11 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
 
 ### Outstanding setup (all on Jeremy's side)
 
-Migrations **001 → 016 are all applied in the dev brokerage** (008 and 016 were
-applied during the post-V2 web-app work). For a fresh environment, apply them in
-order via the Supabase SQL editor (paste each file's contents) — mind the 008
+Migrations **001 → 022 are all applied in the dev brokerage** (008 and 016 were
+applied during the post-V2 web-app work; 021 compliance_feedback + 022
+document_retention applied alongside this HL5/HL6 work). For a fresh environment,
+apply them in order via the Supabase SQL editor (paste each file's contents) —
+mind the 008
 caveat in the Database section. Set new env vars where their feature is being
 exercised: `TWILIO_SMS_FROM` (1C), `SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6).
 V1 keys (`ANTHROPIC_API_KEY`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most

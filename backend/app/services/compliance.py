@@ -223,12 +223,17 @@ def _build_system(ruleset_state: str, rules: list[dict[str, str]]) -> str:
         f"Compliance checklist for {ruleset_state}:\n{rule_lines}\n\n"
         "Read the attached contract document and assess each checklist item.\n"
         "Return ONLY a JSON object: {\"assessments\": [{\"rule_id\": <id>, "
-        "\"status\": \"satisfied\"|\"missing\"|\"unclear\", \"note\": <short reason>}]}.\n"
+        "\"status\": \"satisfied\"|\"missing\"|\"unclear\", "
+        "\"confidence\": \"high\"|\"medium\"|\"low\", \"note\": <short reason>}]}.\n"
         "Rules:\n"
         "- Use the exact rule_id values from the checklist.\n"
         "- \"satisfied\" only when the document clearly shows the item is met.\n"
         "- \"missing\" when the document indicates the item is absent or not done.\n"
         "- \"unclear\" when you cannot tell from the document — never guess.\n"
+        "- \"confidence\" is how sure you are this assessment is right from the "
+        "document alone: \"high\" = the document states it plainly; \"medium\" = "
+        "implied or needs interpretation; \"low\" = a weak inference. Be honest — "
+        "a human double-checks low-confidence items first.\n"
         "- Keep each note under 25 words and specific to the document.\n"
         "- Return only the JSON object, no prose, no markdown fences."
     )
@@ -293,6 +298,17 @@ async def ai_review_contract(
 # --------------------------------------------------------------------------- #
 
 _AI_SEVERITY = {"missing": "issue", "unclear": "warning"}
+_CONFIDENCE_LEVELS = {"high", "medium", "low"}
+
+
+def normalize_confidence(value: Any) -> str:
+    """Coerce a model-reported confidence to high/medium/low.
+
+    Anything missing or unrecognized becomes ``low`` — we'd rather over-surface an
+    uncertain finding for a human to check than quietly treat it as reliable.
+    """
+    v = str(value or "").strip().lower()
+    return v if v in _CONFIDENCE_LEVELS else "low"
 
 
 async def review_transaction(
@@ -308,7 +324,8 @@ async def review_transaction(
 
     # Start the checklist as "not_reviewed"; AI annotates it if it runs.
     checklist = [
-        {**r, "ai_status": "not_reviewed", "ai_note": None} for r in rules
+        {**r, "ai_status": "not_reviewed", "ai_note": None, "ai_confidence": None}
+        for r in rules
     ]
     by_id = {item["id"]: item for item in checklist}
 
@@ -325,8 +342,10 @@ async def review_transaction(
                     continue
                 status = a.get("status")
                 note = (a.get("note") or "").strip() or None
+                confidence = normalize_confidence(a.get("confidence"))
                 item["ai_status"] = status if status in ("satisfied", "missing", "unclear") else "unclear"
                 item["ai_note"] = note
+                item["ai_confidence"] = confidence
                 severity = _AI_SEVERITY.get(item["ai_status"])
                 if severity:
                     findings.append({
@@ -336,6 +355,7 @@ async def review_transaction(
                                    + (f" — {note}" if note else ""),
                         "source": "contract",
                         "rule_id": rid,
+                        "confidence": confidence,
                     })
         except ComplianceNotConfigured:
             ai_error = "AI contract review unavailable (ANTHROPIC_API_KEY not set)."

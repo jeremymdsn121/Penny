@@ -448,6 +448,14 @@ class ComplianceDecisionIn(BaseModel):
     confirmed: bool = False
 
 
+class ComplianceFeedbackIn(BaseModel):
+    rule_id: str
+    human_verdict: str  # 'correct' | 'incorrect'
+    ai_status: str | None = None
+    ai_confidence: str | None = None
+    note: str | None = None
+
+
 @router.post("/{transaction_id}/compliance-review")
 async def compliance_review(
     transaction_id: str,
@@ -490,6 +498,52 @@ async def compliance_decision(
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {"compliance_status": tx.get("compliance_status")}
+
+
+# Compliance feedback (BLOCKERS Hard Limit 5): the broker marks an AI finding
+# correct/incorrect. Audit log only — it never auto-tunes the model or changes the
+# review. Not confirm-gated (it records an opinion, doesn't act on anyone).
+@router.post("/{transaction_id}/compliance-feedback")
+async def compliance_feedback(
+    transaction_id: str,
+    body: ComplianceFeedbackIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    verdict = (body.human_verdict or "").strip().lower()
+    if verdict not in ("correct", "incorrect"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="human_verdict must be 'correct' or 'incorrect'.",
+        )
+    if not (body.rule_id or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="rule_id is required."
+        )
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    row = {
+        "brokerage_id": brokerage["id"],
+        "transaction_id": transaction_id,
+        "rule_id": body.rule_id.strip(),
+        "ai_status": body.ai_status,
+        "ai_confidence": body.ai_confidence,
+        "human_verdict": verdict,
+        "note": (body.note or "").strip() or None,
+    }
+    saved = await sb.insert_compliance_feedback(row)
+    return saved or row
+
+
+@router.get("/{transaction_id}/compliance-feedback")
+async def list_compliance_feedback(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> list[dict[str, Any]]:
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return await sb.list_compliance_feedback(brokerage["id"], transaction_id)
 
 
 # --------------------------------------------------------------------------- #
