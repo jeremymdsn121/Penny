@@ -489,6 +489,7 @@ async def upsert_channel(
     phone_number: str,
     display_name: str | None = None,
     agent_id: str | None = None,
+    consent_status: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "brokerage_id": brokerage_id,
@@ -499,6 +500,9 @@ async def upsert_channel(
         payload["display_name"] = display_name
     if agent_id is not None:
         payload["agent_id"] = agent_id
+    if consent_status is not None:
+        payload["consent_status"] = consent_status
+        payload["consent_updated_at"] = _now_iso()
     headers = _service_headers() | {
         "Prefer": "return=representation,resolution=merge-duplicates",
     }
@@ -513,6 +517,32 @@ async def upsert_channel(
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def set_channel_consent(
+    brokerage_id: str, channel: str, phone_number: str, consent_status: str
+) -> dict[str, Any] | None:
+    """Record an SMS opt-in/opt-out decision (pending → active, or → opted_out)."""
+    payload = {
+        "consent_status": consent_status,
+        "consent_updated_at": _now_iso(),
+    }
+    headers = _service_headers() | {"Prefer": "return=representation"}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/agent_channels",
+            params={
+                "brokerage_id": f"eq.{brokerage_id}",
+                "channel": f"eq.{channel}",
+                "phone_number": f"eq.{phone_number}",
+            },
+            json=payload,
+            headers=headers,
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if isinstance(rows, list) and rows else None
 
 
 async def delete_channel(brokerage_id: str, channel: str, phone_number: str) -> None:

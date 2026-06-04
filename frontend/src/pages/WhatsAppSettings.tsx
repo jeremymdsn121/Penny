@@ -25,6 +25,21 @@ const CAPABILITIES: { title: string; detail: string }[] = [
 
 type Channel = 'whatsapp' | 'sms' | 'both'
 
+// SMS opt-in status (A2P double opt-in). Legacy rows with no status read as confirmed.
+function ConsentBadge({ status }: { status?: string | null }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    pending: { label: 'Awaiting opt-in', cls: 'border-yellow-200 bg-yellow-50 text-yellow-700' },
+    active: { label: 'Confirmed', cls: 'border-green-200 bg-green-50 text-green-700' },
+    opted_out: { label: 'Opted out', cls: 'border-red-200 bg-red-50 text-red-600' },
+  }
+  const { label, cls } = map[status || 'active'] ?? map.active
+  return (
+    <span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
 export default function WhatsAppSettings() {
   const navigate = useNavigate()
 
@@ -460,6 +475,12 @@ export default function WhatsAppSettings() {
                     the backend to enable SMS.
                   </p>
                 )}
+                <p className="mt-2 text-xs text-ink-subtle">
+                  When you add an SMS agent, Penny texts them a one-time confirmation. They
+                  reply <span className="font-medium text-ink">YES</span> to start (carrier rules
+                  require it), and can reply STOP anytime. Until they confirm, they show as{' '}
+                  <span className="font-medium text-yellow-700">Awaiting opt-in</span>.
+                </p>
               </div>
               {smsContacts.length === 0 ? (
                 <p className="px-6 py-8 text-center text-sm text-ink-subtle">
@@ -477,12 +498,15 @@ export default function WhatsAppSettings() {
                           <p className="text-xs text-ink-subtle">{c.phone_number}</p>
                         )}
                       </div>
-                      <button
-                        onClick={() => handleRemoveSms(c.phone_number)}
-                        className="text-xs font-medium text-red-500 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <ConsentBadge status={c.consent_status} />
+                        <button
+                          onClick={() => handleRemoveSms(c.phone_number)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

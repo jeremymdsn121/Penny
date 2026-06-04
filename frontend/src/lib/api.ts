@@ -279,6 +279,7 @@ export interface WhatsAppContact {
   display_name?: string | null
   channel?: string | null
   agent_id?: string | null
+  consent_status?: 'pending' | 'active' | 'opted_out' | null
   created_at: string
 }
 
