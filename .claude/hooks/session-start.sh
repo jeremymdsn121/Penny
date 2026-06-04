@@ -1,17 +1,34 @@
 #!/bin/bash
-# SessionStart hook — install backend + frontend dependencies so tests,
-# typechecks, and the dev servers work in a fresh remote session.
-# Runs only in Claude Code on the web (remote); local machines keep their
-# own .venv / node_modules.
+# SessionStart hook.
+#   Local sessions  — keep the clone current: auto fast-forward master so work
+#                     never starts on a stale tree behind origin/master.
+#   Remote (web)    — install backend + frontend dependencies so tests,
+#                     typechecks, and the dev servers work in a fresh clone.
 set -euo pipefail
 
-# Only run in the remote (web) environment. Locally this is a no-op so it
-# never clobbers an existing local setup.
+ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+cd "$ROOT"
+
+# --- Local: sync with origin/master ---------------------------------------
+# Remote clones are always fresh; only local clones drift when remote/cloud
+# sessions push. Auto-advance ONLY when the tree is clean and on master, so a
+# feature branch or uncommitted work is never clobbered — otherwise just warn.
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
+  git fetch --quiet origin || true
+  behind=$(git rev-list --count HEAD..origin/master 2>/dev/null || echo 0)
+  if [ "$behind" -gt 0 ]; then
+    if [ -z "$(git status --porcelain)" ] && [ "$(git branch --show-current)" = "master" ]; then
+      git pull --ff-only origin master >/dev/null \
+        && echo "session-start: fast-forwarded master ($behind commit(s) from origin)"
+    else
+      echo "⚠️  session-start: local is $behind commit(s) behind origin/master." \
+           "Tree is dirty or you're not on master — pull manually before working."
+    fi
+  fi
   exit 0
 fi
 
-ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+# --- Remote: install dependencies -----------------------------------------
 
 # --- Backend (FastAPI + Python) -------------------------------------------
 cd "$ROOT/backend"
