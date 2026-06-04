@@ -61,11 +61,12 @@ fundamental LLM property; it cannot be prompted away at this scale.
   **never** made autonomous (no setting or code path enables it). The separate
   **compliance file checklist** (Section 2A) is deterministic — it tracks whether
   documents are in the file, not an AI judgment.
-- **Follow-ups (engineering, when prioritized):** add a self-reported
-  `confidence` (high/medium/low) to AI findings and surface low-confidence ones
-  with a distinct treatment; add an admin correct/incorrect feedback log (do not
-  auto-tune the model in production). UI already states it's a checklist aid, not
-  a legal determination.
+- **Follow-ups — now built:** AI compliance findings carry a self-reported
+  `confidence` (high/medium/low); low-confidence findings are surfaced distinctly
+  in the UI ("low confidence — verify"). A broker correct/incorrect feedback log
+  records to `compliance_feedback` (migration 021) for manual review — the model
+  is **never** auto-tuned in production. UI states it's a checklist aid, not a
+  legal determination.
 
 ## HARD LIMIT 6 — SOC 2 / NPI data handling
 
@@ -75,8 +76,13 @@ equivalent), enterprise-adjacent brokerages won't sign.
 
 - **Action:** begin a SOC 2 readiness assessment (6–12 months). Interim: publish a
   Privacy Policy + DPA; reference Supabase's existing SOC 2 / ISO 27001 as the
-  infrastructure foundation; add configurable document retention to the brokerage
-  admin panel (default 7 years) — *not yet built; tracked as a follow-up.*
+  infrastructure foundation.
+- **Built:** configurable document retention in the brokerage admin panel (default
+  7 years) — migration 022 + the "Document retention" card on Compliance Settings
+  (policy value + an opt-in "enforce" flag). Automated purge of expired documents
+  is a **separately-gated** follow-up; nothing is deleted blind. The policy math
+  lives in `services/retention.py` (unit-tested), ready for the enforcement seam.
+- **Still to do (business):** SOC 2 readiness, Privacy Policy + DPA.
 
 ---
 

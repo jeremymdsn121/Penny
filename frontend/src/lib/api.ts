@@ -414,6 +414,19 @@ export const transactionsApi = {
         { status, confirmed },
       )
       .then((r) => r.data),
+  complianceFeedback: (
+    id: string,
+    data: {
+      rule_id: string
+      human_verdict: 'correct' | 'incorrect'
+      ai_status?: string | null
+      ai_confidence?: string | null
+      note?: string | null
+    },
+  ) =>
+    api
+      .post<ComplianceFeedback>(`/transactions/${id}/compliance-feedback`, data)
+      .then((r) => r.data),
   comps: (id: string) =>
     api.post<CompsResult>(`/transactions/${id}/comps`).then((r) => r.data),
   propertyRecord: (id: string) =>
@@ -735,6 +748,8 @@ export interface ComplianceSettings {
   ai_disclosure_enabled?: boolean | null
   ai_disclosure_text?: string | null
   request_ai_consent?: boolean | null
+  document_retention_years?: number | null
+  document_retention_enabled?: boolean | null
 }
 
 export interface PartyConsent {
@@ -862,12 +877,15 @@ export const appointmentsApi = {
 // Compliance review
 // --------------------------------------------------------------------------- //
 
+export type AiConfidence = 'high' | 'medium' | 'low'
+
 export interface ComplianceFinding {
   severity: 'issue' | 'warning' | 'info'
   category: string
   message: string
   source: 'structural' | 'contract'
   rule_id?: string
+  confidence?: AiConfidence // present on AI (source='contract') findings only
 }
 
 export interface ComplianceChecklistItem {
@@ -876,6 +894,17 @@ export interface ComplianceChecklistItem {
   requirement: string
   ai_status: 'satisfied' | 'missing' | 'unclear' | 'not_reviewed'
   ai_note?: string | null
+  ai_confidence?: AiConfidence | null
+}
+
+export interface ComplianceFeedback {
+  id: string
+  rule_id: string
+  ai_status?: string | null
+  ai_confidence?: string | null
+  human_verdict: 'correct' | 'incorrect'
+  note?: string | null
+  created_at?: string
 }
 
 export interface ComplianceReview {

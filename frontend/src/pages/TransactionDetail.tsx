@@ -159,6 +159,14 @@ const AI_STATUS_CLS: Record<string, string> = {
   not_reviewed: 'bg-surface-3 text-ink-muted',
 }
 
+// Low confidence is the one to make visually loud — it's the finding most likely
+// to be an AI miss and the one a human should check first (BLOCKERS HL5).
+const CONFIDENCE_CLS: Record<string, string> = {
+  high: 'bg-surface-3 text-ink-muted',
+  medium: 'bg-surface-3 text-ink-muted',
+  low: 'bg-amber-100 text-amber-800 ring-1 ring-amber-300',
+}
+
 function StageBadge({ stage }: { stage?: string | null }) {
   const s = stage ?? 'under_contract'
   return (
@@ -253,6 +261,8 @@ export default function TransactionDetail() {
   const [review, setReview] = useState<ComplianceReview | null>(null)
   const [compRunning, setCompRunning] = useState(false)
   const [compError, setCompError] = useState<string | null>(null)
+  // rule_id -> the broker's verdict on that AI finding (HL5 feedback log)
+  const [compFeedback, setCompFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({})
   const [confirmDecision, setConfirmDecision] = useState<string | null>(null)
   const [decisionBusy, setDecisionBusy] = useState(false)
 
@@ -378,6 +388,7 @@ export default function TransactionDetail() {
     if (!tx) return
     setCompRunning(true)
     setCompError(null)
+    setCompFeedback({}) // a fresh review supersedes prior verdicts
     try {
       setReview(await transactionsApi.complianceReview(tx.id))
     } catch (err: unknown) {
@@ -385,6 +396,29 @@ export default function TransactionDetail() {
       setCompError(detail ?? 'Could not run the compliance review.')
     } finally {
       setCompRunning(false)
+    }
+  }
+
+  async function submitCompFeedback(
+    f: ComplianceReview['findings'][number],
+    verdict: 'correct' | 'incorrect',
+  ) {
+    if (!tx || !f.rule_id) return
+    const ruleId = f.rule_id
+    setCompFeedback((prev) => ({ ...prev, [ruleId]: verdict })) // optimistic
+    try {
+      await transactionsApi.complianceFeedback(tx.id, {
+        rule_id: ruleId,
+        human_verdict: verdict,
+        ai_status: f.severity === 'issue' ? 'missing' : 'unclear',
+        ai_confidence: f.confidence ?? null,
+      })
+    } catch {
+      setCompFeedback((prev) => {
+        const next = { ...prev }
+        delete next[ruleId]
+        return next
+      })
     }
   }
 
@@ -1103,18 +1137,61 @@ export default function TransactionDetail() {
                           const order = { issue: 0, warning: 1, info: 2 }
                           return order[a.severity] - order[b.severity]
                         })
-                        .map((f, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <span
-                              className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                                SEVERITY_CLS[f.severity] ?? SEVERITY_CLS.info
-                              }`}
-                            >
-                              {f.severity}
-                            </span>
-                            <span className="text-ink">{f.message}</span>
-                          </li>
-                        ))}
+                        .map((f, i) => {
+                          const isAi = f.source === 'contract' && !!f.rule_id
+                          const verdict = f.rule_id ? compFeedback[f.rule_id] : undefined
+                          return (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span
+                                className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                                  SEVERITY_CLS[f.severity] ?? SEVERITY_CLS.info
+                                }`}
+                              >
+                                {f.severity}
+                              </span>
+                              <span className="text-ink">
+                                {f.message}
+                                {isAi && f.confidence && (
+                                  <span
+                                    className={`ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-medium ${
+                                      CONFIDENCE_CLS[f.confidence] ?? CONFIDENCE_CLS.medium
+                                    }`}
+                                    title="How sure the AI is about this finding. Low-confidence items are worth checking first."
+                                  >
+                                    {f.confidence === 'low' ? 'low confidence — verify' : `${f.confidence} confidence`}
+                                  </span>
+                                )}
+                                {isAi && (
+                                  <span className="mt-1 flex items-center gap-2">
+                                    {verdict ? (
+                                      <span className="text-[11px] text-ink-subtle">
+                                        Marked {verdict}. Thanks — logged for review.
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="text-[11px] text-ink-subtle">AI got this right?</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => submitCompFeedback(f, 'correct')}
+                                          className="rounded border border-default px-2 py-0.5 text-[11px] text-ink-muted hover:bg-surface-3"
+                                        >
+                                          Correct
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => submitCompFeedback(f, 'incorrect')}
+                                          className="rounded border border-default px-2 py-0.5 text-[11px] text-ink-muted hover:bg-surface-3"
+                                        >
+                                          Incorrect
+                                        </button>
+                                      </>
+                                    )}
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          )
+                        })}
                     </ul>
                   </div>
                 )}
@@ -1138,6 +1215,11 @@ export default function TransactionDetail() {
                           {item.requirement}
                           {item.ai_note && (
                             <span className="text-ink-subtle"> — {item.ai_note}</span>
+                          )}
+                          {item.ai_confidence === 'low' && item.ai_status !== 'not_reviewed' && (
+                            <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[10px] font-medium text-amber-800 ring-1 ring-amber-300">
+                              low confidence
+                            </span>
                           )}
                         </span>
                       </li>

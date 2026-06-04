@@ -20,6 +20,13 @@ Run **in order** in the Supabase SQL Editor (paste file contents). V2 adds 006�
 | `013_emd_tracking.sql` | `transactions.emd_*` columns (5) |
 | `014_party_consents.sql` | `party_consents`, `brokerages.ai_disclosure_*`, `request_ai_consent` (6) |
 | `015_reporting.sql` | `transactions.closed_at` + backfill (7) |
+| `016_reply_forwarding.sql` | `brokerages.forward_replies_to_agent` (forward inbound replies to the deal's agent) |
+| `017_doc_routing.sql` | `doc_routing_rules` + `pending_doc_routes` (Autonomy task `doc-routing`) |
+| `018_email_autoreply.sql` | two-way email Phase 1: `brokerages.email_*_enabled` + `pending_email_replies` |
+| `019_scheduled_replies.sql` | two-way email Phase 2: scheduled/deferred reply columns on `pending_email_replies` |
+| `020_ai_usage.sql` | per-brokerage AI token-usage log |
+| `021_compliance_feedback.sql` | `compliance_feedback` — broker verdicts on AI findings (HL5) |
+| `022_document_retention.sql` | `brokerages.document_retention_years` + `_enabled` (HL6 interim) |
 
 (Earlier migrations `001`–`005` are unchanged; `004`/`005` must already be applied.)
 
@@ -74,7 +81,7 @@ Calendar OAuth (Google/Microsoft), MLS write APIs, and DocuSign are behind seams
 
 ## Pre-prod checklist
 
-- [ ] Migrations 006–015 applied in order on the target Supabase instance
+- [ ] Migrations 001–022 applied in order on the target Supabase instance
 - [ ] Storage buckets exist and are private
 - [ ] `TWILIO_SKIP_VALIDATION=false`; webhooks signature-validated
 - [ ] `REPLY_EMAIL_DOMAIN` MX record live; `SENDGRID_WEBHOOK_KEY` set
