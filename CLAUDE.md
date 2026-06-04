@@ -48,14 +48,26 @@ npm run typecheck
 If `node`/`npm` reports "not found" mid-session, it's a Windows PATH quirk in a
 stale shell — open a fresh terminal; the toolchain is fine.
 
-**WhatsApp local testing** needs ngrok in front of the backend:
+**WhatsApp/SMS (deployed).** The backend is live at `https://api.poweredbypenny.com`.
+Point the Twilio "When a message comes in" webhooks at the deployed host (POST):
+- WhatsApp: `https://api.poweredbypenny.com/api/v1/whatsapp/inbound`
+- SMS: `https://api.poweredbypenny.com/api/v1/sms/inbound`
+
+In the deployed env keep `TWILIO_SKIP_VALIDATION` **false** (or unset) — signatures
+validate fine against the stable HTTPS host. WhatsApp inbound is **live-verified**
+(text round-trip confirmed against the dev brokerage).
+
+**Local backend testing** (only when exercising *uncommitted* backend changes
+against real Twilio) still needs ngrok in front of the backend:
 ```bash
 ngrok http 8000
 ```
-Then set the Twilio WhatsApp sandbox "When a message comes in" webhook to
-`https://<ngrok-host>/api/v1/whatsapp/inbound` (POST). The free-tier ngrok URL
-**changes on every restart** — when inbound stops working, this stale URL is the
-first thing to check (ngrok inspector: http://localhost:4040).
+Then temporarily repoint the Twilio webhook at `https://<ngrok-host>/api/v1/whatsapp/inbound`
+(POST) and set `TWILIO_SKIP_VALIDATION=true` (signature validation fails behind ngrok
+because the signed URL doesn't match the reconstructed one). The free-tier ngrok URL
+**changes on every restart** — when inbound stops working, this stale URL is the first
+thing to check (ngrok inspector: http://localhost:4040). Restore the deployed webhook
+URL when done.
 
 ## Architecture
 
@@ -585,9 +597,11 @@ typechecks pass, unit checks on the deterministic pieces (template instantiation
 checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
 **Pending live end-to-end verification** (keys + migrations 006–015 applied):
 
-- **1A WhatsApp/SMS media intake** — needs Twilio configured and the dev brokerage
-  to test a real PDF/photo MMS round-trip. Image path uses Claude image blocks
-  (no separate key beyond `ANTHROPIC_API_KEY`).
+- **1A WhatsApp/SMS media intake** — Twilio is configured against the deployed host
+  (`https://api.poweredbypenny.com/api/v1/whatsapp/inbound`) and **WhatsApp inbound
+  text is live-verified** (Penny replies in the dev brokerage). Still pending: a real
+  PDF/photo MMS round-trip through the media-extraction path. Image path uses Claude
+  image blocks (no separate key beyond `ANTHROPIC_API_KEY`).
 - **1B Per-agent style** — needs 007 applied (which itself depends on 004).
   Browser flow on the agent profile page not yet exercised end-to-end.
 - **1C SMS fallback** — needs `TWILIO_SMS_FROM` set + the SMS-enabled Twilio
