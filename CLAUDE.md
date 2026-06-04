@@ -224,7 +224,16 @@ URL when done.
   `whatsapp_contacts` migrated in. `app/api/v1/routes/sms.py` mirrors the WhatsApp
   inbound flow (signature check, contact lookup, same tool-use loop). Text-only on
   SMS — no voice memo, no media. Replies use `TWILIO_SMS_FROM` (standard number,
-  not WhatsApp sender).
+  not WhatsApp sender). **A2P 10DLC double opt-in (migration 023):**
+  `agent_channels.consent_status` ∈ `pending`/`active`/`opted_out`. Registering an
+  SMS number sets it `pending` and texts a disclosure-bearing confirmation; the
+  inbound handler gates the agent loop until the agent replies `YES`/`START`
+  (→ `active`), honours `STOP`/`UNSUBSCRIBE` (→ `opted_out`) and `HELP` in any
+  state, and re-prompts on anything else while pending. Legacy rows (and all
+  WhatsApp rows — opt-in there is the Business API / sandbox join) default to
+  `active`, so the gate is SMS-only and pre-migration behaviour is unchanged.
+  Public privacy/terms pages for the campaign are served by
+  `app/api/v1/routes/legal.py` (`/privacy`, `/terms`).
 - **Compliance checklist (2A):** `compliance_templates` + `compliance_template_items`
   + `transaction_checklist_items` (migration 009). System defaults seeded on first
   run (buy-side 16 items, list-side 16 items). `app/services/compliance_checklist.py`

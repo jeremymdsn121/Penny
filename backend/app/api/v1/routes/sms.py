@@ -31,6 +31,31 @@ router = APIRouter(prefix="/sms", tags=["sms"])
 
 CHANNEL = "sms"
 
+# A2P 10DLC double opt-in keywords (matched on the whole message, case-insensitive).
+# Carriers may also intercept STOP/HELP at the messaging-service level; we handle
+# them here too so consent tracking is correct regardless of that configuration.
+_OPT_IN_WORDS = {"YES", "Y", "START", "UNSTOP", "AGREE", "CONFIRM"}
+_OPT_OUT_WORDS = {"STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "REVOKE"}
+_HELP_WORDS = {"HELP", "INFO"}
+
+
+def _confirmation_text(brokerage_name: str) -> str:
+    """The double opt-in confirmation SMS, carrying the carrier-required disclosures."""
+    return (
+        f"{brokerage_name} set up Penny, your transaction assistant, to text you. "
+        "Reply YES to get deal updates & reminders. Msg frequency varies; msg & data "
+        "rates may apply. Reply STOP to opt out, HELP for help. "
+        "Terms: api.poweredbypenny.com/api/v1/terms"
+    )
+
+
+def _safe_send_sms(to_number: str, body: str) -> None:
+    """Send an SMS, swallowing TwilioNotConfigured so the webhook never 500s."""
+    try:
+        send_sms_message(to_number, body)
+    except TwilioNotConfigured as exc:
+        print(f"[sms] Could not send: {exc}")
+
 
 @router.post("/inbound")
 async def inbound(request: Request) -> Any:
@@ -69,6 +94,48 @@ async def inbound(request: Request) -> Any:
     brokerage_id: str = contact["brokerage_id"]
     display_name: str | None = contact.get("display_name")
 
+    brokerage = await sb.get_brokerage(brokerage_id)
+    brokerage_name = (brokerage or {}).get("name", "your brokerage")
+
+    # --- A2P double opt-in gate ------------------------------------------- #
+    # Legacy rows (added before migration 020) have no consent_status — treat as
+    # active so existing numbers keep working with no behaviour change.
+    consent = contact.get("consent_status") or "active"
+    keyword = message_body.upper()
+
+    # Opt-out is always honoured, in any state.
+    if keyword in _OPT_OUT_WORDS:
+        await sb.set_channel_consent(brokerage_id, CHANNEL, phone_number, "opted_out")
+        _safe_send_sms(
+            phone_number,
+            f"You're unsubscribed from {brokerage_name} (Penny) and won't receive "
+            "further texts. Reply START to opt back in.",
+        )
+        return {}
+
+    if keyword in _HELP_WORDS:
+        _safe_send_sms(
+            phone_number,
+            f"{brokerage_name} (Penny), your transaction assistant. Msg & data rates "
+            "may apply. Reply STOP to opt out. Help: support@poweredbypenny.com",
+        )
+        return {}
+
+    # Until a number is confirmed (pending) or after it opted out, never run the
+    # agent — only complete or re-prompt the opt-in.
+    if consent in ("pending", "opted_out"):
+        if keyword in _OPT_IN_WORDS:
+            await sb.set_channel_consent(brokerage_id, CHANNEL, phone_number, "active")
+            _safe_send_sms(
+                phone_number,
+                f"You're all set. I'm Penny, {brokerage_name}'s transaction "
+                "assistant. Text me about your deals anytime. Reply STOP to opt out.",
+            )
+        else:
+            _safe_send_sms(phone_number, _confirmation_text(brokerage_name))
+        return {}
+
+    # --- Confirmed (active): run the agent as normal ---------------------- #
     if not message_body:
         send_sms_message(
             phone_number, "I received your message but couldn't read any text. Please try again."
@@ -81,9 +148,6 @@ async def inbound(request: Request) -> Any:
 
     history = await sb.get_whatsapp_messages(brokerage_id, phone_number, limit=20)
     history = history[:-1]  # drop the message we just saved (passed separately)
-
-    brokerage = await sb.get_brokerage(brokerage_id)
-    brokerage_name = (brokerage or {}).get("name", "your brokerage")
 
     # Never let a model/tool error become silence — send a graceful note instead.
     try:
@@ -142,9 +206,14 @@ async def register_contact(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Phone number must be in E.164 format, e.g. +15551234567",
         )
-    return await sb.upsert_channel(
-        brokerage["id"], CHANNEL, phone, body.display_name, body.agent_id
+    # A2P 10DLC: the agent must confirm opt-in themselves. Register as pending and
+    # text the confirmation; messaging unlocks once they reply YES (see inbound).
+    contact = await sb.upsert_channel(
+        brokerage["id"], CHANNEL, phone, body.display_name, body.agent_id,
+        consent_status="pending",
     )
+    _safe_send_sms(phone, _confirmation_text(brokerage.get("name", "Your brokerage")))
+    return contact
 
 
 @router.delete("/contacts/{phone_number}", status_code=status.HTTP_204_NO_CONTENT)
