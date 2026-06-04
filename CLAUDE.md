@@ -394,6 +394,9 @@ Post-V2 (web-app work):
   verdicts on AI compliance findings; BLOCKERS Hard Limit 5). Audit log only.
 - `022_document_retention.sql` — `brokerages.document_retention_years` (default 7)
   + `document_retention_enabled` (default false); BLOCKERS Hard Limit 6 interim.
+- `023_sms_optin.sql` — `agent_channels.consent_status`
+  (`pending`/`active`/`opted_out`, default `active`) + `consent_updated_at` for
+  the A2P 10DLC SMS double opt-in. See the SMS fallback (1C) bullet.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
