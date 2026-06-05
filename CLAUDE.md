@@ -191,6 +191,20 @@ URL when done.
   endpoints as the dashboard) + chat bar with browser-native voice input
   (Web Speech API, no new dep) + a "Jump to" pill grid mirroring the nav. The
   full operational **Dashboard stays at `/dashboard`** (sidebar + every pill).
+- **Scope guardrail + app-navigation reference:** the shared `run_penny_agent`
+  system prompt (so it applies across web, WhatsApp, SMS, email) carries a
+  **Scope** block and a **"Where things live in the web app"** block. Scope:
+  Penny answers transaction-coordination, deal-specific, and web-app-usage
+  questions; **soft-redirects** genuinely off-topic asks (general knowledge,
+  coding, personal tasks) with one friendly line; and treats **legal/tax/
+  financial advice as a hard line** — she declines and points to a licensed
+  attorney/CPA/broker, while still stating plain facts already on the deal
+  (dates, amounts, what a contingency window is). The over-strict guard keeps
+  real estate terms and feature-how-to questions in scope. The navigation block
+  lists the real sidebar pages + transaction-page section panels and tells her
+  **never to invent menu names, paths, or steps** (she previously fabricated a
+  non-existent "Integrations" menu for the calendar-connect flow). Live-verified
+  via `/chat` in the dev brokerage.
 - **Proactive next actions:** `app/services/next_actions.py` is the single
   source of truth that cross-references pending workflow tasks, missing required
   checklist items, EMD status, upcoming deadlines, and missing party contacts
