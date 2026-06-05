@@ -12,6 +12,7 @@ required unless the brokerage's ``scheduling`` task is autonomous — mirroring 
 intro-email pattern.
 """
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -20,7 +21,7 @@ from pydantic import BaseModel
 
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
-from app.services import calendar_provider, scheduling
+from app.services import calendar_provider, email_client, scheduling
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -46,6 +47,24 @@ class AppointmentUpdate(BaseModel):
     scheduled_at: str | None = None
     attendees: list[str] | None = None
     confirmed: bool | None = None
+
+
+class NotifyPartiesIn(BaseModel):
+    confirmed: bool = False
+    parties: list[str] = []  # role keys (buyer/listing_agent/…)
+
+
+def _clean_parties(keys: list[str] | None) -> list[str]:
+    """Keep only recognised party role keys, de-duplicated in order."""
+    if not keys:
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for k in keys:
+        if k in email_client.PARTY_KEYS and k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
 
 
 def _parse_dt(value: str, tz=None) -> datetime:
@@ -282,3 +301,83 @@ async def delete(
         account = await _resolve_account(brokerage, tx)
         await calendar_provider.delete_event(account, event_id)
     await sb.delete_appointment(appointment_id)
+
+
+# --------------------------------------------------------------------------- #
+# Coordinate with parties — propose the booked time to outside parties. This is
+# external comms, so it ALWAYS requires confirmation (no autonomy bypass), and
+# the wording proposes rather than confirms the time — parties may still need to
+# agree. Mirrors the deadline notify-parties pattern.
+# --------------------------------------------------------------------------- #
+
+def _format_appointment_time(appt: dict[str, Any], brokerage: dict[str, Any]) -> str:
+    """Human-readable local time for the appointment, in the brokerage tz."""
+    raw = appt.get("scheduled_at")
+    if not raw:
+        return "a time to be confirmed"
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return "a time to be confirmed"
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=tz)
+    local = dt.astimezone(tz)
+    hour = local.hour % 12 or 12
+    ampm = "AM" if local.hour < 12 else "PM"
+    return local.strftime("%A, %b %d, ") + f"{hour}:{local.minute:02d} {ampm} ({tz.key})"
+
+
+@router.post("/{appointment_id}/notify-parties")
+async def notify_parties(
+    appointment_id: str,
+    body: NotifyPartiesIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required before notifying parties.",
+        )
+    appt, tx = await _scoped_appointment(brokerage["id"], appointment_id)
+    keys = _clean_parties(body.parties)
+    parties = email_client.gather_parties_by_keys(tx, keys)
+    if not parties:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No parties with an email on file to coordinate with.",
+        )
+    address = (tx.get("address") or "your transaction").strip()
+    when_str = _format_appointment_time(appt, brokerage)
+    subject, html, plain = email_client.build_appointment_coordination_content(
+        address, appt.get("type") or "appointment", when_str, brokerage.get("name", "your brokerage")
+    )
+    recipients = [p["email"] for p in parties]
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=recipients,
+        subject=subject,
+        html=html,
+        plain=plain,
+        reply_to=email_client.reply_to_address(tx["id"]),
+        disclosure=email_client.disclosure_text(brokerage),
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not send — email isn't configured or the send failed.",
+        )
+    try:
+        await sb.insert_transaction_email({
+            "transaction_id": tx["id"],
+            "direction": "outbound",
+            "sender_email": email_client.from_email(),
+            "recipient_emails": recipients,
+            "subject": subject,
+            "body_text": plain,
+            "body_html": html,
+            "read": True,
+        })
+    except sb.SupabaseError:
+        pass
+    return {"sent": True, "recipients": recipients}

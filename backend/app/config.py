@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str | None = None
     # "From" address for outbound email. Must be a verified sender in SendGrid.
     SENDGRID_FROM_EMAIL: str = "hello@poweredbypenny.com"
+    # Display name shown in the recipient's inbox (the part before the address).
+    # Without it, mail clients fall back to the address local-part (e.g. "hello").
+    SENDGRID_FROM_NAME: str = "Penny"
     # Domain that routes inbound replies back to Penny via SendGrid Inbound Parse
     # (MX -> mx.sendgrid.net). Outbound mail sets Reply-To: tx-{id}@<this domain>.
     # When unset, reply threading is disabled (no Reply-To added).

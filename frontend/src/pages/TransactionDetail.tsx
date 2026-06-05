@@ -282,10 +282,15 @@ export default function TransactionDetail() {
   const [proposal, setProposal] = useState<ProposeResult | null>(null)
   const [proposing, setProposing] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [apptType, setApptType] = useState('showing')
   const [booking, setBooking] = useState(false)
   const [schedError, setSchedError] = useState<string | null>(null)
   const [schedNotice, setSchedNotice] = useState<string | null>(null)
   const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null)
+  // Coordinate-with-parties (per appointment): which row is open, picked roles.
+  const [coordFor, setCoordFor] = useState<string | null>(null)
+  const [coordRoles, setCoordRoles] = useState<string[]>([])
+  const [coordSending, setCoordSending] = useState(false)
 
   // Will this deal's bookings sync? Its agent's calendar if connected, else the
   // brokerage's. After a propose call, prefer its deal-resolved calendar block.
@@ -521,11 +526,13 @@ export default function TransactionDetail() {
     try {
       await appointmentsApi.book({
         transaction_id: tx.id,
-        type: 'showing',
+        type: apptType,
         scheduled_at: selectedSlot,
         confirmed: true,
       })
-      setSchedNotice(`Booked for ${fmtSlot(selectedSlot, proposal?.timezone)}.`)
+      setSchedNotice(
+        `Booked a ${apptType.replace('_', ' ')} for ${fmtSlot(selectedSlot, proposal?.timezone)}.`,
+      )
       setSelectedSlot(null)
       setProposal(null)
       setAppointments(await appointmentsApi.list(tx.id))
@@ -543,6 +550,58 @@ export default function TransactionDetail() {
       if (tx) setAppointments(await appointmentsApi.list(tx.id))
     } catch {
       setSchedError('Could not cancel that appointment.')
+    }
+  }
+
+  // Parties on the deal that have an email — the candidates for coordination.
+  function availableParties(): { key: string; label: string }[] {
+    if (!tx) return []
+    const roles: { key: string; label: string; email?: string | null }[] = [
+      { key: 'listing_agent', label: 'Listing agent', email: tx.listing_agent_email },
+      { key: 'selling_agent', label: 'Selling agent', email: tx.selling_agent_email },
+      { key: 'buyer', label: 'Buyer', email: tx.buyer_email },
+      { key: 'seller', label: 'Seller', email: tx.seller_email },
+      { key: 'lender', label: 'Lender', email: tx.lender_email },
+      { key: 'title', label: 'Title', email: tx.title_email },
+    ]
+    return roles.filter((r) => r.email && r.email.trim()).map(({ key, label }) => ({ key, label }))
+  }
+
+  function openCoordinate(id: string) {
+    setSchedError(null)
+    setSchedNotice(null)
+    // Default to the parties most relevant to access + availability.
+    const avail = availableParties().map((p) => p.key)
+    setCoordRoles(avail.filter((k) => ['listing_agent', 'selling_agent', 'buyer'].includes(k)))
+    setCoordFor(id)
+  }
+
+  function toggleCoordRole(key: string) {
+    setCoordRoles((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    )
+  }
+
+  async function handleCoordinate(id: string) {
+    if (!tx || coordRoles.length === 0) return
+    setCoordSending(true)
+    setSchedError(null)
+    try {
+      const res = await appointmentsApi.notifyParties(id, {
+        confirmed: true,
+        parties: coordRoles,
+      })
+      setSchedNotice(
+        `Proposed the time to ${res.recipients.length} ${
+          res.recipients.length === 1 ? 'party' : 'parties'
+        }. They'll confirm if it works.`,
+      )
+      setCoordFor(null)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setSchedError(detail ?? 'Could not reach the parties.')
+    } finally {
+      setCoordSending(false)
     }
   }
 
@@ -994,22 +1053,84 @@ export default function TransactionDetail() {
             {appointments.length > 0 && (
               <ul className="mb-5 divide-y divide-hairline">
                 {appointments.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium capitalize text-ink">
-                        {(a.type ?? 'appointment').replace('_', ' ')}
-                      </p>
-                      <p className="mt-0.5 text-xs text-ink-muted">
-                        {a.scheduled_at ? fmtSlot(a.scheduled_at) : 'Time TBD'}
-                        {a.calendar_event_id ? ' · on calendar' : ''}
-                      </p>
+                  <li key={a.id} className="py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium capitalize text-ink">
+                          {(a.type ?? 'appointment').replace('_', ' ')}
+                        </p>
+                        <p className="mt-0.5 text-xs text-ink-muted">
+                          {a.scheduled_at ? fmtSlot(a.scheduled_at) : 'Time TBD'}
+                          {a.calendar_event_id ? ' · on calendar' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() =>
+                            coordFor === a.id ? setCoordFor(null) : openCoordinate(a.id)
+                          }
+                          className="text-xs font-medium text-penny hover:underline"
+                        >
+                          Coordinate with parties
+                        </button>
+                        <button
+                          onClick={() => handleCancelAppointment(a.id)}
+                          className="text-xs font-medium text-ink-subtle hover:text-red-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleCancelAppointment(a.id)}
-                      className="text-xs font-medium text-ink-subtle hover:text-red-600"
-                    >
-                      Cancel
-                    </button>
+
+                    {coordFor === a.id && (
+                      <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+                        {availableParties().length === 0 ? (
+                          <p className="text-sm text-violet-800">
+                            No parties have an email on file yet. Add buyer or agent
+                            contacts above and you can propose the time to them.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="mb-2 text-xs font-medium text-violet-800">
+                              Propose this time to — they’ll confirm if it works:
+                            </p>
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              {availableParties().map((p) => (
+                                <button
+                                  key={p.key}
+                                  onClick={() => toggleCoordRole(p.key)}
+                                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                    coordRoles.includes(p.key)
+                                      ? 'border-violet-300 bg-white text-violet-700'
+                                      : 'border-hairline text-ink-muted hover:border-violet-200'
+                                  }`}
+                                >
+                                  {p.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <button
+                                onClick={() => handleCoordinate(a.id)}
+                                disabled={coordSending || coordRoles.length === 0}
+                                className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                              >
+                                {coordSending && (
+                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                )}
+                                Send proposal
+                              </button>
+                              <button
+                                onClick={() => setCoordFor(null)}
+                                className="text-sm font-medium text-ink-muted hover:text-ink"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1054,10 +1175,21 @@ export default function TransactionDetail() {
                     </div>
                     {selectedSlot && (
                       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
-                        <span className="text-sm text-violet-800">
-                          Book a showing for{' '}
-                          <strong>{fmtSlot(selectedSlot, proposal.timezone)}</strong>?
-                        </span>
+                        <label className="text-sm text-violet-800">
+                          Book a{' '}
+                          <select
+                            value={apptType}
+                            onChange={(e) => setApptType(e.target.value)}
+                            className="rounded-md border border-violet-300 bg-white px-2 py-1 text-sm font-medium text-violet-800"
+                          >
+                            <option value="showing">showing</option>
+                            <option value="inspection">inspection</option>
+                            <option value="walkthrough">walkthrough</option>
+                            <option value="closing">closing</option>
+                            <option value="other">other</option>
+                          </select>{' '}
+                          for <strong>{fmtSlot(selectedSlot, proposal.timezone)}</strong>?
+                        </label>
                         <button
                           onClick={handleBook}
                           disabled={booking}
