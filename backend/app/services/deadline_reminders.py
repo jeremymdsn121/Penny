@@ -123,50 +123,34 @@ def build_agent_nudge(
 def build_party_notice(
     tx: dict[str, Any], deadline: dict[str, Any], brokerage_name: str
 ) -> tuple[str, str, str]:
-    """Build ``(subject, html, plain)`` for the responsible-party notice."""
+    """Build ``(subject, html, plain)`` for the responsible-party notice.
+
+    Plain, human-typed style — no branded header/card/footer — so outside parties
+    read it as a real note from a coordinator, not a marketing template.
+    """
     label = (deadline.get("label") or "an upcoming deadline").strip()
     address = (tx.get("address") or "your transaction").strip()
     due = _parse_due(deadline.get("due_date"))
     due_str = due.strftime("%B %d, %Y") if due else "soon"
     subject = f"Upcoming deadline: {label} — {address}"
 
-    violet, dark, muted, bg, white = "#7C3AED", "#111827", "#6B7280", "#F9FAFB", "#FFFFFF"
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-<body style="margin:0;padding:0;background:{bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:{bg};padding:40px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:{white};border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-        <tr><td style="background:{violet};padding:28px 40px;text-align:center;">
-          <p style="margin:0;color:{white};font-size:24px;font-weight:700;letter-spacing:-0.5px;">Penny</p>
-          <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:13px;font-weight:500;">Transaction Coordinator · {brokerage_name}</p>
-        </td></tr>
-        <tr><td style="padding:36px 40px 32px;">
-          <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:{dark};">Upcoming deadline</h1>
-          <p style="margin:0 0 16px;font-size:15px;color:{dark};line-height:1.6;">
-            A quick heads-up that <strong>{label}</strong> for the transaction at
-            <strong>{address}</strong> is due on <strong>{due_str}</strong>.
-          </p>
-          <p style="margin:0;font-size:14px;color:{muted};line-height:1.6;">
-            Please reach out if you have any questions or need anything ahead of this date.
-          </p>
-        </td></tr>
-        <tr><td style="background:{bg};padding:18px 40px;border-top:1px solid #E5E7EB;text-align:center;">
-          <p style="margin:0;font-size:12px;color:{muted};">Sent by Penny on behalf of {brokerage_name}</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+    html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+        'color:#222;line-height:1.5;">'
+        "<p>Hi,</p>"
+        f"<p>A quick heads-up that <strong>{label}</strong> for the transaction at "
+        f"{address} is due on <strong>{due_str}</strong>.</p>"
+        "<p>Please reach out if you have any questions or need anything ahead of this "
+        "date.</p>"
+        f"<p>Thanks,<br>Penny<br>Transaction Coordinator, {brokerage_name}</p>"
+        "</div>"
+    )
     plain = (
-        f"Upcoming deadline — {address}\n"
-        f"{'=' * 40}\n\n"
+        "Hi,\n\n"
         f"A quick heads-up that {label} for the transaction at {address} is due on "
         f"{due_str}.\n\n"
         "Please reach out if you have any questions or need anything ahead of this date.\n\n"
-        f"—\nSent by Penny on behalf of {brokerage_name}"
+        f"Thanks,\nPenny\nTransaction Coordinator, {brokerage_name}"
     )
     return subject, html, plain
 

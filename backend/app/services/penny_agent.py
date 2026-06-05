@@ -365,6 +365,44 @@ _TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "notify_appointment_parties",
+        "description": (
+            "Email the deal's parties to PROPOSE a booked appointment time and "
+            "coordinate (e.g. the listing agent for access, the buyer for "
+            "availability). Use after booking, when the agent wants to reach out. "
+            "The email proposes the time and asks if it works — it does NOT confirm "
+            "it. This contacts outside parties, so it requires confirmed=true; get "
+            "the agent's go-ahead first. Targets the deal's soonest upcoming "
+            "appointment."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "parties": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Which parties to contact, by role key: buyer, seller, "
+                        "listing_agent, selling_agent, lender, title. Defaults to the "
+                        "agents and buyer who have an email on file."
+                    ),
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "Must be true to send. Set only after the agent confirms they "
+                        "want to reach out to the parties."
+                    ),
+                },
+            },
+            "required": ["address_query", "confirmed"],
+        },
+    },
+    {
         "name": "list_appointments",
         "description": "List the scheduled appointments for a transaction. Read-only.",
         "input_schema": {
@@ -1183,6 +1221,104 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
     return f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{synced}."
 
 
+# Sensible default targets for coordinating an appointment: the agents (for
+# access) and the buyer (for availability). Filtered to those with an email.
+_DEFAULT_COORDINATE_ROLES = ["listing_agent", "selling_agent", "buyer"]
+
+
+async def _exec_notify_appointment_parties(brokerage_id: str, inputs: dict) -> str:
+    if not inputs.get("confirmed"):
+        return (
+            "Not sent — I need your go-ahead first. This emails the parties to propose "
+            "the time. Confirm and I'll reach out (call again with confirmed=true)."
+        )
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+
+    appts = await sb.list_appointments_for_transaction(tx["id"])
+    now = datetime.now(timezone.utc)
+    upcoming: list[tuple[datetime, dict]] = []
+    for a in appts:
+        when = a.get("scheduled_at")
+        if not when:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt >= now:
+            upcoming.append((dt, a))
+    if not upcoming:
+        return (
+            f"There's no upcoming appointment on {tx.get('address', 'this deal')} to "
+            "coordinate yet. Book a time first, then I can propose it to the parties."
+        )
+    upcoming.sort(key=lambda x: x[0])
+    _dt, appt = upcoming[0]
+
+    keys = [k for k in (inputs.get("parties") or []) if k in email_client.PARTY_KEYS]
+    if not keys:
+        keys = _DEFAULT_COORDINATE_ROLES
+    parties = email_client.gather_parties_by_keys(tx, keys)
+    if not parties:
+        return (
+            "I don't have an email on file for the parties you'd want to coordinate "
+            "with (listing agent, buyer). Add a contact and I'll reach out."
+        )
+
+    brokerage = await sb.get_brokerage(brokerage_id) or {}
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
+    start = appt["scheduled_at"]
+    try:
+        sdt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        if sdt.tzinfo is None:
+            sdt = sdt.replace(tzinfo=tz)
+        local = sdt.astimezone(tz)
+        hour = local.hour % 12 or 12
+        ampm = "AM" if local.hour < 12 else "PM"
+        when_str = local.strftime("%A, %b %d, ") + f"{hour}:{local.minute:02d} {ampm} ({tz.key})"
+    except (ValueError, KeyError):
+        when_str = "a time to be confirmed"
+
+    address = (tx.get("address") or "your transaction").strip()
+    subject, html, plain = email_client.build_appointment_coordination_content(
+        address, appt.get("type") or "appointment", when_str, brokerage.get("name", "your brokerage")
+    )
+    recipients = [p["email"] for p in parties]
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=recipients,
+        subject=subject,
+        html=html,
+        plain=plain,
+        reply_to=email_client.reply_to_address(tx["id"]),
+        disclosure=email_client.disclosure_text(brokerage),
+    )
+    if not sent:
+        return "I couldn't send that — email isn't configured or the send failed."
+    try:
+        await sb.insert_transaction_email({
+            "transaction_id": tx["id"],
+            "direction": "outbound",
+            "sender_email": email_client.from_email(),
+            "recipient_emails": recipients,
+            "subject": subject,
+            "body_text": plain,
+            "body_html": html,
+            "read": True,
+        })
+    except Exception:  # noqa: BLE001
+        pass
+    who = ", ".join(p["name"] for p in parties)
+    return (
+        f"Sent — I proposed {when_str} for the {appt.get('type') or 'appointment'} at "
+        f"{address} to {who} and asked them to confirm it works."
+    )
+
+
 async def _exec_list_appointments(brokerage_id: str, inputs: dict) -> str:
     tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
     if err:
@@ -1672,6 +1808,7 @@ _TOOL_MAP = {
     "get_comparable_sales": _exec_get_comparable_sales,
     "propose_showing_times": _exec_propose_showing_times,
     "book_appointment": _exec_book_appointment,
+    "notify_appointment_parties": _exec_notify_appointment_parties,
     "list_appointments": _exec_list_appointments,
     "get_upcoming_appointments": _exec_get_upcoming_appointments,
     "get_compliance_checklist": _exec_get_compliance_checklist,
@@ -1876,10 +2013,17 @@ async def run_penny_agent(
         "- propose_showing_times suggests open slots; book_appointment books one. "
         "Booking creates a calendar event, so you MUST get the agent's explicit "
         "confirmation of the time before calling book_appointment with confirmed=true "
-        "(unless scheduling is autonomous for this brokerage). list_appointments shows "
-        "one deal's appointments; get_upcoming_appointments shows what's coming up "
-        "across ALL the agent's deals, so use it for general 'what's on my calendar' or "
-        "'what's next' questions.\n\n"
+        "(unless scheduling is autonomous for this brokerage). When booking, ask what "
+        "kind of appointment it is (showing, inspection, walkthrough, closing) and pass "
+        "it as the type. list_appointments shows one deal's appointments; "
+        "get_upcoming_appointments shows what's coming up across ALL the agent's deals, "
+        "so use it for general 'what's on my calendar' or 'what's next' questions.\n"
+        "- After you book a time, be a coordinator: offer to reach the parties who need "
+        "to agree (the listing agent for access, the buyer for availability) with "
+        "notify_appointment_parties. Frame it as PROPOSING the time, never confirming it "
+        "— outside parties still have to agree, so never tell anyone the time is locked. "
+        "This emails outside parties, so it's confirm-gated: get the agent's go-ahead, "
+        "then call with confirmed=true.\n\n"
         "Compliance file:\n"
         "- get_compliance_checklist shows what required documents are still missing from "
         "a deal's file. mark_checklist_item marks an item complete/waived — confirm the "

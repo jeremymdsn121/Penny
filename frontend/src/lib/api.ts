@@ -906,6 +906,13 @@ export const appointmentsApi = {
       )
       .then((r) => r.data),
   remove: (id: string) => api.delete(`/appointments/${id}`),
+  notifyParties: (id: string, data: { confirmed: boolean; parties: string[] }) =>
+    api
+      .post<{ sent: boolean; recipients: string[] }>(
+        `/appointments/${id}/notify-parties`,
+        data,
+      )
+      .then((r) => r.data),
 }
 
 // --------------------------------------------------------------------------- //
