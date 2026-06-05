@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Public base URL of the backend, used to build absolute consent links in
     # outbound email (e.g. "https://api.poweredbypenny.com"). Defaults to localhost.
     PUBLIC_BASE_URL: str = "http://localhost:8000"
+    # Public base URL of the frontend, used to redirect the browser back after the
+    # calendar OAuth callback (e.g. "https://app.poweredbypenny.com"). Dev default.
+    FRONTEND_BASE_URL: str = "http://localhost:5173"
 
     # Optional integrations, wired up in later phases.
     ANTHROPIC_API_KEY: str | None = None

@@ -11,11 +11,13 @@ import type { TransactionEmail } from '../lib/api'
 import {
   agentsApi,
   appointmentsApi,
+  calendarApi,
   deadlinesApi,
   PARTY_ROLES,
   transactionsApi,
   type Agent,
   type Appointment,
+  type CalendarStatus,
   type CompsResult,
   type ComplianceReview,
   type Deadline,
@@ -283,6 +285,17 @@ export default function TransactionDetail() {
   const [booking, setBooking] = useState(false)
   const [schedError, setSchedError] = useState<string | null>(null)
   const [schedNotice, setSchedNotice] = useState<string | null>(null)
+  const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null)
+
+  // Will this deal's bookings sync? Its agent's calendar if connected, else the
+  // brokerage's. After a propose call, prefer its deal-resolved calendar block.
+  const dealAgentConnected =
+    !!tx?.agent_id && !!calStatus?.agents.some((a) => a.id === tx.agent_id && a.connected)
+  const calConnected =
+    proposal?.calendar?.connected ?? (dealAgentConnected || !!calStatus?.brokerage.connected)
+  const calOwner: 'agent' | 'brokerage' | null =
+    proposal?.calendar?.owner ??
+    (dealAgentConnected ? 'agent' : calStatus?.brokerage.connected ? 'brokerage' : null)
 
   useEffect(() => {
     if (!transaction_id) return
@@ -302,6 +315,10 @@ export default function TransactionDetail() {
       .list(transaction_id)
       .then(setAppointments)
       .catch(() => {/* appointments degrade silently */})
+    calendarApi
+      .status()
+      .then(setCalStatus)
+      .catch(() => {/* calendar status optional */})
     agentsApi
       .list()
       .then(setAgents)
@@ -942,8 +959,25 @@ export default function TransactionDetail() {
             </h3>
             <p className="mb-4 text-xs text-ink-subtle">
               Penny proposes open times from your working hours and books showings or
-              inspections. Calendar sync isn’t connected yet — times reflect your hours and
-              existing appointments.
+              inspections.{' '}
+              {calConnected ? (
+                <span className="text-emerald-600">
+                  Syncing with the {calOwner === 'agent' ? 'agent’s' : 'brokerage'} Google
+                  calendar.
+                </span>
+              ) : (
+                <>
+                  Calendar sync isn’t connected, so times reflect your hours and existing
+                  appointments.{' '}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/settings/calendar')}
+                    className="font-medium text-penny hover:underline"
+                  >
+                    Connect a calendar
+                  </button>
+                </>
+              )}
             </p>
 
             {schedError && (

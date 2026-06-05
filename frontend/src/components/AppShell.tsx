@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   BarChart3,
+  CalendarDays,
   Home,
   LayoutDashboard,
   LogOut,
@@ -39,6 +40,7 @@ const NAV: NavItem[] = [
   { to: '/knowledge', label: 'Brand & Style', icon: Palette },
   { to: '/agents', label: 'Team', icon: Users },
   { to: '/settings/whatsapp', label: 'Messaging', icon: MessageSquare },
+  { to: '/settings/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/settings/compliance', label: 'Compliance', icon: Scale },
   { to: '/settings/autonomy', label: 'Autonomy', icon: Zap },
 ]

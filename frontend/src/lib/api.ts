@@ -132,6 +132,40 @@ export const autonomyApi = {
 }
 
 // --------------------------------------------------------------------------- //
+// Calendar (Google) connection — brokerage + per-agent
+// --------------------------------------------------------------------------- //
+
+export interface CalendarAgentStatus {
+  id: string
+  name?: string | null
+  email?: string | null
+  provider?: string | null
+  connected: boolean
+}
+
+export interface CalendarStatus {
+  oauth_configured: boolean
+  brokerage: { provider: string | null; connected: boolean; sync_enabled: boolean }
+  agents: CalendarAgentStatus[]
+}
+
+export const calendarApi = {
+  status: () => api.get<CalendarStatus>('/calendar/status').then((r) => r.data),
+  // Returns the Google consent URL; redirect the admin to it, or copy it to send
+  // to the agent so they sign into their own Google.
+  connectUrl: (agentId?: string) =>
+    api
+      .get<{ auth_url: string }>('/calendar/google/connect', {
+        params: agentId ? { agent_id: agentId } : {},
+      })
+      .then((r) => r.data.auth_url),
+  disconnect: (agentId?: string) =>
+    api.post('/calendar/disconnect', null, {
+      params: agentId ? { agent_id: agentId } : {},
+    }),
+}
+
+// --------------------------------------------------------------------------- //
 // Document routing (Autonomy task `doc-routing`)
 // --------------------------------------------------------------------------- //
 
@@ -843,7 +877,7 @@ export interface Appointment {
 export interface ProposeResult {
   timezone: string
   duration_minutes: number
-  calendar: { provider: string | null; connected: boolean; sync_enabled: boolean }
+  calendar: { provider: string | null; connected: boolean; owner: 'agent' | 'brokerage' | null }
   slots: string[]
 }
 

@@ -3,6 +3,7 @@ import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import Agents from './pages/Agents'
 import AutonomySettings from './pages/AutonomySettings'
+import CalendarSettings from './pages/CalendarSettings'
 import ComplianceSettings from './pages/ComplianceSettings'
 import Dashboard from './pages/Dashboard'
 import Home from './pages/Home'
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="/settings/whatsapp" element={<WhatsAppSettings />} />
         <Route path="/settings/compliance" element={<ComplianceSettings />} />
         <Route path="/settings/autonomy" element={<AutonomySettings />} />
+        <Route path="/settings/calendar" element={<CalendarSettings />} />
         <Route path="/knowledge" element={<Knowledge />} />
         <Route path="/listings" element={<Listings />} />
         <Route path="/listings/:listing_id" element={<ListingDetail />} />

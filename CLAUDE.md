@@ -156,13 +156,20 @@ URL when done.
   `POST /appointments/book` is **confirm-gated** (required unless the `scheduling`
   task is autonomous) and records the appointment. Agent tools
   `propose_showing_times`, `book_appointment` (confirmed gate), `list_appointments`.
-  Web UI: a Scheduling panel on the transaction page. **Live calendar sync is
-  behind a seam** (`app/services/calendar_provider.py`): `status`/`get_busy`/
-  `create_event` currently report "not connected" / no-op. The Google/Microsoft
-  OAuth flow (connect, token storage in the existing `google_calendar_token` /
-  `microsoft_token` jsonb columns, refresh, real free/busy + event creation) is
-  **deferred** — to be wired once the OAuth apps are registered and testable.
-  Only the `calendar_provider` bodies change then; callers stay the same.
+  Web UI: a Scheduling panel on the transaction page. **Google calendar sync is
+  now implemented** in the `calendar_provider.py` seam (Authorization Code OAuth,
+  token storage + refresh, real free/busy + create/update/delete event), at two
+  levels: each **agent** can connect their own calendar (`agents.*` columns,
+  migration 024) and the **brokerage** has a shared fallback; a deal routes to its
+  `agent_id`'s calendar when connected, else the brokerage's, else local-only.
+  Connect/callback/disconnect/status live in `routes/calendar.py`; the signed
+  OAuth `state` (consent.py HMAC) lets the public callback trust the brokerage/
+  agent it carries, so per-agent connection is admin-initiated (agents have no
+  login — they just sign into their own Google via a connect link). UI is the
+  `/settings/calendar` page + live status on the Scheduling panel. **Pending live
+  verification** (needs `GOOGLE_CLIENT_SECRET` + a local `PUBLIC_BASE_URL` and
+  migration 024 applied); static checks (typecheck, import) pass. **Microsoft/
+  Outlook stays deferred** behind the same seam (columns exist; not wired).
 - **MLS listing prep:** `app/services/mls_extract.py` + `app/api/v1/routes/listings.py`.
   Listing side (distinct from transactions): a `listings` table (migration 005,
   brokerage-scoped). `POST /listings/extract` AI-extracts MLS fields from an
@@ -397,6 +404,9 @@ Post-V2 (web-app work):
 - `023_sms_optin.sql` — `agent_channels.consent_status`
   (`pending`/`active`/`opted_out`, default `active`) + `consent_updated_at` for
   the A2P 10DLC SMS double opt-in. See the SMS fallback (1C) bullet.
+- `024_agent_calendar.sql` — `agents.google_calendar_token` / `microsoft_token`
+  (jsonb) + `agents.calendar_provider` (text), so each agent can connect their own
+  calendar (brokerage already has these from 001+002). See the Scheduling bullet.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste

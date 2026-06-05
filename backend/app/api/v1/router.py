@@ -7,6 +7,7 @@ from app.api.v1.routes import (
     autonomy,
     briefing,
     broker,
+    calendar,
     chat,
     checklist,
     consent,
@@ -46,3 +47,4 @@ api_router.include_router(autonomy.router)
 api_router.include_router(doc_routing.router)
 api_router.include_router(briefing.router)
 api_router.include_router(legal.router)
+api_router.include_router(calendar.router)

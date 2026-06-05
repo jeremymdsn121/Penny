@@ -379,6 +379,16 @@ _TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "get_upcoming_appointments",
+        "description": (
+            "List upcoming appointments across ALL of the agent's deals, soonest "
+            "first. Read-only. Use this when the agent asks what's on their calendar, "
+            "what's next, or what's coming up in general (not tied to one property). "
+            "For a single deal's appointments, use list_appointments instead."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "get_compliance_checklist",
         "description": (
             "Show what's still missing from a transaction's compliance file — the "
@@ -1145,8 +1155,16 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
     attendees = [a for a in (inputs.get("attendees") or []) if a and a.strip()]
     end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
     address = (tx.get("address") or "the property").strip()
+    # Route to the deal's agent calendar if connected, else the brokerage's.
+    cal_agent = None
+    if tx.get("agent_id"):
+        try:
+            cal_agent = await sb.get_agent(brokerage_id, tx["agent_id"])
+        except Exception:
+            cal_agent = None
+    account = calendar_provider.resolve_account(brokerage, cal_agent)
     event_id = await calendar_provider.create_event(
-        brokerage,
+        account,
         summary=f"{appt_type.replace('_', ' ').title()} — {address}",
         start=start,
         end=end,
@@ -1181,6 +1199,39 @@ async def _exec_list_appointments(brokerage_id: str, inputs: dict) -> str:
         except ValueError:
             dt = None
         lines.append(f"- {label}: {_fmt_slot(dt) if dt else 'time TBD'}")
+    return "\n".join(lines)
+
+
+async def _exec_get_upcoming_appointments(brokerage_id: str, inputs: dict) -> str:
+    txs = await sb.list_transactions(brokerage_id)
+    addr_by_id = {t["id"]: (t.get("address") or "a property") for t in txs}
+    appts = await sb.list_appointments_in(list(addr_by_id.keys())) if addr_by_id else []
+    now = datetime.now(timezone.utc)
+    upcoming: list[tuple[datetime, dict]] = []
+    for a in appts:
+        when = a.get("scheduled_at")
+        if not when:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt < now:
+            continue
+        upcoming.append((dt, a))
+    if not upcoming:
+        return (
+            "Nothing coming up on the calendar. You have no future appointments booked "
+            "right now. Want me to propose showing times for one of your deals?"
+        )
+    upcoming.sort(key=lambda x: x[0])
+    lines = ["Here's what's coming up:"]
+    for dt, a in upcoming[:15]:
+        addr = addr_by_id.get(a.get("transaction_id"), "a property")
+        label = (a.get("type") or "appointment").replace("_", " ")
+        lines.append(f"- {_fmt_slot(dt)}: {label} at {addr}")
     return "\n".join(lines)
 
 
@@ -1622,6 +1673,7 @@ _TOOL_MAP = {
     "propose_showing_times": _exec_propose_showing_times,
     "book_appointment": _exec_book_appointment,
     "list_appointments": _exec_list_appointments,
+    "get_upcoming_appointments": _exec_get_upcoming_appointments,
     "get_compliance_checklist": _exec_get_compliance_checklist,
     "mark_checklist_item": _exec_mark_checklist_item,
     "get_emd_status": _exec_get_emd_status,
@@ -1753,7 +1805,7 @@ async def run_penny_agent(
         )
         style_block = (
             "Communication style:\n"
-            "- You're in a web chat panel. Be concise and direct — a short answer or a "
+            "- You're in a web chat panel. Be concise and direct: a short answer or a "
             "few short dash-prefixed lines, not long essays.\n"
             "- Write PLAIN TEXT only. Do NOT use markdown: no ** for bold, no # headers, "
             "no tables. For a heading just write the words and a colon. Use plain dashes "
@@ -1770,7 +1822,7 @@ async def run_penny_agent(
         style_block = (
             "Communication style:\n"
             "- This is an email reply to a colleague. Be professional but warm, and get "
-            "to the point — a short paragraph or a few dash-prefixed lines.\n"
+            "to the point: a short paragraph or a few dash-prefixed lines.\n"
             "- Write PLAIN TEXT only (it is rendered as an email body). No markdown: no "
             "** for bold, no # headers, no tables. Plain dashes for lists.\n"
             "- Do NOT add a greeting line with the recipient's name unless it reads "
@@ -1800,6 +1852,8 @@ async def run_penny_agent(
         f"Today's date: {today}\n"
         f"You are speaking with: {agent_label}\n\n"
         f"{style_block}"
+        "Punctuation: never use em dashes (—) or en dashes (–) in your replies. "
+        "Rephrase with a period, comma, colon, or 'and'. This is a firm style rule.\n\n"
         f"{pending_reply_block}"
         "Sending the intro email:\n"
         "- The intro email introduces every party on a deal (buyer, seller, agents, "
@@ -1823,7 +1877,9 @@ async def run_penny_agent(
         "Booking creates a calendar event, so you MUST get the agent's explicit "
         "confirmation of the time before calling book_appointment with confirmed=true "
         "(unless scheduling is autonomous for this brokerage). list_appointments shows "
-        "what's on the books.\n\n"
+        "one deal's appointments; get_upcoming_appointments shows what's coming up "
+        "across ALL the agent's deals, so use it for general 'what's on my calendar' or "
+        "'what's next' questions.\n\n"
         "Compliance file:\n"
         "- get_compliance_checklist shows what required documents are still missing from "
         "a deal's file. mark_checklist_item marks an item complete/waived — confirm the "

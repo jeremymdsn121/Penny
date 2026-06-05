@@ -73,14 +73,29 @@ async def _require_owned_transaction(brokerage_id: str, transaction_id: str) -> 
 
 async def _scoped_appointment(
     brokerage_id: str, appointment_id: str
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     appt = await sb.get_appointment(appointment_id)
     if appt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
     tx = await sb.get_transaction(brokerage_id, appt.get("transaction_id"))
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
-    return appt
+    return appt, tx
+
+
+async def _resolve_account(
+    brokerage: dict[str, Any], tx: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The calendar a deal should use: its agent's if connected, else the
+    brokerage's. Swallows lookup errors — calendar issues never block scheduling."""
+    agent = None
+    agent_id = tx.get("agent_id")
+    if agent_id:
+        try:
+            agent = await sb.get_agent(brokerage["id"], agent_id)
+        except sb.SupabaseError:
+            agent = None
+    return calendar_provider.resolve_account(brokerage, agent)
 
 
 async def _scheduling_autonomous(brokerage_id: str) -> bool:
@@ -93,9 +108,14 @@ async def _scheduling_autonomous(brokerage_id: str) -> bool:
     )
 
 
-async def _busy_intervals(brokerage: dict[str, Any], start: datetime, end: datetime):
-    """Existing local appointments (padded to a default duration) + connected
-    calendar busy times."""
+async def _busy_intervals(
+    brokerage: dict[str, Any],
+    account: dict[str, Any] | None,
+    start: datetime,
+    end: datetime,
+):
+    """Existing local appointments (padded to a default duration) + the resolved
+    calendar's busy times."""
     txs = await sb.list_transactions(brokerage["id"])
     appts = await sb.list_appointments_in([t["id"] for t in txs])
     busy: list[tuple[datetime, datetime]] = []
@@ -108,8 +128,33 @@ async def _busy_intervals(brokerage: dict[str, Any], start: datetime, end: datet
         except ValueError:
             continue
         busy.append((b_start, b_start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)))
-    busy.extend(await calendar_provider.get_busy(brokerage, start, end))
+    busy.extend(await calendar_provider.get_busy(account, start, end))
     return busy
+
+
+async def _sync_event_update(
+    account: dict[str, Any] | None,
+    event_id: str,
+    appt: dict[str, Any],
+    tx: dict[str, Any],
+) -> None:
+    """Mirror an appointment change onto its calendar event (reschedule/retitle)."""
+    try:
+        start = datetime.fromisoformat(str(appt["scheduled_at"]).replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        return
+    end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
+    appt_type = appt.get("type") or "showing"
+    address = (tx.get("address") or "the property").strip()
+    summary = f"{appt_type.replace('_', ' ').title()} — {address}"
+    await calendar_provider.update_event(
+        account,
+        event_id,
+        summary=summary,
+        start=start,
+        end=end,
+        attendees=[a for a in (appt.get("attendees") or []) if a and a.strip()],
+    )
 
 
 @router.post("/propose")
@@ -117,7 +162,8 @@ async def propose(
     body: ProposeIn,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
-    await _require_owned_transaction(brokerage["id"], body.transaction_id)
+    tx = await _require_owned_transaction(brokerage["id"], body.transaction_id)
+    account = await _resolve_account(brokerage, tx)
     tz = scheduling.resolve_timezone(brokerage.get("state"))
     now = datetime.now(tz)
     if body.start_date:
@@ -134,7 +180,7 @@ async def propose(
     window_end = datetime.combine(
         start_day + timedelta(days=max(1, body.days)), datetime.min.time(), tzinfo=tz
     )
-    busy = await _busy_intervals(brokerage, now, window_end)
+    busy = await _busy_intervals(brokerage, account, now, window_end)
     slots = scheduling.propose_slots(
         work_start=brokerage.get("work_start"),
         work_end=brokerage.get("work_end"),
@@ -149,7 +195,7 @@ async def propose(
     return {
         "timezone": tz.key,
         "duration_minutes": body.duration_minutes,
-        "calendar": calendar_provider.status(brokerage),
+        "calendar": calendar_provider.account_status(account),
         "slots": [s.isoformat() for s in slots],
     }
 
@@ -172,8 +218,9 @@ async def book(
     address = (tx.get("address") or "the property").strip()
     summary = f"{body.type.replace('_', ' ').title()} — {address}"
 
+    account = await _resolve_account(brokerage, tx)
     event_id = await calendar_provider.create_event(
-        brokerage,
+        account,
         summary=summary,
         start=start,
         end=end,
@@ -207,7 +254,7 @@ async def update(
     body: AppointmentUpdate,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
-    await _scoped_appointment(brokerage["id"], appointment_id)
+    appt, tx = await _scoped_appointment(brokerage["id"], appointment_id)
     data = body.model_dump(exclude_unset=True)
     if "scheduled_at" in data and data["scheduled_at"]:
         tz = scheduling.resolve_timezone(brokerage.get("state"))
@@ -215,6 +262,12 @@ async def update(
     updated = await sb.update_appointment(appointment_id, data)
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+
+    # Mirror reschedule / retitle / attendee changes onto the calendar event.
+    event_id = updated.get("calendar_event_id") or appt.get("calendar_event_id")
+    if event_id and any(k in data for k in ("scheduled_at", "type", "attendees")):
+        account = await _resolve_account(brokerage, tx)
+        await _sync_event_update(account, event_id, updated, tx)
     return updated
 
 
@@ -223,5 +276,9 @@ async def delete(
     appointment_id: str,
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> None:
-    await _scoped_appointment(brokerage["id"], appointment_id)
+    appt, tx = await _scoped_appointment(brokerage["id"], appointment_id)
+    event_id = appt.get("calendar_event_id")
+    if event_id:
+        account = await _resolve_account(brokerage, tx)
+        await calendar_provider.delete_event(account, event_id)
     await sb.delete_appointment(appointment_id)
