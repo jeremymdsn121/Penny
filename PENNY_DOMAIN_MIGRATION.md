@@ -1,11 +1,14 @@
 # Penny domain migration — heysloane.io → poweredbypenny.com
 
-**Status: cutover essentially complete.** DNS (SendGrid CNAMEs + reply MX + api
-CNAME) is live and verified; SendGrid domain is authenticated with Inbound Parse on
+**Status: COMPLETE (2026-06-05).** DNS (SendGrid CNAMEs + reply MX + api CNAME) is
+live and verified; SendGrid domain is authenticated with Inbound Parse on
 `reply.poweredbypenny.com`; Render has the new env vars and `api.poweredbypenny.com`
 serves prod over HTTPS (`/health` returns 200); the live `backend/.env` is on the
-new domain. Remaining: a real outbound→reply email round-trip and a WhatsApp message
-test after the latest deploy, then optionally decommission heysloane.io.
+new domain. Outbound mail verified landing From `Penny <hello@poweredbypenny.com>`.
+**heysloane.io decommissioned:** the old SendGrid Inbound Parse host
+`reply.heysloane.io` was removed and the heysloane.io DNS handled at the registrar
+(Porkbun). No application code/config references heysloane.io (repo grep is clean
+except this doc).
 
 This doc is kept as the record of what was done. Original plan/ordering below.
 
@@ -41,10 +44,10 @@ This doc is kept as the record of what was done. Original plan/ordering below.
 - [x] Live `backend/.env` flipped to the new domain (gitignored)
 - [x] Twilio signature fix for Render's TLS proxy (honour `X-Forwarded-Proto`)
 
-### Still to verify after deploy
-- [ ] Outbound email arrives From `hello@poweredbypenny.com` (not spam)
-- [ ] Reply round-trips through `/api/v1/email/inbound` and threads
-- [ ] WhatsApp inbound → Penny replies (the signature fix must be deployed first)
+### Verified after deploy
+- [x] Outbound email arrives From `Penny <hello@poweredbypenny.com>` (not spam)
+- [x] Reply round-trips through `/api/v1/email/inbound` and threads
+- [x] WhatsApp inbound → Penny replies (signature fix deployed)
 
 ---
 
@@ -96,10 +99,10 @@ This doc is kept as the record of what was done. Original plan/ordering below.
 - [ ] Reply to it → `/api/v1/email/inbound` logs the thread + nudges the deal's agent
 - [ ] WhatsApp + SMS inbound still round-trip
 
-## H. Decommission heysloane.io  *(later, optional)*
-- [ ] After a clean transition window, remove the old SendGrid Inbound Parse entry
-      and let heysloane.io lapse (or 301 it). Keep it live during transition so any
-      in-flight reply threads still route.
+## H. Decommission heysloane.io  ✅ done (2026-06-05)
+- [x] Removed the old SendGrid Inbound Parse host `reply.heysloane.io`
+      (only `reply.poweredbypenny.com` remains).
+- [x] heysloane.io DNS handled at the registrar (Porkbun).
 
 ## Optional cosmetic — local repo folder
 - [ ] Rename `C:\Users\Jeremy\sloane` → `...\penny` if you want the path to match.
