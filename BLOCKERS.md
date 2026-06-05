@@ -46,11 +46,49 @@ engineering seam exists (`backend/app/services/calendar_provider.py`).
 The current implementation uses the Twilio WhatsApp Sandbox (each contact must
 `join <word>` to opt in). Production needs a WhatsApp Business Account + approved
 Business Profile via Twilio/META; real-estate bulk messaging has been delayed or
-rejected before.
+rejected before. **This is a wholly separate approval track from A2P 10DLC**
+(Meta vs. US carriers / TCR) — neither clears the other.
 
 - **Mitigation shipped:** the SMS fallback channel (Section 1C) is a
   production-ready channel (`TWILIO_SMS_FROM`) while approval is pending.
-- **Action:** begin the Twilio/META WhatsApp Business API application now.
+
+**Single-number decision (2026-06-04).** Penny will run WhatsApp and SMS on the
+**same** number — `+14053636555` (a Twilio long code, confirmed **not** tied to
+any consumer WhatsApp account, which is the one hard prerequisite). Twilio allows
+one number to carry both an A2P 10DLC SMS registration and a production WhatsApp
+sender; inbound traffic is routed by the `whatsapp:` address prefix, and the
+WhatsApp sender's webhook and the number's SMS messaging webhook are configured
+independently. Penny's two-endpoint design already supports this with **no code
+change** — point the WhatsApp sender at `/api/v1/whatsapp/inbound` and the SMS
+handler at `/api/v1/sms/inbound`; `TWILIO_WHATSAPP_FROM` and `TWILIO_SMS_FROM`
+hold the same E.164 value (one carries the `whatsapp:` prefix). Rationale:
+realtors save **one** "Penny" contact that works for WhatsApp and the SMS
+fallback — the realtor experience is the product. (Refs: Twilio WhatsApp API
+overview; inbound webhook request format; "Which Twilio numbers are compatible
+with WhatsApp".)
+
+**Onboarding action plan (Twilio-brokered Embedded Signup):**
+
+1. **Start the long-lead items first** (these gate everything else):
+   - Meta Business Manager account (business.facebook.com).
+   - **Meta Business Verification** — legal name/address/website/domain must
+     match; days-to-weeks. This is the usual bottleneck — kick it off immediately.
+2. **Confirm the number is WhatsApp-clean** — `+14053636555` must not be
+   registered on the consumer WhatsApp / WhatsApp Business app (confirmed clean
+   as of 2026-06-04; re-verify at submission time).
+3. **Create the WhatsApp sender** — Twilio Console → Messaging → Senders →
+   WhatsApp senders → "Create new sender" → Meta Embedded Signup popup → attach
+   `+14053636555` to the WABA → verify via OTP.
+4. **Display name + business profile** — pick the display name (relate it to the
+   brokerage brand; generic names get rejected), set category/description/logo.
+5. **Point the sender's inbound webhook** at
+   `https://api.poweredbypenny.com/api/v1/whatsapp/inbound` (POST).
+6. **Message templates** — any send **outside** the 24h customer-service window
+   must be a pre-approved template. Submit templates for Penny's proactive sends
+   (deadline reminders, EMD nudges, review-queue pings) before go-live. Inbound
+   and in-window replies need no templates.
+7. **Cut over** — replace the sandbox `whatsapp:+14155238886` in
+   `TWILIO_WHATSAPP_FROM` with `whatsapp:+14053636555`; drop the `join <word>` step.
 
 ## HARD LIMIT 5 — AI reliability in compliance review
 

@@ -439,9 +439,16 @@ Deferred (built behind seams, wired when credentials/approval exist):
 `REDIS_URL`.
 
 WhatsApp specifics:
-- `TWILIO_WHATSAPP_FROM` must be the **sandbox** number (`whatsapp:+14155238886`),
-  not the assigned SMS number — replies must originate from a WhatsApp-enabled
-  number. Sandbox agents must first send `join <sandbox-word>` to opt in.
+- `TWILIO_WHATSAPP_FROM` is currently the **sandbox** number
+  (`whatsapp:+14155238886`) — replies must originate from a WhatsApp-enabled
+  number, and sandbox agents must first send `join <sandbox-word>` to opt in.
+  **Production plan (single number):** WhatsApp and SMS will share one number,
+  `+14053636555` — `TWILIO_WHATSAPP_FROM=whatsapp:+14053636555` and
+  `TWILIO_SMS_FROM=+14053636555`. Twilio routes the two channels by the
+  `whatsapp:` prefix to the separate `/whatsapp/inbound` + `/sms/inbound`
+  webhooks, so no code changes — realtors save one "Penny" contact for both. The
+  cutover waits on WhatsApp Business API production approval; see
+  `BLOCKERS.md` Hard Limit 4 for the Meta/Twilio onboarding plan.
 - `TWILIO_SKIP_VALIDATION=true` in local dev: signature validation fails behind
   ngrok because the signed URL doesn't match the reconstructed one. Never skip
   in production.
