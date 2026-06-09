@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#0B0B12" />
+<title>Privacy — Penny</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{--violet:#7C3AED;--violet-light:#A78BFA;--violet-deep:#5B21B6;--violet-glow:rgba(124,58,237,0.55);--ink:#0B0B12;--ink-2:#111118;--text-light:#EDEDF2;--text-muted-light:#A7A7B5;--border-light:rgba(255,255,255,0.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Manrope',system-ui,sans-serif;background:var(--ink);color:var(--text-light);font-synthesis:none;-webkit-font-smoothing:antialiased;line-height:1.65}
+a{color:var(--violet-light);text-decoration:none}
+.wrap{max-width:760px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--border-light)}
+.nav{display:flex;align-items:center;height:72px;max-width:1180px;margin:0 auto;padding:0 24px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-0.02em;color:var(--text-light)}
+main{padding:70px 0 90px}
+.kicker{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--violet-light);margin-bottom:14px}
+h1{font-size:40px;font-weight:800;letter-spacing:-0.03em;margin-bottom:10px}
+.upd{font-size:13.5px;color:var(--text-muted-light);margin-bottom:40px}
+h2{font-size:21px;font-weight:700;margin:38px 0 12px;letter-spacing:-0.01em}
+p{color:var(--text-muted-light);margin-bottom:14px}
+.callout{background:var(--ink-2);border:1px solid var(--border-light);border-left:3px solid var(--violet);border-radius:12px;padding:18px 20px;margin:24px 0;font-size:14.5px}
+footer{border-top:1px solid var(--border-light);padding:34px 0;text-align:center;font-size:13px;color:var(--text-muted-light)}
+.placeholder{color:var(--violet-light);font-style:italic}
+</style>
+</head>
+<body>
+<header><div class="nav"><a href="index.html" class="brand">Penny</a></div></header>
+<main>
+  <div class="wrap">
+    <div class="kicker">Legal</div>
+    <h1>Privacy Policy</h1>
+    <p class="upd">Last updated: <span class="placeholder">[date]</span> · This is a placeholder to be reviewed by counsel before launch.</p>
+
+    <div class="callout">Penny handles client communications and transaction documents on behalf of brokerages. Each brokerage's data is scoped to that brokerage and is never shared across brokerages.</div>
+
+    <h2>1. Who we are</h2>
+    <p>Penny is a virtual transaction coordinator for real estate brokerages, operated by <span class="placeholder">[legal entity]</span> ("Penny," "we," "us"). This policy explains what we collect, why, and the choices you have.</p>
+
+    <h2>2. Information we collect</h2>
+    <p>We collect information you provide when your brokerage onboards (brokerage details, agent contacts, brand and compliance settings), the transaction documents and messages your agents send Penny, and standard technical data needed to operate the service.</p>
+
+    <h2>3. How we use it</h2>
+    <p>We use your information to coordinate transactions: reading contracts, tracking deadlines and earnest money, running compliance checklists, drafting and routing communications, and reporting to your broker. We do not sell your data.</p>
+
+    <h2>4. AI processing</h2>
+    <p>Penny uses AI to read documents and draft communications. Data is scoped to your brokerage during processing and is not used to train third-party public models. Anything client-facing is held for a human's confirmation before it is sent.</p>
+
+    <h2>5. Data sharing</h2>
+    <p>We share data only with the service providers needed to run Penny (for example, messaging and email delivery) under contract, and where required by law. We never share one brokerage's data with another.</p>
+
+    <h2>6. Security</h2>
+    <p>API keys and secrets are stored encrypted at rest, access is scoped per brokerage, and server-side credentials are never exposed to client applications.</p>
+
+    <h2>7. Retention</h2>
+    <p>We retain transaction records per your brokerage's configured retention settings and applicable real estate record-keeping requirements.</p>
+
+    <h2>8. Your choices</h2>
+    <p>Brokerage administrators can manage agents, settings, and data within Penny. To request access, correction, or deletion, contact us at <a href="mailto:hello@poweredbypenny.com">hello@poweredbypenny.com</a>.</p>
+
+    <h2>9. Contact</h2>
+    <p>Questions about this policy? Email <a href="mailto:hello@poweredbypenny.com">hello@poweredbypenny.com</a>.</p>
+  </div>
+</main>
+<footer><div class="wrap">© 2026 Penny · <a href="index.html">Home</a> · <a href="terms.html">Terms</a></div></footer>
+</body>
+</html>

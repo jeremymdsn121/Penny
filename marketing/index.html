@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#0B0B12" />
+<title>Penny — Your brokerage's transaction coordinator, on every deal, 24/7</title>
+<meta name="description" content="Penny is a virtual transaction coordinator for real estate brokerages. She reads the contract, tracks every deadline, runs the compliance checklist, drafts and routes emails, and keeps your brokerage on track. Over WhatsApp and text." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   Penny marketing site — design tokens
+   Brand: violet #7C3AED
+   ============================================================ */
+:root {
+  --violet: #7C3AED;
+  --violet-light: #A78BFA;
+  --violet-deep: #5B21B6;
+  --violet-glow: rgba(124, 58, 237, 0.55);
+  --ink: #0B0B12;
+  --ink-2: #111118;
+  --ink-3: #16161F;
+  --paper: #FAFAFB;
+  --paper-2: #F2F1F6;
+  --text-dark: #1A1A22;
+  --text-muted-dark: #5A5A68;
+  --text-light: #EDEDF2;
+  --text-muted-light: #A7A7B5;
+  --border-light: rgba(255,255,255,0.08);
+  --border-dark: rgba(17,17,24,0.08);
+  --radius: 18px;
+  --radius-lg: 26px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --maxw: 1180px;
+  --font-display: 'Manrope', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+body {
+  font-family: var(--font-body);
+  background: var(--ink);
+  color: var(--text-light);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+section { position: relative; }
+h1, h2, h3, h4, h5, .brand, .step .num, .price-card .amt, .modal h3 { font-family: var(--font-display); }
+
+/* ---------- scroll progress ---------- */
+#progress {
+  position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+  background: linear-gradient(90deg, var(--violet), var(--violet-light));
+  z-index: 1000; box-shadow: 0 0 12px var(--violet-glow);
+  transition: width 0.1s linear;
+}
+
+/* ---------- header ---------- */
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  transition: background 0.4s var(--ease), backdrop-filter 0.4s var(--ease), box-shadow 0.4s var(--ease), border-color 0.4s var(--ease);
+  border-bottom: 1px solid transparent;
+}
+header.scrolled {
+  background: rgba(11,11,18,0.72);
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  border-bottom: 1px solid var(--border-light);
+}
+.nav { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+.nav-links { display: flex; align-items: center; gap: 32px; }
+.nav-links a { color: var(--text-muted-light); font-size: 14.5px; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text-light); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; border: none;
+  font-family: inherit; font-weight: 600; font-size: 15px; border-radius: 999px;
+  padding: 12px 22px; transition: transform 0.2s var(--ease), box-shadow 0.3s var(--ease), background 0.3s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--violet), var(--violet-deep));
+  color: #fff; box-shadow: 0 8px 24px -6px var(--violet-glow), inset 0 1px 0 rgba(255,255,255,0.18);
+  position: relative; isolation: isolate;
+}
+/* soft breathing bloom behind the button */
+.btn-primary::after {
+  content:""; position:absolute; inset:-4px; border-radius:999px; z-index:-1;
+  background: radial-gradient(closest-side, var(--violet-light), var(--violet) 55%, transparent);
+  filter: blur(16px); opacity: 0.5; will-change: opacity, transform;
+  animation: glowBreathe 2.8s ease-in-out infinite;
+}
+@keyframes glowBreathe {
+  0%, 100% { opacity: 0.3;  transform: scale(0.92); }
+  50%      { opacity: 0.85; transform: scale(1.14); }
+}
+.btn-primary:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 14px 40px -8px var(--violet-glow); }
+.btn-primary:hover::after { opacity: 0.95; animation-duration: 1.8s; }
+.btn-ghost { background: rgba(255,255,255,0.06); color: var(--text-light); border: 1px solid var(--border-light); }
+.btn-ghost:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.nav-toggle { display: none; background: none; border: none; color: var(--text-light); cursor: pointer; padding: 8px; }
+.nav-toggle svg { width: 26px; height: 26px; }
+
+/* ---------- hero ---------- */
+.hero { padding: 170px 0 110px; overflow: hidden; }
+.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  color: var(--violet-light); background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.25);
+  padding: 7px 14px; border-radius: 999px; margin-bottom: 24px; letter-spacing: 0.01em;
+}
+.eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--violet-light); box-shadow: 0 0 10px var(--violet-light); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+h1 {
+  font-size: clamp(40px, 5.4vw, 66px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800;
+  margin-bottom: 22px;
+}
+h1 .grad { background: linear-gradient(120deg, var(--violet-light), var(--violet) 60%, #d8b4fe); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lede { font-size: clamp(16px, 1.7vw, 19px); line-height: 1.6; color: var(--text-muted-light); max-width: 540px; margin-bottom: 34px; }
+.hero-cta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.hero-cta .seclink { color: var(--text-light); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; }
+.hero-cta .seclink .arrow { transition: transform 0.25s var(--ease); }
+.hero-cta .seclink:hover .arrow { transform: translateX(4px); }
+.hero-meta { margin-top: 30px; display: flex; gap: 26px; flex-wrap: wrap; color: var(--text-muted-light); font-size: 13.5px; }
+.hero-meta span { display: inline-flex; align-items: center; gap: 7px; }
+.hero-meta svg { width: 15px; height: 15px; color: var(--violet-light); }
+
+/* glows */
+.glow { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.5; pointer-events: none; z-index: 0; }
+.glow-1 { width: 460px; height: 460px; background: var(--violet); top: -120px; right: -60px; animation: drift1 14s ease-in-out infinite; }
+.glow-2 { width: 380px; height: 380px; background: var(--violet-deep); bottom: -140px; left: -80px; animation: drift2 18s ease-in-out infinite; }
+@keyframes drift1 { 0%,100%{ transform: translate(0,0) scale(1);} 50%{ transform: translate(-30px,40px) scale(1.08);} }
+@keyframes drift2 { 0%,100%{ transform: translate(0,0) scale(1);} 50%{ transform: translate(40px,-30px) scale(1.12);} }
+.hero-grid > * { position: relative; z-index: 1; }
+
+/* ---------- phone / chat mockup ---------- */
+.phone {
+  width: 330px; margin: 0 auto; background: linear-gradient(160deg, #1b1b27, #0e0e16);
+  border-radius: 40px; padding: 14px; border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 40px 90px -30px rgba(124,58,237,0.5), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.08);
+  position: relative;
+}
+.phone::before { content:""; position:absolute; top:24px; left:50%; transform:translateX(-50%); width:120px; height:26px; background:#0a0a10; border-radius:0 0 16px 16px; z-index:3; }
+.phone-screen { background: #0a0a10; border-radius: 28px; overflow: hidden; height: 560px; display: flex; flex-direction: column; }
+.chat-head { background: linear-gradient(135deg, var(--violet-deep), var(--violet)); padding: 30px 18px 14px; display: flex; align-items: center; gap: 11px; }
+.chat-head .av { width: 38px; height: 38px; border-radius: 50%; background: #fff; color: var(--violet); display: grid; place-items: center; font-weight: 900; font-size: 17px; }
+.chat-head .av img { height: 24px; width: auto; display: block; }
+.chat-head .nm { font-weight: 700; font-size: 15px; color: #fff; }
+.chat-head .st { font-size: 11.5px; color: rgba(255,255,255,0.8); }
+.chat-body { flex: 1; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; background: #0d0d14; }
+.bubble {
+  max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.45;
+  opacity: 0; transform: translateY(12px) scale(0.96); animation: bubbleIn 0.5s var(--ease) forwards;
+}
+@keyframes bubbleIn { to { opacity: 1; transform: translateY(0) scale(1); } }
+.bubble.them { align-self: flex-end; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: #fff; border-bottom-right-radius: 5px; }
+.bubble.penny { align-self: flex-start; background: #20202c; color: var(--text-light); border-bottom-left-radius: 5px; border: 1px solid rgba(255,255,255,0.05); }
+.bubble .tag { display: block; font-size: 10.5px; font-weight: 700; color: var(--violet-light); margin-bottom: 3px; letter-spacing: 0.02em; }
+.typing { align-self: flex-start; background: #20202c; padding: 13px 16px; border-radius: 16px; border-bottom-left-radius: 5px; display: inline-flex; gap: 4px; opacity:0; animation: bubbleIn 0.3s var(--ease) forwards; }
+.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--violet-light); animation: bounce 1.2s infinite; }
+.typing span:nth-child(2){ animation-delay: 0.18s; } .typing span:nth-child(3){ animation-delay: 0.36s; }
+@keyframes bounce { 0%,60%,100%{ transform: translateY(0); opacity:0.5;} 30%{ transform: translateY(-6px); opacity:1;} }
+
+/* ---------- generic section scaffolding ---------- */
+.band { padding: 110px 0; }
+.band.light { background: var(--paper); color: var(--text-dark); }
+.band.light .sec-sub { color: var(--text-muted-dark); }
+.sec-head { max-width: 660px; margin: 0 auto 60px; text-align: center; }
+.kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--violet); margin-bottom: 16px; }
+h2 { font-size: clamp(30px, 4vw, 46px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 800; }
+.sec-sub { font-size: 17.5px; line-height: 1.6; color: var(--text-muted-light); margin-top: 18px; }
+
+/* reveal */
+.reveal { opacity: 0; transform: translateY(34px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
+
+/* ---------- problem cards ---------- */
+.pain-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 22px; }
+.pain-card { background: var(--ink-2); border: 1px solid var(--border-light); border-radius: var(--radius); padding: 30px; }
+.band.light .pain-card { background: #fff; border-color: var(--border-dark); box-shadow: 0 14px 40px -28px rgba(20,20,40,0.4); }
+.pain-card .ic { width: 46px; height: 46px; border-radius: 13px; background: rgba(124,58,237,0.12); display: grid; place-items: center; margin-bottom: 18px; color: var(--violet); }
+.pain-card h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; }
+.pain-card p { font-size: 14.5px; line-height: 1.6; color: var(--text-muted-dark); }
+.band:not(.light) .pain-card p { color: var(--text-muted-light); }
+.pain-foot { text-align: center; margin-top: 44px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.pain-foot .hl { color: var(--violet); }
+
+/* ---------- steps ---------- */
+.steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 26px; counter-reset: step; }
+.step { position: relative; padding: 34px 28px; border-radius: var(--radius); background: var(--ink-2); border: 1px solid var(--border-light); }
+.step .num { font-size: 52px; font-weight: 900; line-height: 1; background: linear-gradient(135deg, var(--violet-light), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 16px; }
+.step h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+.step p { font-size: 14.5px; line-height: 1.62; color: var(--text-muted-light); }
+
+/* ---------- features ---------- */
+.feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.feat {
+  background: var(--ink-2); border: 1px solid var(--border-light); border-radius: var(--radius); padding: 26px;
+  transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.35s var(--ease);
+}
+.feat:hover { transform: translateY(-6px); border-color: rgba(124,58,237,0.4); box-shadow: 0 24px 50px -28px var(--violet-glow); }
+.feat .ic { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(91,33,182,0.12)); display: grid; place-items: center; color: var(--violet-light); margin-bottom: 18px; transition: transform 0.35s var(--ease); }
+.feat:hover .ic { transform: scale(1.1) rotate(-4deg); }
+.feat h3 { font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 9px; color: var(--text-light); }
+.feat h3 .sep { color: var(--violet-light); }
+.feat p { font-size: 13.8px; line-height: 1.58; color: var(--text-muted-light); }
+
+/* ---------- showcase (simulated chat) ---------- */
+.sim { max-width: 640px; margin: 0 auto; background: var(--ink-2); border: 1px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 34px 80px -42px rgba(124,58,237,0.55); }
+.sim-head { background: linear-gradient(135deg, var(--violet-deep), var(--violet)); padding: 15px 20px; display: flex; align-items: center; gap: 12px; }
+.sim-head .av { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--violet); display: grid; place-items: center; font-weight: 900; font-size: 18px; font-family: var(--font-display); }
+.sim-head .av img { height: 26px; width: auto; display: block; }
+.sim-head .nm { font-weight: 700; font-size: 15.5px; color: #fff; }
+.sim-head .st { font-size: 12px; color: rgba(255,255,255,0.82); display: inline-flex; align-items: center; gap: 6px; }
+.sim-head .st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #6EE7A8; box-shadow: 0 0 8px #6EE7A8; }
+.sim-body { height: 430px; padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; background: #0c0c13; }
+.sim-b { max-width: 80%; padding: 12px 16px; border-radius: 16px; font-size: 14.5px; line-height: 1.5; opacity: 0; transform: translateY(12px) scale(0.97); animation: bubbleIn 0.5s var(--ease) forwards; }
+.sim-b.them { align-self: flex-end; background: linear-gradient(135deg, var(--violet), var(--violet-deep)); color: #fff; border-bottom-right-radius: 5px; }
+.sim-b.penny { align-self: flex-start; background: #20202c; color: var(--text-light); border: 1px solid rgba(255,255,255,0.05); border-bottom-left-radius: 5px; }
+.sim-b .tag { display: block; font-size: 10.5px; font-weight: 700; color: var(--violet-light); margin-bottom: 3px; letter-spacing: 0.02em; }
+.sim-typing { align-self: flex-start; background: #20202c; padding: 14px 16px; border-radius: 16px; border-bottom-left-radius: 5px; display: inline-flex; gap: 4px; opacity: 0; animation: bubbleIn 0.3s var(--ease) forwards; }
+.sim-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--violet-light); animation: bounce 1.2s infinite; }
+.sim-typing span:nth-child(2){ animation-delay: 0.18s; } .sim-typing span:nth-child(3){ animation-delay: 0.36s; }
+@media (max-width: 560px) { .sim-body { height: 470px; } }
+
+/* ---------- who / two-col ---------- */
+.who-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.who { padding: 38px; border-radius: var(--radius-lg); border: 1px solid var(--border-light); }
+.who.owner { background: linear-gradient(160deg, rgba(124,58,237,0.16), rgba(91,33,182,0.06)); }
+.who.agent { background: var(--ink-2); }
+.who .lab { font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--violet-light); margin-bottom: 14px; }
+.who h3 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 18px; }
+.who ul { list-style: none; display: flex; flex-direction: column; gap: 13px; }
+.who li { display: flex; gap: 11px; font-size: 15px; line-height: 1.5; color: var(--text-muted-light); }
+.who li svg { width: 19px; height: 19px; color: var(--violet-light); flex-shrink: 0; margin-top: 1px; }
+
+/* ---------- trust ---------- */
+.trust { background: linear-gradient(135deg, var(--ink-3), var(--ink-2)); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 50px; }
+.trust-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 26px 40px; margin-top: 14px; }
+.trust-item { display: flex; gap: 14px; }
+.trust-item .ic { width: 42px; height: 42px; border-radius: 12px; background: rgba(124,58,237,0.14); display: grid; place-items: center; color: var(--violet-light); flex-shrink: 0; }
+.trust-item h4 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.trust-item p { font-size: 14px; line-height: 1.55; color: var(--text-muted-light); }
+
+/* ---------- pricing ---------- */
+.price-card { max-width: 560px; margin: 0 auto; background: linear-gradient(160deg, rgba(124,58,237,0.14), rgba(11,11,18,0.4)); border: 1px solid rgba(124,58,237,0.3); border-radius: var(--radius-lg); padding: 46px; text-align: center; position: relative; overflow: hidden; }
+.price-card::before { content:""; position:absolute; width:300px; height:300px; background: var(--violet); filter: blur(90px); opacity: 0.25; top: -120px; right: -80px; }
+.price-card .amt { font-size: 46px; font-weight: 900; letter-spacing: -0.03em; margin: 10px 0; }
+.price-card .amt small { font-size: 17px; font-weight: 600; color: var(--text-muted-light); }
+.price-card .per { font-size: 15px; color: var(--text-muted-light); margin-bottom: 26px; }
+.price-card ul { list-style: none; display: inline-flex; flex-direction: column; gap: 11px; text-align: left; margin: 4px auto 30px; }
+.price-card li { display: flex; gap: 10px; font-size: 14.5px; color: var(--text-light); }
+.price-card li svg { width: 18px; height: 18px; color: var(--violet-light); flex-shrink: 0; }
+
+/* ---------- faq ---------- */
+.faq { max-width: 760px; margin: 0 auto; }
+.faq-item { border-bottom: 1px solid var(--border-light); }
+.band.light .faq-item { border-color: var(--border-dark); }
+.faq-q { width: 100%; text-align: left; background: none; border: none; color: inherit; font-family: inherit; cursor: pointer; padding: 24px 0; font-size: 17.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.faq-q .pm { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: rgba(124,58,237,0.14); color: var(--violet); display: grid; place-items: center; font-size: 18px; transition: transform 0.3s var(--ease); }
+.faq-item.open .pm { transform: rotate(45deg); }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.4s var(--ease); }
+.faq-a p { padding: 0 0 24px; font-size: 15px; line-height: 1.6; color: var(--text-muted-dark); }
+.band:not(.light) .faq-a p { color: var(--text-muted-light); }
+
+/* ---------- final cta ---------- */
+.final { text-align: center; padding: 120px 0; position: relative; overflow: hidden; }
+.final-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(124,58,237,0.3), transparent 60%); pointer-events: none; }
+.final h2 { font-size: clamp(34px, 5vw, 56px); }
+.final p { font-size: 19px; color: var(--text-muted-light); margin: 18px auto 34px; max-width: 520px; }
+
+/* ---------- footer ---------- */
+footer { background: var(--ink-2); border-top: 1px solid var(--border-light); padding: 60px 0 34px; }
+.foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 44px; }
+.foot-brand p { font-size: 14px; color: var(--text-muted-light); line-height: 1.6; margin-top: 14px; max-width: 280px; }
+.foot-col h5 { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-light); margin-bottom: 16px; }
+.foot-col a { display: block; font-size: 14px; color: var(--text-muted-light); margin-bottom: 11px; transition: color 0.2s; }
+.foot-col a:hover { color: var(--violet-light); }
+.foot-bot { border-top: 1px solid var(--border-light); padding-top: 24px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text-muted-light); }
+
+/* ---------- modal ---------- */
+.modal-bg { position: fixed; inset: 0; background: rgba(5,5,9,0.78); backdrop-filter: blur(6px); z-index: 1100; display: none; align-items: center; justify-content: center; padding: 24px; opacity: 0; transition: opacity 0.3s; }
+.modal-bg.show { display: flex; opacity: 1; }
+.modal { background: var(--ink-2); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 38px; max-width: 460px; width: 100%; transform: translateY(20px) scale(0.97); transition: transform 0.4s var(--ease); position: relative; }
+.modal-bg.show .modal { transform: none; }
+.modal h3 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+.modal .sub { font-size: 14.5px; color: var(--text-muted-light); margin-bottom: 24px; }
+.modal .close { position: absolute; top: 18px; right: 18px; background: none; border: none; color: var(--text-muted-light); cursor: pointer; padding: 6px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 7px; color: var(--text-light); }
+.field input, .field textarea { width: 100%; background: var(--ink); border: 1px solid var(--border-light); border-radius: 11px; padding: 12px 14px; color: var(--text-light); font-family: inherit; font-size: 14.5px; transition: border-color 0.2s, box-shadow 0.2s; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(124,58,237,0.2); }
+.modal .btn-primary { width: 100%; justify-content: center; margin-top: 8px; }
+.modal-done { text-align: center; padding: 20px 0; }
+.modal-done .check { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: rgba(124,58,237,0.16); color: var(--violet-light); display: grid; place-items: center; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 920px) {
+  .hero-grid, .who-grid { grid-template-columns: 1fr; }
+  .hero { padding: 140px 0 80px; text-align: center; }
+  .lede { margin-left: auto; margin-right: auto; }
+  .hero-cta, .hero-meta { justify-content: center; }
+  .phone { margin-top: 40px; }
+  .pain-grid, .steps, .feat-grid { grid-template-columns: 1fr; }
+  .show-row { grid-template-columns: 1fr; }
+  .trust-grid { grid-template-columns: 1fr; }
+  .foot-grid { grid-template-columns: 1fr 1fr; }
+  .nav-links { display: none; }
+  .nav-toggle { display: block; }
+  .nav-links.open { display: flex; position: absolute; top: 72px; left: 0; right: 0; flex-direction: column; gap: 0; background: rgba(11,11,18,0.96); backdrop-filter: blur(16px); padding: 12px 24px 20px; border-bottom: 1px solid var(--border-light); }
+  .nav-links.open a { padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+  .nav .btn-primary.desk { display: none; }
+}
+@media (max-width: 560px) {
+  .feat-grid { grid-template-columns: 1fr; }
+  .foot-grid { grid-template-columns: 1fr; }
+  .trust { padding: 30px; }
+  .price-card, .modal { padding: 28px; }
+}
+
+/* ---------- autonomy / on your terms ---------- */
+.auto { max-width: 760px; margin: 0 auto; }
+.auto-scale { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+.auto-scale span { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
+.auto-scale .lo { color: var(--text-muted-light); }
+.auto-scale .hi { color: var(--violet-light); }
+.auto-bar { flex: 1; height: 6px; border-radius: 999px; position: relative; background: linear-gradient(90deg, rgba(255,255,255,0.12), var(--violet)); }
+.auto-knob { position: absolute; top: 50%; left: 66%; width: 18px; height: 18px; border-radius: 50%; background: #fff; transform: translate(-50%,-50%); box-shadow: 0 0 0 4px rgba(124,58,237,0.30), 0 2px 8px rgba(0,0,0,0.4); cursor: grab; transition: left 0.2s var(--ease); }
+.auto-task { cursor: pointer; user-select: none; }
+.auto-task:hover { border-color: rgba(124,58,237,0.4); }
+.auto-tasks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.auto-task { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--ink-3); border: 1px solid var(--border-light); border-radius: 14px; padding: 14px 16px; font-size: 15px; font-weight: 600; }
+.sw { width: 38px; height: 22px; border-radius: 999px; background: rgba(255,255,255,0.13); position: relative; flex-shrink: 0; transition: background 0.3s var(--ease); }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.3s var(--ease); }
+.sw.on { background: var(--violet); box-shadow: 0 0 14px var(--violet-glow); }
+.sw.on::after { transform: translateX(16px); }
+.auto-locked { display: flex; align-items: flex-start; gap: 12px; margin-top: 24px; padding: 16px 18px; border-radius: 14px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.22); }
+.auto-locked svg { color: var(--violet-light); flex-shrink: 0; margin-top: 2px; }
+.auto-locked p { font-size: 14px; line-height: 1.55; color: var(--text-muted-light); }
+@media (max-width: 760px) {
+  .auto-tasks { grid-template-columns: 1fr; }
+  .auto-scale { gap: 12px; }
+  .auto-scale span { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .glow-1, .glow-2 { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- ============ HEADER ============ -->
+<header id="hdr">
+  <div class="wrap nav">
+    <a href="#top" class="brand">Penny</a>
+    <nav class="nav-links" id="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#autonomy">Autonomy</a>
+      <a href="#who">Who it's for</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <button class="btn btn-primary" data-demo>Book a demo</button>
+    </nav>
+    <button class="btn btn-primary desk" data-demo style="display:none">Book a demo</button>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top">
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>Meet Penny. Your brokerage's <span class="grad">transaction coordinator</span>, on every deal, 24/7.</h1>
+      <p class="lede">Penny reads the contract, tracks every deadline, chases the paperwork, drafts the emails, and keeps your brokerage compliant. She works over WhatsApp and text, so your agents just message her like they'd message a teammate.</p>
+      <div class="hero-cta">
+        <button class="btn btn-primary" data-demo>Book a demo</button>
+        <a href="#how" class="seclink">See how it works <span class="arrow">→</span></a>
+      </div>
+      <div class="hero-meta">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> No new app to install</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Human approves anything client-facing</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> One Penny per brokerage</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="chat-head">
+            <div class="av"><img src="penny-p.png" alt="Penny" /></div>
+            <div><div class="nm">Penny</div><div class="st">online now</div></div>
+          </div>
+          <div class="chat-body" id="chatBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROBLEM ============ -->
+<section class="band light" id="problem">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Between contract and close</div>
+      <h2>Every deal carries a stack of coordination work.</h2>
+      <p class="sec-sub">Deadlines to track, documents to chase, parties to keep in the loop, and any one of them can hold up a closing.</p>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" width="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Deadlines are easy to lose track of</h3>
+        <p>Inspection periods, financing contingencies, and EMD due dates live in too many places, and a missed one can hold up a closing.</p>
+      </div>
+      <div class="pain-card reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" width="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 4v6c0 5-3.5 8.5-9 10C6.5 20.5 3 17 3 12V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Compliance tends to surface late</h3>
+        <p>Missing documents often come to light at closing, when there's little time left to sort them out.</p>
+      </div>
+      <div class="pain-card reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" width="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <h3>Coordinators are hard to scale</h3>
+        <p>A good transaction coordinator is expensive, and even a great one can't be on call the moment every deal moves.</p>
+      </div>
+    </div>
+    <p class="pain-foot reveal">Penny handles all of it, on every deal, <span class="hl">without adding headcount.</span></p>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="band" id="how">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">How it works</div>
+      <h2>Up and running in three steps</h2>
+      <p class="sec-sub">No migration, no new software for your agents to learn.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="num">1</div>
+        <h3>Connect your brokerage</h3>
+        <p>A quick onboarding sets your state, your compliance rules, and your brand voice. Add your agents and you're live.</p>
+      </div>
+      <div class="step reveal">
+        <div class="num">2</div>
+        <h3>Agents message Penny</h3>
+        <p>Over WhatsApp or text, agents send Penny the contract and ask her anything about their deals. No new app to learn.</p>
+      </div>
+      <div class="step reveal">
+        <div class="num">3</div>
+        <h3>Penny runs the back office</h3>
+        <p>She extracts the contract, builds the deadline calendar and compliance checklist, drafts and routes emails, books showings, and keeps you in the loop. You approve anything client-facing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section class="band light" id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">What Penny does</div>
+      <h2>A whole transaction-coordination team, in one assistant</h2>
+      <p class="sec-sub" style="color:var(--text-muted-dark)">Every capability included. No tiers, no feature-gating.</p>
+    </div>
+    <div class="feat-grid" id="featGrid"></div>
+  </div>
+</section>
+
+<!-- ============ AUTONOMY ============ -->
+<section class="band" id="autonomy">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">On your terms</div>
+      <h2>As hands-off as you want her to be.</h2>
+      <p class="sec-sub">You decide, task by task, what Penny handles on her own and what waits for your okay. Start cautious, then hand over more as you learn to trust her.</p>
+    </div>
+    <div class="auto reveal">
+      <div class="auto-scale">
+        <span class="lo">Ask me first</span>
+        <div class="auto-bar"><span class="auto-knob"></span></div>
+        <span class="hi">Just handle it</span>
+      </div>
+      <div class="auto-tasks">
+        <div class="auto-task"><span>Send deadline reminders</span><span class="sw on"></span></div>
+        <div class="auto-task"><span>Chase missing paperwork</span><span class="sw on"></span></div>
+        <div class="auto-task"><span>Draft emails and replies</span><span class="sw on"></span></div>
+        <div class="auto-task"><span>Propose showing times</span><span class="sw on"></span></div>
+        <div class="auto-task"><span>Keep the pipeline updated</span><span class="sw on"></span></div>
+        <div class="auto-task"><span>Introduce herself as TC via email</span><span class="sw"></span></div>
+      </div>
+      <div class="auto-locked">
+        <svg viewBox="0 0 24 24" width="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <p>Compliance review is the one thing she can never run on her own. Penny surfaces the findings, a person always makes the call, and no dial setting changes that.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SHOWCASE ============ -->
+<section class="band" id="showcase">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">A day with Penny</div>
+      <h2>She turns every answer into the next move.</h2>
+    </div>
+    <div class="sim reveal">
+      <div class="sim-head">
+        <div class="av"><img src="penny-p.png" alt="Penny" /></div>
+        <div><div class="nm">Penny</div><div class="st">online now</div></div>
+      </div>
+      <div class="sim-body" id="simBody"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHO ============ -->
+<section class="band" id="who">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Who it's for</div>
+      <h2>Built for the broker. Loved by the agent.</h2>
+    </div>
+    <div class="who-grid">
+      <div class="who owner reveal">
+        <div class="lab">For brokerage owners</div>
+        <h3>Fewer surprises, more visibility</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Every deal coordinated to the same standard</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Compliance issues surfaced early, while there's time to fix them</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Real-time pipeline, production, and compliance health</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Scale without hiring more coordinators</li>
+        </ul>
+      </div>
+      <div class="who agent reveal">
+        <div class="lab">For agents</div>
+        <h3>More selling, less paperwork</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> An assistant available the moment a deal moves, day or night</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> No data entry. Send the contract, Penny does the rest</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Works over WhatsApp and text. Voice memos welcome</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> She tells you what to tackle first</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRUST ============ -->
+<section class="band">
+  <div class="wrap">
+    <div class="trust reveal">
+      <div class="sec-head" style="margin-bottom:10px;text-align:left;max-width:none">
+        <div class="kicker">Built to be trusted</div>
+        <h2 style="font-size:32px">Safety is built into how she works.</h2>
+      </div>
+      <div class="trust-grid">
+        <div class="trust-item">
+          <div class="ic"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+          <div><h4>Your data stays yours</h4><p>Scoped to your brokerage and never shared across brokerages.</p></div>
+        </div>
+        <div class="trust-item">
+          <div class="ic"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+          <div><h4>A human always confirms</h4><p>Every client-facing email, document, and booking waits for a person's okay before it sends.</p></div>
+        </div>
+        <div class="trust-item">
+          <div class="ic"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg></div>
+          <div><h4>The broker owns compliance</h4><p>Penny surfaces findings. Compliance review never runs unattended, and never approves on its own.</p></div>
+        </div>
+        <div class="trust-item">
+          <div class="ic"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+          <div><h4>Defers to licensed pros</h4><p>Penny states the facts on your deal and points you to a licensed attorney, CPA, or broker for legal, tax, or financial advice.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section class="band" id="pricing-mini">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Simple pricing</div>
+      <h2>One plan. Every feature. Priced per seat.</h2>
+      <p class="sec-sub">No tiers, no feature-gating. A small base plus a per-agent seat.</p>
+    </div>
+    <div class="price-card reveal">
+      <div class="kicker" style="color:var(--violet-light)">Penny for brokerages</div>
+      <div class="amt">$<span data-count="X">X</span><small> base</small> <span style="color:var(--text-muted-light)">+</span> $<span data-count="Y">Y</span><small> / seat / mo</small></div>
+      <div class="per">Exact pricing shared on your demo call.</div>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Every feature included, for every agent</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> WhatsApp, text, and web chat</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Broker review queue and reporting</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Onboarding and support</li>
+      </ul>
+      <br>
+      <button class="btn btn-primary" data-demo>Book a demo for pricing</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="band" id="faq">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Questions</div>
+      <h2>The things brokers ask first</h2>
+    </div>
+    <div class="faq" id="faqList"></div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="final">
+  <div class="final-glow"></div>
+  <div class="wrap reveal">
+    <h2>Give every deal a coordinator.</h2>
+    <p>On every deal, 24/7, over the channels your agents already use. No new app, no added headcount.</p>
+    <button class="btn btn-primary" data-demo style="font-size:17px;padding:16px 32px">Book a demo</button>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#top" class="brand">Penny</a>
+        <p>The virtual transaction coordinator for real estate brokerages. One Penny per brokerage, on every deal, 24/7.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#autonomy">Autonomy</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="#" data-demo>Book a demo</a>
+        <a href="mailto:hello@poweredbypenny.com">Contact</a>
+      </div>
+      <div class="foot-col">
+        <h5>Legal</h5>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 Penny. All rights reserved.</span>
+      <span>hello@poweredbypenny.com</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ============ DEMO MODAL ============ -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <button class="close" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div id="modalForm">
+      <h3>Book a demo</h3>
+      <p class="sub">See Penny run a real deal. We'll reach out to set up a time.</p>
+      <form id="demoForm">
+        <div class="field"><label>Your name</label><input required name="name" placeholder="Jane Broker" /></div>
+        <div class="field"><label>Brokerage name</label><input required name="brokerage" placeholder="Cornerstone Realty" /></div>
+        <div class="field"><label>Email</label><input required type="email" name="email" placeholder="jane@brokerage.com" /></div>
+        <div class="field"><label>Phone</label><input name="phone" placeholder="(555) 123-4567" /></div>
+        <div class="field"><label>Number of agents</label><input name="agents" type="number" min="1" placeholder="12" /></div>
+        <button type="submit" class="btn btn-primary">Request my demo</button>
+      </form>
+    </div>
+    <div class="modal-done" id="modalDone" style="display:none">
+      <div class="check"><svg viewBox="0 0 24 24" width="34" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg></div>
+      <h3>Thanks!</h3>
+      <p class="sub">We'll reach out shortly to set up your demo.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== data ===================== */
+const FEATURES = [
+  ['Instant contract reading','Send Penny the executed contract and she pulls the parties, price, key dates, and earnest money into a clean record. No manual data entry.','M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M9 13h6 M9 17h6'],
+  ['Deadlines that never sleep','Penny builds the deadline calendar from the contract and nudges the right people at the 5-day, 2-day, and day-of marks so nothing is missed.','M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z'],
+  ['Compliance, handled','A required-document checklist on every deal, plus an AI review that reads the contract against your state\'s rules. Your broker always has the final say.','M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z M9 12l2 2 4-4'],
+  ['Earnest money tracking','Penny tracks the EMD amount, due date, and receipt so the money is never the thing that holds up a file.','M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'],
+  ['Email coordination on autopilot','Penny introduces all parties, drafts status updates and replies in your voice, and threads every message back to the right deal. Nothing sends without a human\'s okay.','M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6'],
+  ['Showings and closings, scheduled','Penny proposes times against working hours and live calendar availability, then books the appointment once it\'s confirmed.','M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z M9 16l2 2 4-4'],
+  ['Comparable sales on demand','Ask Penny for comps on any address and she returns an estimated value, a range, and recent comparable sales.','M3 3v18h18 M7 14l4-4 4 4 5-5'],
+  ['Listing prep','Penny extracts MLS fields from a listing packet so the listing side is as fast as the buy side.','M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10'],
+  ['Broker oversight built in','A review queue surfaces deals that need attention — compliance flags, closings that are close but incomplete, overdue deadlines, stale files — so risk shows up early.','M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z M12 9a3 3 0 100 6 3 3 0 000-6z'],
+  ['Reporting for the brokerage','Pipeline, production, and compliance health at a glance, by agent and by stage.','M3 3v18h18 M18 17V9 M13 17V5 M8 17v-3'],
+  ['Always a step ahead','Penny recommends what to tackle first and then proposes the concrete next move, before you have to ask.','M13 2L3 14h9l-1 8 10-12h-9z'],
+  ['Works where agents already are','WhatsApp, text message, and a web chat. Voice memos welcome. No new app to install.','M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z'],
+];
+const FAQS = [
+  ['Do my agents need to install anything?','No. Penny works over WhatsApp and text. Agents message her like any other contact, and can even send voice memos.'],
+  ['Does Penny send things to my clients automatically?','Only when you let her. Every client-facing email, document, and booking waits for a human\'s confirmation by default.'],
+  ['Is Penny giving legal advice?','No. Penny coordinates the transaction and surfaces compliance items for your broker to decide. She points you to a licensed attorney, CPA, or broker for advice.'],
+  ['Can I trust the AI on compliance?','Penny\'s compliance review is a second set of eyes that surfaces issues. Your broker always reviews and decides. It never approves anything on its own.'],
+  ['How long does setup take?','A short guided onboarding sets your state, compliance rules, brand voice, and agents. Most brokerages are live the same day.'],
+  ['Which states do you support?','Penny supports state-specific compliance rulesets and is expanding coverage. Ask about your state on your demo call.'],
+];
+const CHAT = [
+  {who:'them', text:"Penny, what's due on 123 Main this week?"},
+  {who:'penny', text:"The inspection contingency ends Thursday and the EMD receipt is still open. Want me to propose inspection times and chase the receipt?"},
+  {who:'them', text:"Yes, propose times for Thursday"},
+  {who:'penny', text:"Done. I offered the buyer 10am, 1pm, and 3:30pm Thursday and flagged it on your calendar. I'll confirm once they pick."},
+];
+
+/* ===================== build feature grid ===================== */
+const fg = document.getElementById('featGrid');
+FEATURES.forEach(([title,desc,path]) => {
+  const parts = title.split(' — ');
+  const head = parts.length === 2 ? `${parts[0]} <span class="sep">— ${parts[1]}</span>` : title;
+  const el = document.createElement('div');
+  el.className = 'feat reveal';
+  el.innerHTML = `<div class="ic"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path.split(' M').map((d,i)=>`<path d="${i===0?d:'M'+d}"/>`).join('')}</svg></div><h3>${head}</h3><p>${desc}</p>`;
+  fg.appendChild(el);
+});
+
+/* ===================== build FAQ ===================== */
+const fl = document.getElementById('faqList');
+FAQS.forEach(([q,a]) => {
+  const item = document.createElement('div');
+  item.className = 'faq-item reveal';
+  item.innerHTML = `<button class="faq-q">${q}<span class="pm">+</span></button><div class="faq-a"><p>${a}</p></div>`;
+  fl.appendChild(item);
+  const btn = item.querySelector('.faq-q');
+  const ans = item.querySelector('.faq-a');
+  btn.addEventListener('click', () => {
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => { i.classList.remove('open'); i.querySelector('.faq-a').style.maxHeight = null; });
+    if (!open) { item.classList.add('open'); ans.style.maxHeight = ans.scrollHeight + 'px'; }
+  });
+});
+
+/* ===================== scroll reveal ===================== */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      const sibs = [...e.target.parentElement.children].filter(c => c.classList.contains('reveal'));
+      const idx = sibs.indexOf(e.target);
+      e.target.style.transitionDelay = Math.min(idx,6) * 80 + 'ms';
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.14, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ===================== sticky header + progress ===================== */
+const hdr = document.getElementById('hdr');
+const prog = document.getElementById('progress');
+function onScroll() {
+  hdr.classList.toggle('scrolled', window.scrollY > 24);
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  prog.style.width = (window.scrollY / h * 100) + '%';
+}
+window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+/* ===================== mobile nav ===================== */
+document.getElementById('navToggle').addEventListener('click', () => {
+  document.getElementById('navlinks').classList.toggle('open');
+});
+document.querySelectorAll('#navlinks a').forEach(a => a.addEventListener('click', () => document.getElementById('navlinks').classList.remove('open')));
+
+/* ===================== count up (pricing placeholders stay literal) ===================== */
+/* placeholders are X / Y on purpose — no numeric count-up to avoid implying real pricing */
+
+/* ===================== animated hero chat (loops) ===================== */
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const body = document.getElementById('chatBody');
+function addBubble(msg) {
+  const b = document.createElement('div');
+  b.className = 'bubble ' + msg.who;
+  b.innerHTML = (msg.who === 'penny' ? '<span class="tag">PENNY</span>' : '') + msg.text;
+  body.appendChild(b);
+  body.scrollTop = body.scrollHeight;
+}
+function addTyping() {
+  const t = document.createElement('div');
+  t.className = 'typing';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  body.appendChild(t);
+  body.scrollTop = body.scrollHeight;
+  return t;
+}
+async function runChat() {
+  if (reduce) { CHAT.forEach(addBubble); return; }
+  while (true) {
+    body.innerHTML = '';
+    for (const msg of CHAT) {
+      if (msg.who === 'penny') {
+        const t = addTyping();
+        await wait(1100);
+        t.remove();
+      } else {
+        await wait(500);
+      }
+      addBubble(msg);
+      await wait(msg.who === 'penny' ? 2200 : 900);
+    }
+    await wait(2600);
+  }
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+runChat();
+
+/* ===================== showcase simulated chat (plays on scroll) ===================== */
+const CHAT2 = [
+  {who:'them', text:"Penny, what's overdue on my deals?"},
+  {who:'penny', text:"Two things: the inspection on 123 Main is due tomorrow, and the EMD receipt for 88 Oak is still open. Want me to propose inspection times and draft the receipt chase email? Which first?"},
+  {who:'them', text:"📎 signed-contract.pdf"},
+  {who:'penny', text:"Got it. New deal at 742 Evergreen, closing July 18, EMD of $10,000 due Friday. Want me to introduce the parties?"},
+  {who:'them', text:"Anything I should worry about this week?"},
+  {who:'penny', text:"One to watch: 56 Birch closes in 4 days but the file is missing the inspection report and the HOA docs. I can nudge the listing agent now and flag it for your review queue."},
+];
+const simBody = document.getElementById('simBody');
+function addSim(msg) {
+  const b = document.createElement('div');
+  b.className = 'sim-b ' + msg.who;
+  b.innerHTML = (msg.who === 'penny' ? '<span class="tag">PENNY</span>' : '') + msg.text;
+  simBody.appendChild(b);
+  simBody.scrollTop = simBody.scrollHeight;
+}
+function addSimTyping() {
+  const t = document.createElement('div');
+  t.className = 'sim-typing';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  simBody.appendChild(t);
+  simBody.scrollTop = simBody.scrollHeight;
+  return t;
+}
+async function runSim() {
+  if (reduce) { CHAT2.forEach(addSim); return; }
+  while (true) {
+    simBody.innerHTML = '';
+    for (const msg of CHAT2) {
+      if (msg.who === 'penny') {
+        const t = addSimTyping();
+        await wait(1300);
+        t.remove();
+      } else {
+        await wait(650);
+      }
+      addSim(msg);
+      await wait(msg.who === 'penny' ? 2700 : 1000);
+    }
+    await wait(3200);
+  }
+}
+let simStarted = false;
+const simIO = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting && !simStarted) { simStarted = true; runSim(); simIO.disconnect(); }
+  });
+}, { threshold: 0.3 });
+simIO.observe(document.querySelector('.sim'));
+
+/* ===================== demo modal ===================== */
+const modal = document.getElementById('modal');
+function openModal(){ modal.classList.add('show'); document.body.style.overflow='hidden'; }
+function closeModal(){ modal.classList.remove('show'); document.body.style.overflow=''; }
+document.querySelectorAll('[data-demo]').forEach(b => b.addEventListener('click', (e)=>{ e.preventDefault(); openModal(); }));
+document.getElementById('modalClose').addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('demoForm').addEventListener('submit', e => {
+  e.preventDefault();
+  document.getElementById('modalForm').style.display = 'none';
+  document.getElementById('modalDone').style.display = 'block';
+  setTimeout(() => { closeModal(); setTimeout(()=>{ document.getElementById('modalForm').style.display='block'; document.getElementById('modalDone').style.display='none'; document.getElementById('demoForm').reset(); }, 400); }, 2200);
+});
+
+/* ---- Autonomy: linked slider + toggles ---- */
+(function () {
+  var sec = document.getElementById('autonomy');
+  if (!sec) return;
+  var bar = sec.querySelector('.auto-bar');
+  var knob = sec.querySelector('.auto-knob');
+  var tasks = [].slice.call(sec.querySelectorAll('.auto-task'));
+  var sws = tasks.map(function (t) { return t.querySelector('.sw'); });
+  var N = sws.length, KMIN = 6, KMAX = 94;
+  var state = sws.map(function (s) { return s.classList.contains('on'); });
+
+  function countOn() { var c = 0; state.forEach(function (v) { if (v) c++; }); return c; }
+  function paint() { sws.forEach(function (s, i) { s.classList.toggle('on', state[i]); }); }
+  function knobTo(frac) { knob.style.left = (KMIN + frac * (KMAX - KMIN)) + '%'; }
+  function syncKnob() { knobTo(countOn() / N); }
+
+  // toggle a single task -> slider re-centres to the new level
+  tasks.forEach(function (t, i) {
+    t.addEventListener('click', function () { state[i] = !state[i]; paint(); syncKnob(); });
+  });
+
+  // drag the dial -> turns tasks on cumulatively (safest first, client-facing last)
+  function xToFrac(x) { var r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); }
+  function drag(x) {
+    var f = xToFrac(x), n = Math.round(f * N);
+    for (var i = 0; i < N; i++) state[i] = (i < n);
+    paint(); knobTo(f);
+  }
+  var active = false;
+  function cx(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
+  function down(e) { active = true; knob.style.transition = 'none'; drag(cx(e)); e.preventDefault(); }
+  function move(e) { if (!active) return; drag(cx(e)); if (e.cancelable) e.preventDefault(); }
+  function end() { if (!active) return; active = false; knob.style.transition = ''; syncKnob(); }
+  bar.addEventListener('mousedown', down); knob.addEventListener('mousedown', down);
+  window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  bar.addEventListener('touchstart', down, { passive: false }); knob.addEventListener('touchstart', down, { passive: false });
+  window.addEventListener('touchmove', move, { passive: false }); window.addEventListener('touchend', end);
+
+  paint(); syncKnob();
+})();
+</script>
+</body>
+</html>

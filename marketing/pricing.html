@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#0B0B12" />
+<title>Pricing — Penny</title>
+<meta name="description" content="Penny pricing: one plan, every feature, priced per agent seat. No tiers, no feature-gating." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{--violet:#7C3AED;--violet-light:#A78BFA;--violet-deep:#5B21B6;--violet-glow:rgba(124,58,237,0.55);--ink:#0B0B12;--ink-2:#111118;--paper:#FAFAFB;--text-light:#EDEDF2;--text-muted-light:#A7A7B5;--border-light:rgba(255,255,255,0.08);--radius-lg:26px;--ease:cubic-bezier(0.16,1,0.3,1);--maxw:1180px;}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Manrope',system-ui,sans-serif;background:var(--ink);color:var(--text-light);font-synthesis:none;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+header{position:fixed;top:0;left:0;right:0;z-index:900;background:rgba(11,11,18,0.72);backdrop-filter:blur(16px);border-bottom:1px solid var(--border-light)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:72px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-0.02em}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{color:var(--text-muted-light);font-size:14.5px;font-weight:500}
+.nav-links a:hover{color:var(--text-light)}
+.btn{display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:none;font-family:inherit;font-weight:600;font-size:15px;border-radius:999px;padding:12px 22px;transition:transform .2s var(--ease),box-shadow .3s var(--ease)}
+.btn-primary{background:linear-gradient(135deg,var(--violet),var(--violet-deep));color:#fff;box-shadow:0 8px 24px -6px var(--violet-glow);position:relative;isolation:isolate}
+.btn-primary::after{content:"";position:absolute;inset:-4px;border-radius:999px;z-index:-1;background:radial-gradient(closest-side,var(--violet-light),var(--violet) 55%,transparent);filter:blur(16px);opacity:0.5;animation:glowBreathe 2.8s ease-in-out infinite}
+@keyframes glowBreathe{0%,100%{opacity:0.3;transform:scale(0.92)}50%{opacity:0.85;transform:scale(1.14)}}
+.btn-primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 14px 40px -8px var(--violet-glow)}
+.btn-primary:hover::after{opacity:0.95;animation-duration:1.8s}
+.hero{padding:160px 0 70px;text-align:center;position:relative;overflow:hidden}
+.glow{position:absolute;width:460px;height:460px;border-radius:50%;filter:blur(80px);opacity:.4;background:var(--violet);top:-160px;left:50%;transform:translateX(-50%);pointer-events:none}
+.kicker{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--violet);margin-bottom:16px;position:relative}
+h1{font-size:clamp(36px,5vw,56px);line-height:1.06;letter-spacing:-0.035em;font-weight:800;position:relative}
+.lede{font-size:18px;color:var(--text-muted-light);margin:18px auto 0;max-width:560px;line-height:1.6;position:relative}
+.price-wrap{padding:20px 0 100px}
+.price-card{max-width:560px;margin:0 auto;background:linear-gradient(160deg,rgba(124,58,237,0.14),rgba(11,11,18,0.4));border:1px solid rgba(124,58,237,0.3);border-radius:var(--radius-lg);padding:48px;text-align:center;position:relative;overflow:hidden}
+.price-card::before{content:"";position:absolute;width:300px;height:300px;background:var(--violet);filter:blur(90px);opacity:.22;top:-120px;right:-80px}
+.price-card .amt{font-size:48px;font-weight:900;letter-spacing:-0.03em;margin:12px 0;position:relative}
+.price-card .amt small{font-size:17px;font-weight:600;color:var(--text-muted-light)}
+.price-card .per{font-size:15px;color:var(--text-muted-light);margin-bottom:28px;position:relative}
+.price-card ul{list-style:none;display:inline-flex;flex-direction:column;gap:13px;text-align:left;margin:4px auto 32px;position:relative}
+.price-card li{display:flex;gap:11px;font-size:15px}
+.price-card li svg{width:19px;height:19px;color:var(--violet-light);flex-shrink:0}
+.note{max-width:560px;margin:30px auto 0;text-align:center;font-size:13.5px;color:var(--text-muted-light);line-height:1.6}
+.principles{max-width:760px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:70px}
+.pr{background:var(--ink-2);border:1px solid var(--border-light);border-radius:18px;padding:26px}
+.pr h3{font-size:17px;font-weight:700;margin-bottom:9px}
+.pr p{font-size:14px;color:var(--text-muted-light);line-height:1.6}
+footer{background:var(--ink-2);border-top:1px solid var(--border-light);padding:40px 0;text-align:center;font-size:13px;color:var(--text-muted-light)}
+footer a{color:var(--violet-light)}
+@media(max-width:700px){.nav-links a{display:none}.principles{grid-template-columns:1fr}.price-card{padding:30px}}
+@media(prefers-reduced-motion:reduce){.btn-primary::after{animation:none;opacity:0.45}*{transition-duration:0.001ms!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a href="index.html" class="brand">Penny</a>
+    <nav class="nav-links">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#features">Features</a>
+      <a href="index.html#faq">FAQ</a>
+      <a href="index.html" class="btn btn-primary">Book a demo</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="glow"></div>
+  <div class="wrap">
+    <div class="kicker">Pricing</div>
+    <h1>One plan. Every feature.<br>Priced per seat.</h1>
+    <p class="lede">No tiers, no feature-gating, no nickel-and-diming. Every brokerage gets all of Penny. You pay a small base plus a recurring price per agent seat.</p>
+  </div>
+</section>
+
+<section class="price-wrap">
+  <div class="wrap">
+    <div class="price-card">
+      <div class="kicker" style="color:var(--violet-light)">Penny for brokerages</div>
+      <div class="amt">$X<small> base / mo</small> <span style="color:var(--text-muted-light)">+</span> $Y<small> / seat / mo</small></div>
+      <div class="per">Exact pricing is shared on your demo call.</div>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Every feature included, for every agent</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> WhatsApp, text, and web chat</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Contract reading, deadlines, EMD, and compliance checklist</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Email coordination, scheduling, comps, and listing prep</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Broker review queue and reporting</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg> Onboarding and support</li>
+      </ul>
+      <br>
+      <a href="index.html" class="btn btn-primary">Book a demo for pricing</a>
+    </div>
+    <p class="note">A seat is one agent using Penny. Add or remove seats as your roster changes. Pricing scales with your brokerage, never with how much you use her.</p>
+
+    <div class="principles">
+      <div class="pr"><h3>No tiers</h3><p>We don't lock the useful features behind a higher plan. Compliance, reporting, and coordination are all included from day one.</p></div>
+      <div class="pr"><h3>Priced by the seat</h3><p>Penny works every deal your agents bring her. You're never penalized for a busy month.</p></div>
+      <div class="pr"><h3>One Penny per brokerage</h3><p>She's configured to your state, your rules, and your brand voice, shared across your whole team.</p></div>
+      <div class="pr"><h3>Cancel anytime</h3><p>Month to month. Adjust seats as you hire and as agents come and go.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>© 2026 Penny. <a href="index.html">Home</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="mailto:hello@poweredbypenny.com">hello@poweredbypenny.com</a></p>
+  </div>
+</footer>
+</body>
+</html>

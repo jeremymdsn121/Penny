@@ -18,6 +18,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "C:\\Users\\Jeremy\\madison-solutions-website", "-l", "3333"],
       "port": 3333
+    },
+    {
+      "name": "penny-marketing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\Jeremy\\sloane\\marketing", "-l", "4321"],
+      "port": 4321
     }
   ]
 }
