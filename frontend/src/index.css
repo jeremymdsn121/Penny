@@ -204,6 +204,32 @@
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * PennyRibbon — the ribbon-"p" brand mark.
+ *   default  = settled, no motion.
+ *   --anim   = fade/scale in, then idle: gentle breathe + sparkle twinkle.
+ * Reuses @keyframes penny-breathe (defined above) for the idle scale.
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  .penny-ribbon { display: inline-block; }
+  .penny-ribbon svg { overflow: visible; display: block; }
+  .penny-ribbon__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
+  .penny-ribbon__dots circle { transform-box: fill-box; transform-origin: 50% 50%; }
+
+  .penny-ribbon--anim { animation: penny-ribbon-in 800ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+  .penny-ribbon--anim .penny-ribbon__breathe { animation: penny-breathe 4.5s ease-in-out 700ms infinite; }
+  .penny-ribbon--anim .penny-ribbon__dots circle { animation: penny-twinkle 3s ease-in-out infinite; }
+
+  @keyframes penny-ribbon-in {
+    from { opacity: 0; transform: scale(0.9); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes penny-twinkle {
+    0%, 100% { opacity: 0.22; }
+    50%      { opacity: 1; }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Settle immediately: no drop, no blink, no ripple. */
   .penny-mark--pre .penny-mark__mark,
@@ -220,6 +246,10 @@
   .penny-mark__door,
   .penny-mark__ring,
   .penny-mark__contact { animation: none !important; }
+
+  .penny-ribbon--anim,
+  .penny-ribbon__breathe,
+  .penny-ribbon__dots circle { animation: none !important; transform: none !important; opacity: 1 !important; }
 }
 
 @layer components {

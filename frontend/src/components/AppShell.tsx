@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { brokerApi } from '../lib/api'
-import PennyMark from './PennyMark'
+import PennyRibbon from './PennyRibbon'
 import { useAuthStore } from '../store/auth'
 import { useThemeStore } from '../store/theme'
 import { useUiStore } from '../store/ui'
@@ -82,7 +82,7 @@ export default function AppShell() {
       <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-hairline bg-surface-2">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
-          <PennyMark size={32} />
+          <PennyRibbon size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
           </div>

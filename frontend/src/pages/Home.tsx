@@ -14,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import PennyMark from '../components/PennyMark'
+import PennyRibbon from '../components/PennyRibbon'
 import {
   briefingApi,
   brokerApi,
@@ -382,7 +382,7 @@ export default function Home() {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
-                <PennyMark size={28} className="mr-3 mt-0.5 shrink-0" />
+                <PennyRibbon size={28} className="mr-3 mt-0.5 shrink-0" />
               )}
               <div
                 className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
@@ -397,7 +397,7 @@ export default function Home() {
           ))}
           {sending && (
             <div className="flex justify-start">
-              <PennyMark size={28} className="mr-3 mt-0.5 shrink-0" />
+              <PennyRibbon size={28} className="mr-3 mt-0.5 shrink-0" />
               <div className="flex items-center gap-1 rounded-2xl border border-hairline bg-surface px-4 py-3">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.3s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-subtle [animation-delay:-0.15s]" />
@@ -423,7 +423,7 @@ export default function Home() {
           house settles). The wrapper still reserves its space so nothing
           reflows when the pin lands. */}
       <div className="mb-6 flex justify-center">
-        <PennyMark size={120} animated dropDelay={reduceMotion ? 0 : 1500} />
+        <PennyRibbon size={132} animated />
       </div>
 
       {/* Greeting + briefing */}
