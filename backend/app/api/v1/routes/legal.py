@@ -116,6 +116,17 @@ deadline and contingency reminders, transaction status updates, earnest-money an
 document confirmations, requests for missing paperwork, showing and appointment
 coordination, and replies to questions you send about your active deals. This is not a
 marketing program.</p>
+<p><strong>How you opt in:</strong> {_PRODUCT} uses a double opt-in process. When your
+brokerage adds you to {_PRODUCT}, an administrator enters your mobile number in the
+{_PRODUCT} web application after confirming you have agreed to be contacted about your
+transactions. {_PRODUCT} then sends you a single confirmation text:</p>
+<p style="background:#F3F4F6;border-radius:8px;padding:12px 16px;font-style:italic;">
+"[Your brokerage] set up Penny, your transaction assistant, to text you. Reply YES to
+get deal updates &amp; reminders. Msg frequency varies; msg &amp; data rates may apply.
+Reply STOP to opt out, HELP for help. Terms: api.poweredbypenny.com/api/v1/terms"</p>
+<p>You must reply <strong>YES</strong> to activate messaging. If you do not reply YES,
+you will not receive any further messages. You can reply <strong>STOP</strong> at any
+time to opt out.</p>
 <p><strong>Message frequency:</strong> Message frequency varies based on your
 transaction activity.</p>
 <p><strong>Message and data rates:</strong> <strong>Message and data rates may
@@ -132,9 +143,10 @@ Message delivery is subject to effective transmission by your mobile carrier and
 guaranteed.</p>
 
 <h2 style="font-size:18px;">Consent</h2>
-<p>By providing your mobile number to be contacted by {_PRODUCT}, you consent to receive
-the text messages described above. Consent is not a condition of any purchase. We do not
-share or sell your mobile number or SMS consent to third parties.</p>
+<p>By providing your mobile number to be contacted by {_PRODUCT} and replying YES to the
+confirmation text described above, you consent to receive the text messages described
+above. Consent is not a condition of any purchase. We do not share or sell your mobile
+number or SMS consent to third parties.</p>
 
 <h2 style="font-size:18px;">Acceptable use</h2>
 <p>You agree to use {_PRODUCT} only for lawful purposes and in connection with genuine
