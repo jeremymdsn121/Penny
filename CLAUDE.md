@@ -442,15 +442,14 @@ Post-V2 (web-app work):
   (jsonb) + `agents.calendar_provider` (text), so each agent can connect their own
   calendar (brokerage already has these from 001+002). See the Scheduling bullet.
 - `025_email_delivery_events.sql` — `email_delivery_events` (bounce/dropped/
-  spamreport per transaction, from the SendGrid Event Webhook). **Not yet applied
-  in the dev brokerage** — the webhook + UI degrade gracefully without it (nudges
-  still fire; recording/UI activate once applied). See the delivery-feedback bullet.
+  spamreport per transaction, from the SendGrid Event Webhook). **Applied in dev
+  (2026-06-11).** Recording + "Delivery problems" UI block active. See the
+  delivery-feedback bullet.
 - `026_transaction_events.sql` — `transaction_events` (append-only audit trail
   for actions with no prior history: stage changes, compliance decisions, EMD
   receipt, autonomous/confirmed sends). Feeds the per-deal Activity timeline
   (`GET /transactions/{id}/activity`, which merges it with emails + delivery
-  events + appointments). **Not yet applied in dev** — `activity.record` is
-  best-effort and the timeline endpoint degrades to a partial feed without it.
+  events + appointments). **Applied in dev (2026-06-11).** Full timeline active.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
@@ -711,9 +710,10 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
 
 ### Outstanding setup (all on Jeremy's side)
 
-Migrations **001 → 022 are all applied in the dev brokerage** (008 and 016 were
+Migrations **001 → 026 are all applied in the dev brokerage** (008 and 016 were
 applied during the post-V2 web-app work; 021 compliance_feedback + 022
-document_retention applied alongside this HL5/HL6 work). For a fresh environment,
+document_retention applied alongside this HL5/HL6 work; 025 + 026 applied
+2026-06-11). For a fresh environment,
 apply them in order via the Supabase SQL editor (paste each file's contents) —
 mind the 008
 caveat in the Database section. Set new env vars where their feature is being
