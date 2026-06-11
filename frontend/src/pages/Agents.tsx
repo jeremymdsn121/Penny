@@ -55,13 +55,21 @@ function StyleProfile({ agent }: { agent: Agent }) {
   }
 
   async function confirmRule(id: string) {
-    await knowledgeApi.updateRule(id, { confirmed: true })
-    setRules((prev) => prev.map((r) => (r.id === id ? { ...r, confirmed: true } : r)))
+    try {
+      await knowledgeApi.updateRule(id, { confirmed: true })
+      setRules((prev) => prev.map((r) => (r.id === id ? { ...r, confirmed: true } : r)))
+    } catch {
+      setError('Could not confirm the rule.')
+    }
   }
 
   async function removeRule(id: string) {
-    await knowledgeApi.deleteRule(id)
-    setRules((prev) => prev.filter((r) => r.id !== id))
+    try {
+      await knowledgeApi.deleteRule(id)
+      setRules((prev) => prev.filter((r) => r.id !== id))
+    } catch {
+      setError('Could not remove the rule.')
+    }
   }
 
   const pending = rules.filter((r) => !r.confirmed)

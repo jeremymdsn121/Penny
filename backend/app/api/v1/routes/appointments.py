@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage
-from app.services import calendar_provider, email_client, scheduling
+from app.services import activity, calendar_provider, email_client, scheduling
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -255,6 +255,17 @@ async def book(
         "calendar_event_id": event_id,
         "attendees": [a for a in body.attendees if a and a.strip()],
     })
+    # "You" booked when an explicit confirm came in; "Penny" when the autonomous
+    # scheduling task let it proceed without one.
+    await activity.record(
+        brokerage_id=brokerage["id"],
+        transaction_id=body.transaction_id,
+        kind="appointment_booked",
+        title=f"{body.type.replace('_', ' ').title()} booked",
+        detail=start.strftime("%b %d, %Y at %I:%M %p ").strip() + tz.key,
+        actor="You" if body.confirmed else "Penny",
+        via="web" if body.confirmed else "system",
+    )
     return {"appointment": appt, "calendar_event_created": event_id is not None}
 
 

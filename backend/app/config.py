@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # Shared secret for the inbound-parse webhook (passed as ?key=...). When unset,
     # the webhook is unauthenticated (dev only — set this in production).
     SENDGRID_WEBHOOK_KEY: str | None = None
+    # Shared secret for the unattended cron scan (POST /cron/run-scans with
+    # X-Cron-Secret). When unset the endpoint is disabled (503) — reminders and
+    # scheduled-reply scans then only run from the per-brokerage dev buttons.
+    CRON_SECRET: str | None = None
+    # Soft per-brokerage daily token ceiling for the web-chat agent loop, to
+    # bound runaway/abuse cost on our API key. Counts input+output tokens logged
+    # to ai_usage since UTC midnight; when exceeded, /chat returns a graceful
+    # "taking a breather" message instead of running another loop. 0 disables
+    # the cap. Generous by default — a normal brokerage day is far under this.
+    AI_DAILY_TOKEN_CAP_PER_BROKERAGE: int = 2_000_000
     RENTCAST_API_KEY: str | None = None
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
@@ -60,6 +70,13 @@ class Settings(BaseSettings):
     TWILIO_SMS_FROM: str | None = None
     # Set to True in local dev when using ngrok so signature validation is skipped
     TWILIO_SKIP_VALIDATION: bool = False
+    # Approved WhatsApp template ContentSids as a JSON object mapping template
+    # key -> "HX..." sid (keys per WHATSAPP_TEMPLATES.md, e.g.
+    # '{"deadline_reminder": "HX...", "document_ready_to_send": "HX..."}').
+    # Unset/empty: proactive nudges send free-form text (sandbox behavior).
+    # Set after Meta approves the templates — the production WhatsApp API
+    # rejects free-form messages outside the 24h customer-service window.
+    TWILIO_CONTENT_SIDS: str = ""
 
     # OpenAI — Whisper audio transcription for voice memos
     OPENAI_API_KEY: str | None = None

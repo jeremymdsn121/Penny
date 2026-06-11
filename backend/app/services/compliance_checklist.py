@@ -60,7 +60,11 @@ async def instantiate_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]
 
 
 async def pct_for_transactions(transaction_ids: list[str]) -> dict[str, int]:
-    """Return {transaction_id: pct} for many transactions in one query."""
+    """Return {transaction_id: pct} for many transactions in one query.
+
+    Required-only, matching ``pct_from_items``: ``checklist_items_in`` filters
+    ``required=eq.true`` server-side, so every row here already counts.
+    """
     rows = await sb.checklist_items_in(transaction_ids)
     totals: dict[str, list[int]] = {}  # tx_id -> [total, complete]
     for r in rows:

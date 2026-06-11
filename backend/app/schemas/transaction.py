@@ -38,10 +38,11 @@ class TransactionCreate(BaseModel):
     agent_id: str | None = None
     transaction_type: str | None = None
     # Earnest money deposit (receipt tracking only — no accounting).
+    # Received status is deliberately NOT here: marking EMD received is a
+    # confirmation-gated action (hard rule) and goes through the dedicated
+    # POST /transactions/{id}/emd-received endpoint, never the generic PATCH.
     emd_amount: float | None = None
     emd_due_date: str | None = None  # YYYY-MM-DD
-    emd_received: bool | None = None
-    emd_received_date: str | None = None  # YYYY-MM-DD
     emd_held_by: str | None = None
     emd_notes: str | None = None
 

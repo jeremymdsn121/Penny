@@ -30,6 +30,9 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
   const [stage, setStage] = useState('under_contract')
   const [roles, setRoles] = useState<string[]>(['title', 'lender'])
   const [adding, setAdding] = useState(false)
+  // The row whose send is awaiting the explicit Confirm click — the human gate
+  // the confirm-gated endpoint expects. Sends must never fire on one click.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   async function load() {
     try {
@@ -107,6 +110,7 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
     try {
       await docRoutingApi.sendPending(id)
       setPending((prev) => prev.filter((p) => p.id !== id))
+      setConfirmingId(null)
     } catch {
       setError('Could not send. Check that SendGrid is configured and the contract is on file.')
     } finally {
@@ -264,22 +268,45 @@ export default function DocRoutingSettings({ autonomous }: { autonomous: boolean
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => sendRoute(p.id)}
-                      disabled={busyId === p.id}
-                      className="btn-primary !px-3 !py-1 text-xs"
-                    >
-                      {busyId === p.id ? 'Sending…' : 'Send now'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => dismissRoute(p.id)}
-                      disabled={busyId === p.id}
-                      className="text-xs font-medium text-ink-muted hover:underline disabled:opacity-50"
-                    >
-                      Dismiss
-                    </button>
+                    {confirmingId === p.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => sendRoute(p.id)}
+                          disabled={busyId === p.id}
+                          className="btn-primary !px-3 !py-1 text-xs"
+                        >
+                          {busyId === p.id ? 'Sending…' : 'Confirm send'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(null)}
+                          disabled={busyId === p.id}
+                          className="text-xs font-medium text-ink-muted hover:underline disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(p.id)}
+                          disabled={busyId === p.id}
+                          className="btn-primary !px-3 !py-1 text-xs"
+                        >
+                          Send now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismissRoute(p.id)}
+                          disabled={busyId === p.id}
+                          className="text-xs font-medium text-ink-muted hover:underline disabled:opacity-50"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

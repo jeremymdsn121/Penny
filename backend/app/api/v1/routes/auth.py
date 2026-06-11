@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
 
 from app.core import supabase_client as sb
 from app.core.security import bearer_scheme, get_current_brokerage
@@ -84,6 +85,37 @@ async def login(body: LoginRequest) -> AuthResponse:
         refresh_token=tokens["refresh_token"],
         expires_in=tokens.get("expires_in"),
         brokerage=_brokerage_out(brokerage),
+    )
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int | None = None
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh(body: RefreshRequest) -> RefreshResponse:
+    """Exchange the refresh token for a new session.
+
+    Supabase access tokens expire after ~an hour; without this the web app
+    silently logs the broker out mid-session. GoTrue rotates the refresh token
+    on each exchange, so the client must persist both returned tokens.
+    """
+    try:
+        tokens = await sb.refresh_session(body.refresh_token)
+    except sb.SupabaseError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired"
+        )
+    return RefreshResponse(
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        expires_in=tokens.get("expires_in"),
     )
 
 

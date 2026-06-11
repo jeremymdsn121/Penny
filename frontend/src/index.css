@@ -207,8 +207,7 @@
 /* ------------------------------------------------------------------ *
  * PennyRibbon — the ribbon-"p" brand mark.
  *   default  = settled, no motion.
- *   --anim   = fade/scale in, then idle: gentle breathe + sparkle twinkle.
- * Reuses @keyframes penny-breathe (defined above) for the idle scale.
+ *   --anim   = fly in from below, then idle: gentle hover float + sparkle twinkle.
  * ------------------------------------------------------------------ */
 @layer utilities {
   .penny-ribbon { display: inline-block; }
@@ -216,13 +215,23 @@
   .penny-ribbon__breathe { transform-box: fill-box; transform-origin: 50% 50%; }
   .penny-ribbon__dots circle { transform-box: fill-box; transform-origin: 50% 50%; }
 
-  .penny-ribbon--anim { animation: penny-ribbon-in 800ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-  .penny-ribbon--anim .penny-ribbon__breathe { animation: penny-breathe 4.5s ease-in-out 700ms infinite; }
+  .penny-ribbon--anim {
+    animation: penny-ribbon-in 2100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--penny-ribbon-delay, 0ms);
+  }
+  .penny-ribbon--anim .penny-ribbon__breathe {
+    animation: penny-hover 3.6s ease-in-out infinite;
+    animation-delay: calc(var(--penny-ribbon-delay, 0ms) + 2000ms);
+  }
   .penny-ribbon--anim .penny-ribbon__dots circle { animation: penny-twinkle 3s ease-in-out infinite; }
 
   @keyframes penny-ribbon-in {
-    from { opacity: 0; transform: scale(0.9); }
-    to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: translateY(160px) scale(0.92); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+  }
+  @keyframes penny-hover {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-14px); }
   }
   @keyframes penny-twinkle {
     0%, 100% { opacity: 0.22; }

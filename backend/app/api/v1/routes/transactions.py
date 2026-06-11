@@ -11,6 +11,7 @@ from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
 from app.schemas.transaction import ExtractResponse, TransactionCreate, TransactionUpdate
 from app.services import (
+    activity,
     ai_extract,
     compliance,
     compliance_checklist,
@@ -156,6 +157,15 @@ async def _run_post_create_hooks(tx: dict[str, Any]) -> None:
         await doc_routing.run_stage_routing(tx, stage)
     except sb.SupabaseError:
         pass
+    await activity.record(
+        brokerage_id=tx.get("brokerage_id"),
+        transaction_id=tx.get("id"),
+        kind="created",
+        title="Transaction created",
+        detail=(tx.get("address") or None),
+        actor="You",
+        via="web",
+    )
 
 
 @router.get("")
@@ -284,6 +294,34 @@ async def get_one(
     return tx
 
 
+@router.get("/{transaction_id}/activity")
+async def get_activity(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> list[dict[str, Any]]:
+    """Merged, newest-first activity feed for a deal: audit events (stage
+    changes, decisions, EMD, autonomous sends) plus emails, delivery problems,
+    and appointments. Each source is best-effort so a not-yet-applied migration
+    degrades to a partial feed rather than a 500."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    async def _safe(coro):
+        try:
+            return await coro
+        except sb.SupabaseError:
+            return []
+
+    events = await _safe(sb.list_transaction_events(transaction_id))
+    emails = await _safe(sb.list_transaction_emails(transaction_id))
+    delivery = await _safe(sb.list_delivery_events_for_transaction(transaction_id))
+    appointments = await _safe(sb.list_appointments_for_transaction(transaction_id))
+    return activity.build_timeline(
+        events=events, emails=emails, delivery=delivery, appointments=appointments
+    )
+
+
 @router.patch("/{transaction_id}")
 async def update_one(
     transaction_id: str,
@@ -294,6 +332,11 @@ async def update_one(
     prev = await sb.get_transaction(brokerage["id"], transaction_id)
     if prev is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    # Nothing writable in the body (e.g. only unknown/gated fields were sent):
+    # no-op rather than sending PostgREST an empty PATCH (which returns no rows
+    # and would surface here as a misleading 404).
+    if not data:
+        return prev
     # Stamp closed_at on the transition into 'closed' (clear it if reopened).
     new_stage = data.get("stage")
     if new_stage and new_stage != prev.get("stage"):
@@ -315,6 +358,15 @@ async def update_one(
             await doc_routing.run_stage_routing(tx, new_stage)
         except sb.SupabaseError:
             pass
+        await activity.record(
+            brokerage_id=brokerage["id"],
+            transaction_id=transaction_id,
+            kind="stage_change",
+            title=f"Stage changed to {new_stage.replace('_', ' ')}",
+            detail=f"from {(prev.get('stage') or 'new').replace('_', ' ')}",
+            actor="You",
+            via="web",
+        )
     return tx
 
 
@@ -497,6 +549,14 @@ async def compliance_decision(
     )
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    await activity.record(
+        brokerage_id=brokerage["id"],
+        transaction_id=transaction_id,
+        kind="compliance_decision",
+        title=f"Compliance decision: {body.status.replace('_', ' ')}",
+        actor="You",
+        via="web",
+    )
     return {"compliance_status": tx.get("compliance_status")}
 
 
@@ -604,9 +664,48 @@ async def property_record(
 
 # --------------------------------------------------------------------------- #
 # Earnest money deposit receipt (PRD V2 Section 5) — receipt tracking only.
-# Scalar EMD fields are set via the generic PATCH; this endpoint handles the
-# optional receipt-document upload and marks the deposit received.
+# Scalar EMD fields (amount, due date, held-by, notes) are set via the generic
+# PATCH; marking the deposit received is confirmation-gated (hard rule) and has
+# its own endpoint below. The receipt upload stores the document only.
 # --------------------------------------------------------------------------- #
+
+class EmdReceivedIn(BaseModel):
+    received: bool = True
+    received_date: str | None = None  # YYYY-MM-DD
+    confirmed: bool = False
+
+
+@router.post("/{transaction_id}/emd-received")
+async def set_emd_received(
+    transaction_id: str,
+    body: EmdReceivedIn,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Mark the deposit received (or clear it). Requires explicit confirmation."""
+    if not body.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation required to change EMD received status.",
+        )
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    data = {
+        "emd_received": body.received,
+        "emd_received_date": body.received_date if body.received else None,
+    }
+    updated = await sb.update_transaction(brokerage["id"], transaction_id, data)
+    await activity.record(
+        brokerage_id=brokerage["id"],
+        transaction_id=transaction_id,
+        kind="emd_received",
+        title="EMD marked received" if body.received else "EMD received status cleared",
+        detail=(f"on {body.received_date}" if body.received and body.received_date else None),
+        actor="You",
+        via="web",
+    )
+    return updated or tx
+
 
 @router.post("/{transaction_id}/emd-receipt")
 async def upload_emd_receipt(
@@ -634,10 +733,11 @@ async def upload_emd_receipt(
         )
     except sb.SupabaseError as exc:
         raise HTTPException(status_code=exc.status_code, detail=f"Upload failed: {exc.detail}")
+    # Store the receipt only — received status is a separate, confirm-gated step.
     updated = await sb.update_transaction(
-        brokerage["id"], transaction_id, {"emd_receipt_document_url": path, "emd_received": True}
+        brokerage["id"], transaction_id, {"emd_receipt_document_url": path}
     )
-    return {"emd_receipt_document_url": path, "emd_received": True, "transaction": updated}
+    return {"emd_receipt_document_url": path, "transaction": updated}
 
 
 # --------------------------------------------------------------------------- #

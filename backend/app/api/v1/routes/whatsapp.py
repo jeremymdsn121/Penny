@@ -12,6 +12,7 @@ Contact management (register/list/delete realtor phone numbers) is done by the
 brokerage admin from the frontend and requires a valid JWT.
 """
 
+import logging
 import re
 import uuid
 from typing import Any
@@ -25,6 +26,7 @@ from app.config import settings
 from app.services import (
     ai_extract,
     compliance_checklist,
+    doc_routing,
     media_extract,
     penny_agent,
     workflow,
@@ -38,6 +40,7 @@ from app.services.twilio_client import (
 from app.services.whisper import TranscriptionError, transcribe_twilio_audio
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
+logger = logging.getLogger(__name__)
 
 CONTRACTS_BUCKET = "contracts"
 
@@ -70,10 +73,13 @@ def _normalise_phone(raw: str) -> str:
       "14054139444"       -> "+14054139444"  (11 digits w/ country code)
       "+14054139444"      -> "+14054139444"  (already E.164)
     Anything that isn't a 10- or 11-digit US number is treated as an
-    international E.164 number and preserved as-is (after stripping formatting),
-    so non-US numbers aren't mangled — e.g. "+447911123456" -> "+447911123456".
+    international E.164 number and preserved as-is (after stripping formatting).
+
+    Empty/garbage input returns "" so callers' validation can reject it.
     """
     digits = re.sub(r"\D", "", _strip_scheme(raw))  # keep digits only
+    if not digits:
+        return ""
 
     # US/NANP first: a 10-digit number (even one typed with a stray "+") is
     # almost certainly a US number missing its "+1" country code.
@@ -194,9 +200,10 @@ async def _handle_media_extraction(
         )
         return
     except ai_extract.AIExtractionError as exc:
+        logger.error("WhatsApp contract extraction failed: %s", exc)
         send_whatsapp_message(
             phone_number,
-            f"I couldn't extract the contract fields: {exc}. "
+            "I couldn't read the contract fields from that file. "
             "Please try again or upload via the web dashboard.",
         )
         return
@@ -275,6 +282,11 @@ async def _handle_pending_reply(
                 await workflow.generate_stage_tasks(tx, tx.get("stage") or "under_contract")
             except sb.SupabaseError:
                 pass  # best-effort; can be rebuilt from the web app
+            # Same creation hook the web app runs (_run_post_create_hooks).
+            try:
+                await doc_routing.run_stage_routing(tx, tx.get("stage") or "under_contract")
+            except sb.SupabaseError:
+                pass
             await sb.delete_pending_whatsapp_transaction(pending["id"])
             address = tx.get("address") or "the property"
             reply = (
@@ -282,8 +294,10 @@ async def _handle_pending_reply(
                 "You can view and edit all the details in the Penny dashboard."
             )
         except sb.SupabaseError as exc:
+            # Log the PostgREST detail; never echo DB internals to the sender.
+            logger.error("WhatsApp transaction commit failed: %s", exc.detail)
             reply = (
-                f"I couldn't save the transaction: {exc.detail}. "
+                "I couldn't save the transaction. "
                 "Please try again or create it via the web dashboard."
             )
         send_whatsapp_message(phone_number, reply)

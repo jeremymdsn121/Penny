@@ -17,16 +17,19 @@ for approval *and* hands back a `ContentSid` (`HX...`) that the backend needs to
 actually send the template. Pick category **Utility**, language **en_US**, paste
 the body, fill the sample values, submit. Approval is usually minutes to a day.
 
-> **Code wiring (deferred until approved + the sender is verified).** Today the
-> backend sends freeform body text via `twilio_client.send_whatsapp_message(to,
-> body)`. To send an *approved template* you must call Twilio's Content API with
-> the `ContentSid` + `ContentVariables` (JSON of `{"1": "...", "2": "..."}`)
-> instead of a freeform body. So once these are approved, the four proactive send
-> sites (`deadline_reminders.py`, `doc_routing.py`, `routes/email.py`,
-> `email_autoreply.py`) need a small change: when sending outside the 24h window,
-> send the template by `ContentSid` with variables rather than the freeform
-> string. Build that only when the templates are live and verifiable — don't wire
-> it blind.
+> **Code wiring (built, config-gated).** All five proactive send sites
+> (`deadline_reminders.py`, `doc_routing.py`, `routes/email.py`,
+> `email_autoreply.py`, `email_scheduler.py`) route through
+> `twilio_client.send_whatsapp_template(to, template_key, variables,
+> fallback_body)`. With no config it sends the freeform fallback — today's
+> sandbox behavior, unchanged. Once a template is approved, set the
+> **`TWILIO_CONTENT_SIDS`** env var to a JSON object mapping the template keys
+> below to their `HX...` ContentSids, e.g.
+> `{"deadline_reminder": "HX…", "document_ready_to_send": "HX…"}` — that send
+> site immediately switches to the Content API (ContentSid + positional
+> ContentVariables). Keys can be added one at a time as approvals land; unmapped
+> keys keep falling back. Verify each template against the WABA test number
+> before adding its SID in production.
 
 Meta body rules these are written to satisfy: don't start or end the body with a
 variable, don't place two variables adjacent, keep it clearly transactional.

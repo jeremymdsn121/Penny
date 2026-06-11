@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import doc_routing
+from app.services import activity, doc_routing
 
 router = APIRouter(prefix="/doc-routing", tags=["doc-routing"])
 
@@ -171,6 +171,15 @@ async def send_pending(
             "resolved_at": datetime.now(timezone.utc).isoformat(),
             "resolved_by": user.get("id"),
         },
+    )
+    await activity.record(
+        brokerage_id=brokerage["id"],
+        transaction_id=route["transaction_id"],
+        kind="document_routed",
+        title="Contract sent",
+        detail="to " + ", ".join(route.get("recipient_emails") or []),
+        actor="You",
+        via="web",
     )
     return updated
 

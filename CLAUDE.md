@@ -219,6 +219,26 @@ URL when done.
   next action (propose times / draft email / chase receipt) and flags missing
   party emails, rather than only offering to "mark complete." Applies across web,
   WhatsApp, and SMS (same agent loop).
+- **Production plumbing (post-V2):** four pieces added after the gap review.
+  (1) **Unattended scans:** `POST /cron/run-scans` (`routes/cron.py`,
+  `X-Cron-Secret` = `CRON_SECRET`, 503 when unset) loops every brokerage and runs
+  the deadline-reminder + scheduled-reply scans — point a Render cron at it;
+  live-verified idempotent. (2) **WhatsApp template seam:**
+  `twilio_client.send_whatsapp_template(to, key, vars, fallback)` — all five
+  proactive nudge sites route through it; free-form fallback until
+  `TWILIO_CONTENT_SIDS` maps a key to an approved ContentSid (production API
+  rejects free-form outside the 24h window). (3) **Session refresh:**
+  `POST /auth/refresh` + a 401-interceptor retry in `lib/api.ts` (single shared
+  in-flight refresh; GoTrue rotates the refresh token — both are re-persisted),
+  so brokers aren't logged out hourly. (4) **Email delivery feedback:** outbound
+  transaction mail carries `transaction_id` as a SendGrid custom arg (derived in
+  `send_email` from the `tx-{id}@` Reply-To); the Event Webhook posts
+  bounce/dropped/spamreport to `POST /email/events?key=<SENDGRID_WEBHOOK_KEY>`,
+  which WhatsApp-nudges the deal's agent and records to `email_delivery_events`
+  (migration 025); the Communications tab shows a "Delivery problems" block.
+  SendGrid console setup: Settings → Mail Settings → Event Webhook. Admin-only
+  routers (broker/reports/autonomy) now carry `security.require_admin` — a no-op
+  until multi-seat logins exist.
 - **Frontend** state in Zustand (`src/store/auth.ts`); API layer in
   `src/lib/api.ts`; routes gated behind auth + onboarding in `src/App.tsx`.
   Pages: **Home** (`/`, Ask Penny chat + briefing), **Dashboard** (`/dashboard`),
@@ -421,6 +441,15 @@ Post-V2 (web-app work):
 - `024_agent_calendar.sql` — `agents.google_calendar_token` / `microsoft_token`
   (jsonb) + `agents.calendar_provider` (text), so each agent can connect their own
   calendar (brokerage already has these from 001+002). See the Scheduling bullet.
+- `025_email_delivery_events.sql` — `email_delivery_events` (bounce/dropped/
+  spamreport per transaction, from the SendGrid Event Webhook). **Applied in dev
+  (2026-06-11).** Recording + "Delivery problems" UI block active. See the
+  delivery-feedback bullet.
+- `026_transaction_events.sql` — `transaction_events` (append-only audit trail
+  for actions with no prior history: stage changes, compliance decisions, EMD
+  receipt, autonomous/confirmed sends). Feeds the per-deal Activity timeline
+  (`GET /transactions/{id}/activity`, which merges it with emails + delivery
+  events + appointments). **Applied in dev (2026-06-11).** Full timeline active.
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste
@@ -453,8 +482,15 @@ email; the from address must be a verified SendGrid sender), `RENTCAST_API_KEY`
 (comparable sales).
 
 V2: `TWILIO_SMS_FROM` (Section 1C — standard Twilio number, not the WhatsApp
-sender), `SENDGRID_WEBHOOK_KEY` (Section 4 — validates Inbound Parse posts),
-`CONSENT_SECRET` (Section 6 — HMAC key for consent-link tokens).
+sender), `SENDGRID_WEBHOOK_KEY` (Section 4 — validates Inbound Parse posts **and**
+the Event Webhook at `/email/events`), `CONSENT_SECRET` (Section 6 — HMAC key for
+consent-link tokens).
+
+Post-V2 ops: `CRON_SECRET` (enables `POST /cron/run-scans`, the unattended
+all-brokerages scan a Render cron job hits every ~15 min — without it, deadline
+reminders and scheduled-reply resurfacing only run from the dashboard dev
+buttons), `TWILIO_CONTENT_SIDS` (JSON map of WhatsApp template key → approved
+`HX...` ContentSid; unset = free-form sandbox sends. See `WHATSAPP_TEMPLATES.md`).
 
 Deferred (built behind seams, wired when credentials/approval exist):
 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
@@ -674,9 +710,10 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
 
 ### Outstanding setup (all on Jeremy's side)
 
-Migrations **001 → 022 are all applied in the dev brokerage** (008 and 016 were
+Migrations **001 → 026 are all applied in the dev brokerage** (008 and 016 were
 applied during the post-V2 web-app work; 021 compliance_feedback + 022
-document_retention applied alongside this HL5/HL6 work). For a fresh environment,
+document_retention applied alongside this HL5/HL6 work; 025 + 026 applied
+2026-06-11). For a fresh environment,
 apply them in order via the Supabase SQL editor (paste each file's contents) —
 mind the 008
 caveat in the Database section. Set new env vars where their feature is being

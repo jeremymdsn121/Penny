@@ -11,6 +11,7 @@ from app.api.v1.routes import (
     chat,
     checklist,
     consent,
+    cron,
     deadlines,
     doc_routing,
     email,
@@ -48,3 +49,4 @@ api_router.include_router(doc_routing.router)
 api_router.include_router(briefing.router)
 api_router.include_router(legal.router)
 api_router.include_router(calendar.router)
+api_router.include_router(cron.router)
