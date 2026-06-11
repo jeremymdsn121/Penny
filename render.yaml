@@ -1,0 +1,89 @@
+# Render Blueprint — one-click deploy of the Penny API + web app.
+#
+# Usage: in the Render dashboard, New > Blueprint, point it at this repo. Render
+# reads this file, creates both services, and prompts for every env var marked
+# `sync: false` (the secrets — never commit those). The Python version is pinned
+# by backend/.python-version.
+#
+# After the first deploy:
+#   1. Set VITE_API_BASE_URL on penny-web to "<penny-api URL>/api/v1" and
+#      redeploy the static site (Vite inlines it at build time).
+#   2. Set EXTRA_CORS_ORIGINS on penny-api to the penny-web URL.
+#   3. Set PUBLIC_BASE_URL on penny-api to its own public URL.
+# See DEPLOYMENT.md for the full checklist.
+
+services:
+  # ---- Backend API (FastAPI) ----------------------------------------------
+  - type: web
+    name: penny-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENV
+        value: production
+      # --- Supabase (required) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- App secrets ---
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CONSENT_SECRET
+        generateValue: true
+      # Shared secret for the unattended scan cron. Point a Render Cron Job at
+      # POST /api/v1/cron/run-scans with header X-Cron-Secret: <this value>.
+      - key: CRON_SECRET
+        generateValue: true
+      # This service's own public origin (consent links, absolute URLs).
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Comma-separated extra CORS origins — set to the penny-web URL.
+      - key: EXTRA_CORS_ORIGINS
+        sync: false
+      # --- AI (required for extraction, chat, compliance, doc generation) ---
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # --- Optional integrations (leave blank to no-op the feature) ---
+      - key: OPENAI_API_KEY          # Whisper voice-memo transcription
+        sync: false
+      - key: SENDGRID_API_KEY        # outbound email
+        sync: false
+      - key: SENDGRID_FROM_EMAIL     # verified SendGrid sender
+        sync: false
+      - key: SENDGRID_WEBHOOK_KEY    # inbound-parse + event webhook auth (?key=)
+        sync: false
+      - key: RENTCAST_API_KEY        # comparable sales
+        sync: false
+      - key: TWILIO_ACCOUNT_SID      # WhatsApp / SMS
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: TWILIO_SMS_FROM
+        sync: false
+
+  # ---- Frontend (static Vite build) ---------------------------------------
+  - type: web
+    name: penny-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Point at the API's public origin + /api/v1. Vite inlines this at build
+      # time, so changing it requires a redeploy of this static site.
+      - key: VITE_API_BASE_URL
+        sync: false
+    routes:
+      # SPA fallback — every path serves index.html so client-side routing works.
+      - type: rewrite
+        source: /*
+        destination: /index.html
