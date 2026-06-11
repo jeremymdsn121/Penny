@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Casa Cafe — Tex-Mex Breakfast &amp; Lunch in Creedmoor, TX</title>
+  <meta
+    name="description"
+    content="Casa Cafe is a family-run Tex-Mex spot in Creedmoor, TX serving made-from-scratch breakfast tacos, crispy beef tacos, cheese enchiladas, fajita plates and fresh coffee. Dine in, takeout & curbside."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== Header / Nav ===== -->
+  <header class="site-header" id="top">
+    <div class="container nav-inner">
+      <a href="#top" class="brand" aria-label="Casa Cafe home">
+        <span class="brand-mark" aria-hidden="true">🌮</span>
+        <span class="brand-text">
+          <span class="brand-name">Casa Cafe</span>
+          <span class="brand-sub">Creedmoor, TX</span>
+        </span>
+      </a>
+
+      <nav class="nav" id="nav" aria-label="Primary">
+        <a href="#menu" class="nav-link">Menu</a>
+        <a href="#about" class="nav-link">About</a>
+        <a href="#reviews" class="nav-link">Reviews</a>
+        <a href="#visit" class="nav-link">Visit</a>
+        <a href="tel:+15125850175" class="nav-link nav-cta">Call to Order</a>
+      </nav>
+
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== Hero ===== -->
+  <section class="hero">
+    <div class="hero-overlay"></div>
+    <div class="container hero-inner">
+      <div class="rating-badge">
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <span class="rating-text"><strong>4.9</strong> · #1 of 9 in Creedmoor</span>
+      </div>
+      <h1 class="hero-title">Real-deal Tex-Mex,<br />made from scratch every morning.</h1>
+      <p class="hero-tagline">
+        A family-run café on FM&nbsp;1625 serving breakfast tacos, crispy beef tacos,
+        cheese enchiladas and fresh coffee since sunup.
+      </p>
+      <div class="hero-actions">
+        <a href="#menu" class="btn btn-primary">View the Menu</a>
+        <a href="tel:+15125850175" class="btn btn-outline">Call (512) 585-0175</a>
+        <a
+          href="https://www.google.com/maps/dir/?api=1&destination=Casa+Cafe+12307+FM+1625+Creedmoor+TX+78610"
+          class="btn btn-ghost"
+          target="_blank"
+          rel="noopener"
+          >Get Directions ↗</a
+        >
+      </div>
+      <p class="hero-hours">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="openStatus">Open Mon–Fri 6am–3pm · Sat 8am–2pm</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== Quick info strip ===== -->
+  <section class="strip" aria-label="At a glance">
+    <div class="container strip-inner">
+      <div class="strip-item"><span class="strip-emoji">🍳</span><div><strong>Breakfast &amp; Lunch</strong><br />Served all morning</div></div>
+      <div class="strip-item"><span class="strip-emoji">🚗</span><div><strong>Curbside &amp; Drive-Up</strong><br />Takeout ready</div></div>
+      <div class="strip-item"><span class="strip-emoji">🌿</span><div><strong>Outdoor Seating</strong><br />Patio open</div></div>
+      <div class="strip-item"><span class="strip-emoji">👨‍👩‍👧</span><div><strong>Kids Menu</strong><br />Family friendly</div></div>
+    </div>
+  </section>
+
+  <!-- ===== About ===== -->
+  <section class="about" id="about">
+    <div class="container about-inner">
+      <div class="about-copy">
+        <p class="eyebrow">Welcome to the neighborhood spot</p>
+        <h2>Where Creedmoor comes for breakfast.</h2>
+        <p>
+          Casa Cafe is the kind of place where the coffee's always on and the tortillas
+          are handled with care. We open before the sun's all the way up for the early
+          crowd, and keep the griddle going through lunch with fajita plates, crispy
+          tacos and the cheese enchiladas folks keep driving back for.
+        </p>
+        <p>
+          No reservations, no fuss — just honest Tex-Mex, friendly faces, and a plate
+          that sends you off full. Pull up, dine in on the patio, or grab it curbside.
+        </p>
+        <a href="#menu" class="text-link">See what's cooking →</a>
+      </div>
+      <div class="about-cards">
+        <div class="fact-card"><span class="fact-num">6am</span><span class="fact-label">Doors open weekdays</span></div>
+        <div class="fact-card"><span class="fact-num">4.9★</span><span class="fact-label">Diner rating</span></div>
+        <div class="fact-card"><span class="fact-num">#1</span><span class="fact-label">In Creedmoor</span></div>
+        <div class="fact-card"><span class="fact-num">100%</span><span class="fact-label">Made to order</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Menu ===== -->
+  <section class="menu" id="menu">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">The Menu</p>
+        <h2>Breakfast &amp; lunch, the way it should be</h2>
+        <p class="section-note">
+          Prices change with the season — call <a href="tel:+15125850175">(512) 585-0175</a> to confirm today's specials.
+        </p>
+      </div>
+
+      <div class="menu-tabs" role="tablist" aria-label="Menu sections">
+        <button class="menu-tab is-active" role="tab" data-target="breakfast">Breakfast</button>
+        <button class="menu-tab" role="tab" data-target="tacos">Tacos &amp; Enchiladas</button>
+        <button class="menu-tab" role="tab" data-target="plates">Plates &amp; Lunch</button>
+        <button class="menu-tab" role="tab" data-target="sides">Sides &amp; Drinks</button>
+      </div>
+
+      <div class="menu-panels">
+        <!-- Breakfast -->
+        <div class="menu-panel is-active" id="breakfast">
+          <div class="menu-grid">
+            <article class="menu-card">
+              <h3>Breakfast Tacos</h3>
+              <p>Made-to-order on warm tortillas — bacon &amp; egg, sausage &amp; potato, chorizo, bean &amp; cheese, and more.</p>
+              <span class="tag">House favorite</span>
+            </article>
+            <article class="menu-card">
+              <h3>Migas Plate</h3>
+              <p>Eggs scrambled with crispy tortilla strips, peppers and onions, served with beans and toast or tortillas.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Bacon &amp; Egg</h3>
+              <p>Classic plate done right — eggs your way, crisp bacon, and a side of potatoes.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Sausage &amp; Potato</h3>
+              <p>Savory sausage with seasoned breakfast potatoes — hearty start to the day.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Potato Ranchera</h3>
+              <p>Tender potatoes simmered in a zesty ranchera sauce. A Casa Cafe regular's pick.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Huevos to Order</h3>
+              <p>Rancheros, à la Mexicana, or simply scrambled — paired with refried beans.</p>
+            </article>
+          </div>
+        </div>
+
+        <!-- Tacos & Enchiladas -->
+        <div class="menu-panel" id="tacos">
+          <div class="menu-grid">
+            <article class="menu-card">
+              <h3>Crispy Beef Tacos</h3>
+              <p>Seasoned beef in a shell fried so it stays crunchy to the last bite — the dish reviewers rave about.</p>
+              <span class="tag">Most loved</span>
+            </article>
+            <article class="menu-card">
+              <h3>Steak Tacos</h3>
+              <p>Grilled steak on soft tortillas with onions and cilantro, salsa on the side.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Cheese Enchiladas</h3>
+              <p>Rolled and smothered in chili gravy with melted cheese — the comfort plate Creedmoor swears by.</p>
+              <span class="tag">House favorite</span>
+            </article>
+            <article class="menu-card">
+              <h3>Beef Enchiladas</h3>
+              <p>Tender seasoned beef, rolled, sauced and topped with cheese.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Tostadas</h3>
+              <p>Crispy flat shells stacked with beans, cheese, lettuce and your choice of meat.</p>
+            </article>
+          </div>
+        </div>
+
+        <!-- Plates & Lunch -->
+        <div class="menu-panel" id="plates">
+          <div class="menu-grid">
+            <article class="menu-card">
+              <h3>Fajita Plate</h3>
+              <p>Sizzling beef or chicken fajitas with peppers, onions, rice, beans and warm tortillas.</p>
+              <span class="tag">Lunch favorite</span>
+            </article>
+            <article class="menu-card">
+              <h3>Chicken Fried Steak</h3>
+              <p>Hand-breaded and golden, blanketed in cream gravy with a side of potatoes.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Picadillo Plate</h3>
+              <p>Home-style ground beef stewed with potatoes and spices, served with rice and beans.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Fried Chicken</h3>
+              <p>Crispy, juicy and made to order with classic sides.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Kids Menu</h3>
+              <p>Smaller plates the little ones actually finish.</p>
+            </article>
+          </div>
+        </div>
+
+        <!-- Sides & Drinks -->
+        <div class="menu-panel" id="sides">
+          <div class="menu-grid">
+            <article class="menu-card">
+              <h3>Rice &amp; Refried Beans</h3>
+              <p>The classic pair, made fresh daily.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Chips &amp; Salsa</h3>
+              <p>Crisp tortilla chips with house salsa.</p>
+            </article>
+            <article class="menu-card">
+              <h3>Fresh Coffee</h3>
+              <p>Hot and always on — the way regulars start the morning.</p>
+              <span class="tag">Always brewing</span>
+            </article>
+            <article class="menu-card">
+              <h3>Fountain Drinks &amp; Tea</h3>
+              <p>Soft drinks and fresh-brewed iced tea.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <p class="menu-disclaimer">
+        Menu items reflect Casa Cafe's offerings as listed online. Availability and prices may
+        vary — please call ahead for the full, current menu and daily specials.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== Reviews ===== -->
+  <section class="reviews" id="reviews">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">What people are saying</p>
+        <h2>Rated 4.9 — and #1 in Creedmoor</h2>
+        <p class="section-note">Highlights pulled from diner reviews across Yelp &amp; Google.</p>
+      </div>
+
+      <div class="review-grid">
+        <article class="review-card">
+          <div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p>"The crispy beef tacos are cooked to perfection — that shell stays crunchy right down to the last bite."</p>
+          <span class="reviewer">Yelp diner</span>
+        </article>
+        <article class="review-card">
+          <div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p>"Cheese enchiladas are the real deal. Worth the drive to Creedmoor every single time."</p>
+          <span class="reviewer">Google review</span>
+        </article>
+        <article class="review-card">
+          <div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p>"Wonderful, attentive staff and a welcoming little spot. Great coffee and a perfect breakfast."</p>
+          <span class="reviewer">Yelp diner</span>
+        </article>
+      </div>
+
+      <div class="reviews-cta">
+        <a href="https://www.yelp.com/biz/casa-cafe-creedmoor" target="_blank" rel="noopener" class="btn btn-outline">
+          Read more on Yelp ↗
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Visit / Hours / Map ===== -->
+  <section class="visit" id="visit">
+    <div class="container visit-inner">
+      <div class="visit-info">
+        <p class="eyebrow">Come on by</p>
+        <h2>Hours &amp; location</h2>
+
+        <ul class="hours-list">
+          <li><span>Monday</span><span>6:00 am – 3:00 pm</span></li>
+          <li><span>Tuesday</span><span>6:00 am – 3:00 pm</span></li>
+          <li><span>Wednesday</span><span>6:00 am – 3:00 pm</span></li>
+          <li><span>Thursday</span><span>6:00 am – 3:00 pm</span></li>
+          <li><span>Friday</span><span>6:00 am – 3:00 pm</span></li>
+          <li><span>Saturday</span><span>8:00 am – 2:00 pm</span></li>
+          <li class="closed"><span>Sunday</span><span>Closed</span></li>
+        </ul>
+
+        <div class="contact-block">
+          <p>
+            <strong>Address</strong><br />
+            12307 FM 1625<br />Creedmoor, TX 78610
+          </p>
+          <p>
+            <strong>Phone</strong><br />
+            <a href="tel:+15125850175">(512) 585-0175</a>
+          </p>
+          <div class="visit-actions">
+            <a
+              href="https://www.google.com/maps/dir/?api=1&destination=Casa+Cafe+12307+FM+1625+Creedmoor+TX+78610"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-primary"
+              >Get Directions ↗</a
+            >
+            <a href="tel:+15125850175" class="btn btn-outline">Call Now</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="visit-map">
+        <iframe
+          title="Map to Casa Cafe, Creedmoor TX"
+          src="https://www.google.com/maps?q=12307+FM+1625+Creedmoor+TX+78610&output=embed"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span class="brand-mark" aria-hidden="true">🌮</span>
+        <div>
+          <span class="brand-name">Casa Cafe</span>
+          <p>Family-run Tex-Mex breakfast &amp; lunch in Creedmoor, Texas.</p>
+        </div>
+      </div>
+      <nav class="footer-nav" aria-label="Footer">
+        <a href="#menu">Menu</a>
+        <a href="#about">About</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#visit">Visit</a>
+        <a href="tel:+15125850175">Call</a>
+      </nav>
+      <div class="footer-meta">
+        <p>12307 FM 1625, Creedmoor, TX 78610</p>
+        <p>(512) 585-0175</p>
+      </div>
+    </div>
+    <div class="footer-bottom container">
+      <p>© <span id="year"></span> Casa Cafe. All rights reserved.</p>
+      <p class="footer-note">Unofficial site built from publicly listed information.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
