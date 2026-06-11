@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { authApi, setAuthToken, type Brokerage, type SignupData } from '../lib/api'
+import {
+  authApi,
+  setAuthToken,
+  setRefreshHandler,
+  type Brokerage,
+  type SignupData,
+} from '../lib/api'
 
 interface AuthState {
   accessToken: string | null
@@ -68,3 +74,23 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+// Silent session refresh: the api layer calls this on a 401 to swap the stored
+// refresh token for a fresh session and retry, instead of logging the broker
+// out every hour when the access token expires. Returns the new access token,
+// or null when the refresh token itself is dead (the interceptor then logs out).
+setRefreshHandler(async () => {
+  const { refreshToken } = useAuthStore.getState()
+  if (!refreshToken) return null
+  try {
+    const res = await authApi.refresh(refreshToken)
+    setAuthToken(res.access_token)
+    useAuthStore.setState({
+      accessToken: res.access_token,
+      refreshToken: res.refresh_token,
+    })
+    return res.access_token
+  } catch {
+    return null
+  }
+})

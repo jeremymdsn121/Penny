@@ -122,8 +122,15 @@ export default function ListingDetail() {
 
   async function handleDelete() {
     if (!listing) return
-    await listingsApi.remove(listing.id)
-    navigate('/listings')
+    if (!confirm(`Delete the listing for ${listing.address || 'this property'}? This can't be undone.`)) {
+      return
+    }
+    try {
+      await listingsApi.remove(listing.id)
+      navigate('/listings')
+    } catch {
+      setError('Could not delete the listing.')
+    }
   }
 
   async function handlePush() {

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { transactionsApi, type Transaction } from '../lib/api'
+import { todayLocalISO } from '../lib/dates'
 
 const HELD_OPTIONS = ['title', 'brokerage', 'escrow', 'other']
 
@@ -21,7 +22,7 @@ export default function EmdCard({
   const [heldBy, setHeldBy] = useState(tx.emd_held_by ?? '')
   const [notes, setNotes] = useState(tx.emd_notes ?? '')
   const [receivedDate, setReceivedDate] = useState(
-    tx.emd_received_date ?? new Date().toISOString().slice(0, 10),
+    tx.emd_received_date ?? todayLocalISO(),
   )
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState(false)
@@ -47,13 +48,16 @@ export default function EmdCard({
     }
   }
 
+  // The "Confirm received" / "Confirm" buttons below are the human confirmation
+  // the gated endpoint requires.
   async function markReceived() {
     setBusy(true)
     setError(null)
     try {
-      const updated = await transactionsApi.update(tx.id, {
-        emd_received: true,
-        emd_received_date: receivedDate || null,
+      const updated = await transactionsApi.setEmdReceived(tx.id, {
+        received: true,
+        received_date: receivedDate || null,
+        confirmed: true,
       })
       onChange(updated)
       setMarking(false)
@@ -68,9 +72,9 @@ export default function EmdCard({
     setBusy(true)
     setError(null)
     try {
-      const updated = await transactionsApi.update(tx.id, {
-        emd_received: false,
-        emd_received_date: null,
+      const updated = await transactionsApi.setEmdReceived(tx.id, {
+        received: false,
+        confirmed: true,
       })
       onChange(updated)
       setUnmarking(false)

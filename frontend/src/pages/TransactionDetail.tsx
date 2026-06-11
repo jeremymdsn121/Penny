@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import ActivityTimeline from '../components/ActivityTimeline'
 import Communications from '../components/Communications'
 import ComplianceChecklist from '../components/ComplianceChecklist'
 import EmdCard from '../components/EmdCard'
@@ -37,6 +38,7 @@ const SECTION_NAV: SectionNavItem[] = [
   { id: 'compliance', label: 'Compliance Review' },
   { id: 'comps', label: 'Comparable Sales' },
   { id: 'comms', label: 'Communications' },
+  { id: 'activity', label: 'Activity' },
   { id: 'draft', label: 'Draft Document' },
   { id: 'signatures', label: 'Signatures' },
   { id: 'contract', label: 'Contract' },
@@ -488,7 +490,7 @@ export default function TransactionDetail() {
     }
   }
 
-  function fmtSlot(iso: string, tz?: string): string {
+  function fmtSlot(iso: string, tz?: string, showZone = false): string {
     try {
       return new Date(iso).toLocaleString('en-US', {
         timeZone: tz,
@@ -497,6 +499,10 @@ export default function TransactionDetail() {
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
+        // The booked list renders in whatever zone is available (the deal's tz
+        // isn't known without a proposal loaded), so label the zone to keep the
+        // time unambiguous next to proposal slots shown in the deal's tz.
+        ...(showZone ? { timeZoneName: 'short' as const } : {}),
       })
     } catch {
       return iso
@@ -1060,7 +1066,9 @@ export default function TransactionDetail() {
                           {(a.type ?? 'appointment').replace('_', ' ')}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-muted">
-                          {a.scheduled_at ? fmtSlot(a.scheduled_at) : 'Time TBD'}
+                          {a.scheduled_at
+                            ? fmtSlot(a.scheduled_at, proposal?.timezone, true)
+                            : 'Time TBD'}
                           {a.calendar_event_id ? ' · on calendar' : ''}
                         </p>
                       </div>
@@ -1659,6 +1667,13 @@ export default function TransactionDetail() {
         {!editMode && tx && (
           <section id="comms" data-section>
             <Communications txId={tx.id} onReply={handleReplyToEmail} />
+          </section>
+        )}
+
+        {/* Activity timeline */}
+        {!editMode && tx && (
+          <section id="activity" data-section>
+            <ActivityTimeline txId={tx.id} />
           </section>
         )}
 

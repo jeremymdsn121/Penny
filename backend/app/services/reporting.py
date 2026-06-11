@@ -97,9 +97,10 @@ async def build_summary(
             days = (closing - today).days
             if 0 <= days <= 5 and pct_map.get(t["id"], 0) < 80:
                 closing_soon_incomplete += 1
-        last = t.get("last_activity_at")
-        last_dt = _parse_date(last)
-        if last_dt is None or (today - last_dt).days >= 7:
+        # Rows predating migration 010 have no last_activity_at — fall back to
+        # created_at rather than calling a deal created today "stale".
+        last_dt = _parse_date(t.get("last_activity_at")) or _parse_date(t.get("created_at"))
+        if last_dt is not None and (today - last_dt).days >= 7:
             stale += 1
     at_risk = {
         "overdue_deadlines": len(overdue_by_tx),

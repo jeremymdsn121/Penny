@@ -50,27 +50,42 @@ def oauth_configured() -> bool:
 
 
 # --- Signed OAuth state ---------------------------------------------------- #
+# Connect links get handed to agents over email/chat, so the signed state must
+# eventually expire — an unexpiring state is a permanent capability to overwrite
+# the brokerage's calendar connection for anyone who ever sees the link. Seven
+# days is generous for "click this when you get a minute" while still bounding
+# the exposure.
+STATE_TTL_SECONDS = 7 * 24 * 3600
+
+
 def _secret() -> str:
     return settings.CONSENT_SECRET or settings.SECRET_KEY
 
 
 def make_state(brokerage_id: str, agent_id: str = "") -> str:
-    """Sign ``brokerage_id:agent_id`` so the public callback can trust it."""
-    payload = f"{brokerage_id}:{agent_id}"
+    """Sign ``brokerage_id:agent_id:issued_at`` so the public callback can trust it."""
+    issued = int(time.time())
+    payload = f"{brokerage_id}:{agent_id}:{issued}"
     sig = hmac.new(_secret().encode(), payload.encode(), sha256).hexdigest()
     return f"{payload}:{sig}"
 
 
 def parse_state(state: str) -> tuple[str, str] | None:
-    """Return ``(brokerage_id, agent_id)`` if the state is valid, else None."""
+    """Return ``(brokerage_id, agent_id)`` if the state is valid and fresh, else None."""
     parts = (state or "").split(":")
-    if len(parts) != 3:
+    if len(parts) != 4:
         return None
-    brokerage_id, agent_id, sig = parts
+    brokerage_id, agent_id, issued_raw, sig = parts
     expected = hmac.new(
-        _secret().encode(), f"{brokerage_id}:{agent_id}".encode(), sha256
+        _secret().encode(), f"{brokerage_id}:{agent_id}:{issued_raw}".encode(), sha256
     ).hexdigest()
     if not hmac.compare_digest(expected, sig):
+        return None
+    try:
+        issued = int(issued_raw)
+    except ValueError:
+        return None
+    if not (0 <= time.time() - issued <= STATE_TTL_SECONDS):
         return None
     return brokerage_id, agent_id
 

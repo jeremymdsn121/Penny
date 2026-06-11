@@ -125,6 +125,21 @@ async def sign_in(email: str, password: str) -> dict[str, Any]:
     return resp.json()
 
 
+async def refresh_session(refresh_token: str) -> dict[str, Any]:
+    """Exchange a refresh token for a fresh access token (GoTrue rotates the
+    refresh token too — the caller must store BOTH returned tokens)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{AUTH_BASE}/token",
+            params={"grant_type": "refresh_token"},
+            json={"refresh_token": refresh_token},
+            headers=_anon_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
 async def get_user(token: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(f"{AUTH_BASE}/user", headers=_anon_headers(token))
@@ -153,6 +168,20 @@ async def insert_brokerage(data: dict[str, Any]) -> dict[str, Any]:
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if isinstance(rows, list) else rows
+
+
+async def list_brokerages() -> list[dict[str, Any]]:
+    """Every brokerage's id + name — used by the cron scan to iterate tenants.
+    Deliberately minimal columns; full rows stay behind per-brokerage lookups."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/brokerages",
+            params={"select": "id,name", "order": "created_at.asc"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
 
 
 async def get_brokerage(brokerage_id: str) -> dict[str, Any] | None:
@@ -269,6 +298,37 @@ async def log_ai_usage(
             await client.post(f"{REST_BASE}/ai_usage", json=row, headers=_service_headers())
     except Exception:
         pass
+
+
+async def ai_tokens_used_today(brokerage_id: str, since_iso: str) -> int:
+    """Sum input+output tokens this brokerage has logged to ai_usage since
+    ``since_iso`` (UTC midnight). Best-effort: returns 0 if the table is missing
+    (migration 020 not applied) or the query fails, so the cap never hard-blocks
+    chat on an infra hiccup — it only ever throttles a confirmed over-use.
+
+    Summed in Python over capped rows rather than via a PostgREST aggregate
+    (which needs db-aggregates enabled); a brokerage at the row cap is, by
+    definition, already over any sane token ceiling."""
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{REST_BASE}/ai_usage",
+                params={
+                    "brokerage_id": f"eq.{brokerage_id}",
+                    "created_at": f"gte.{since_iso}",
+                    "select": "input_tokens,output_tokens",
+                    "limit": "5000",
+                },
+                headers=_service_headers(),
+            )
+        if resp.status_code >= 400:
+            return 0
+        return sum(
+            int(r.get("input_tokens", 0) or 0) + int(r.get("output_tokens", 0) or 0)
+            for r in resp.json()
+        )
+    except Exception:  # noqa: BLE001 — never block chat on a usage-read failure
+        return 0
 
 
 async def update_agent(
@@ -1541,6 +1601,38 @@ async def list_compliance_feedback(
     return resp.json()
 
 
+async def insert_transaction_event(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Append an audit-trail event. Best-effort caller (activity.record) swallows
+    failures so a missing migration 026 never breaks the action being logged."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/transaction_events",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_transaction_events(transaction_id: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_events",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "created_at.desc",
+                "limit": "200",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
 async def list_transaction_emails(transaction_id: str) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
@@ -1938,28 +2030,71 @@ async def update_pending_doc_route(route_id: str, data: dict[str, Any]) -> dict[
 # from one of the brokerage's own agents (vs. an outside party).
 # --------------------------------------------------------------------------- #
 
+async def insert_email_delivery_event(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Record a bounce/dropped/spamreport event. Returns None on the
+    sg_event_id unique-conflict (SendGrid re-delivered the event) so the
+    caller can skip the duplicate without nudging twice."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/email_delivery_events",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code == 409:
+        return None
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_delivery_events_for_transaction(
+    transaction_id: str,
+) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/email_delivery_events",
+            params={
+                "transaction_id": f"eq.{transaction_id}",
+                "select": "*",
+                "order": "created_at.desc",
+                "limit": "50",
+            },
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
 async def get_agent_by_email(
     brokerage_id: str, email: str
 ) -> dict[str, Any] | None:
-    """Return the brokerage's agent whose email matches (case-insensitive), or None."""
-    clean = (email or "").strip()
-    if not clean:
+    """Return the brokerage's agent whose email matches (case-insensitive), or None.
+
+    The comparison happens in Python on the brokerage's agent rows: the email
+    comes from an inbound message's From: header, and PostgREST pattern
+    operators (ilike) treat * and % as wildcards — untrusted input must never
+    reach a pattern match (e.g. "*@*" would match the first agent).
+    """
+    clean = (email or "").strip().lower()
+    if not clean or "@" not in clean:
         return None
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
             f"{REST_BASE}/agents",
             params={
                 "brokerage_id": f"eq.{brokerage_id}",
-                "email": f"ilike.{clean}",
                 "select": "*",
-                "limit": "1",
             },
             headers=_service_headers(),
         )
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
-    rows = resp.json()
-    return rows[0] if rows else None
+    for row in resp.json():
+        if (row.get("email") or "").strip().lower() == clean:
+            return row
+    return None
 
 
 # --------------------------------------------------------------------------- #

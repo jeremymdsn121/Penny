@@ -27,6 +27,7 @@ from app.services import (
     calendar_provider,
     compliance,
     doc_generate,
+    doc_routing,
     email_client,
     next_actions,
     rentcast,
@@ -786,9 +787,14 @@ async def _exec_update_transaction_stage(brokerage_id: str, inputs: dict) -> str
             "Please be more specific."
         )
     tx = txs[0]
+    # Mirror the web PATCH (routes/transactions.py update_one): stamp closed_at
+    # entering 'closed', clear it on reopen, and fire the same stage hooks.
     stage_data: dict[str, Any] = {"stage": new_stage}
-    if new_stage == "closed" and tx.get("stage") != "closed":
-        stage_data["closed_at"] = datetime.now(timezone.utc).isoformat()
+    if new_stage != tx.get("stage"):
+        if new_stage == "closed":
+            stage_data["closed_at"] = datetime.now(timezone.utc).isoformat()
+        elif tx.get("stage") == "closed":
+            stage_data["closed_at"] = None
     updated = await sb.update_transaction(brokerage_id, tx["id"], stage_data)
     if updated:
         if new_stage != tx.get("stage"):
@@ -796,6 +802,21 @@ async def _exec_update_transaction_stage(brokerage_id: str, inputs: dict) -> str
                 await workflow.generate_stage_tasks(updated, new_stage)
             except Exception:
                 pass
+            try:
+                await doc_routing.run_stage_routing(updated, new_stage)
+            except Exception:
+                pass
+            from app.services import activity
+
+            await activity.record(
+                brokerage_id=brokerage_id,
+                transaction_id=tx["id"],
+                kind="stage_change",
+                title=f"Stage changed to {new_stage.replace('_', ' ')}",
+                detail=f"from {(tx.get('stage') or 'new').replace('_', ' ')}",
+                actor="Penny",
+                via="chat",
+            )
         return (
             f"Updated {tx.get('address', 'transaction')} to "
             f"{_fmt_stage(new_stage)}."
@@ -1140,6 +1161,21 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
     now = datetime.now(tz)
     days = int(inputs.get("days") or 5)
     busy = await _brokerage_busy(brokerage_id)
+    # Merge the connected Google calendar's busy times, like the web propose
+    # endpoint — otherwise Penny proposes (and then books) over real events.
+    # Same account routing as booking: the deal's agent if connected, else the
+    # brokerage. get_busy degrades to [] when nothing is connected or it errors.
+    cal_agent = None
+    if tx.get("agent_id"):
+        try:
+            cal_agent = await sb.get_agent(brokerage_id, tx["agent_id"])
+        except Exception:
+            cal_agent = None
+    account = calendar_provider.resolve_account(brokerage, cal_agent)
+    window_end = datetime.combine(
+        now.date() + timedelta(days=days), datetime.min.time(), tzinfo=tz
+    )
+    busy.extend(await calendar_provider.get_busy(account, now, window_end))
     slots = scheduling.propose_slots(
         work_start=brokerage.get("work_start"),
         work_end=brokerage.get("work_end"),
@@ -1733,7 +1769,9 @@ async def _exec_schedule_reply(brokerage_id: str, inputs: dict) -> str:
         )
         return (
             f"Got it — I'll hold the reply to {row.get('to_name') or row.get('to_email')} "
-            f"and check back with you on {when.strftime('%b %-d at %-I:%M %p')} before "
+            # %-d/%-I are glibc-only and raise on Windows; format the parts manually.
+            f"and check back with you on {when.strftime('%b')} {when.day} at "
+            f"{(when.hour % 12) or 12}:{when.minute:02d} {'AM' if when.hour < 12 else 'PM'} before "
             "anything goes out."
         )
     if trigger_type == "event":

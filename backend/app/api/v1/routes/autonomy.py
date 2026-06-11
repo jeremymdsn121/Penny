@@ -12,10 +12,13 @@ from pydantic import BaseModel
 
 from app.constants import LOCKED_TASK_IDS, TASK_DEFINITIONS, TASK_IDS
 from app.core import supabase_client as sb
-from app.core.security import get_current_brokerage
+from app.core.security import get_current_brokerage, require_admin
 from app.schemas.onboarding import TaskAutonomyItem
 
-router = APIRouter(prefix="/autonomy", tags=["autonomy"])
+# Admin-only surface (see security.require_admin — a no-op until multi-seat).
+router = APIRouter(
+    prefix="/autonomy", tags=["autonomy"], dependencies=[Depends(require_admin)]
+)
 
 
 class AutonomyUpdate(BaseModel):

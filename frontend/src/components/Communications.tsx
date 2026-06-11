@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   emailsApi,
   pendingRepliesApi,
+  type EmailDeliveryEvent,
   type PendingEmailReply,
   type TransactionEmail,
 } from '../lib/api'
@@ -54,6 +55,9 @@ export default function Communications({
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  // Delivery problems (bounced/dropped/spam-flagged outbound mail).
+  const [deliveryEvents, setDeliveryEvents] = useState<EmailDeliveryEvent[]>([])
+
   useEffect(() => {
     let ignore = false
     setLoading(true)
@@ -70,6 +74,11 @@ export default function Communications({
       })
       .catch(() => { if (!ignore) setError('Could not load communications.') })
       .finally(() => { if (!ignore) setLoading(false) })
+    // Best-effort: delivery problems render only when present.
+    emailsApi
+      .deliveryEvents(txId)
+      .then((ev) => { if (!ignore) setDeliveryEvents(ev) })
+      .catch(() => {})
     return () => { ignore = true }
   }, [txId])
 
@@ -144,6 +153,31 @@ export default function Communications({
       {error && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {deliveryEvents.length > 0 && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+            Delivery problems
+          </p>
+          <ul className="space-y-1">
+            {deliveryEvents.map((ev) => (
+              <li key={ev.id} className="text-sm text-ink">
+                <span className="font-medium">{ev.email}</span>
+                <span className="text-ink-muted">
+                  {ev.event === 'spamreport'
+                    ? ' marked the email as spam'
+                    : ` — the email didn't go through${ev.reason ? ` (${ev.reason})` : ''}`}
+                  {' · '}
+                  {fmtWhen(ev.created_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-700">
+            Check the address on the deal — this party isn't receiving Penny's emails.
+          </p>
         </div>
       )}
 

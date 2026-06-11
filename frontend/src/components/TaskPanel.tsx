@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { tasksApi, type TransactionTask } from '../lib/api'
+import { daysUntil } from '../lib/dates'
 
 function isOverdue(t: TransactionTask): boolean {
   if (t.status !== 'pending' || !t.due_date) return false
-  return new Date(t.due_date) < new Date(new Date().toDateString())
+  const d = daysUntil(t.due_date)
+  return d !== null && d < 0
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -35,13 +37,21 @@ export default function TaskPanel({ txId }: { txId: string }) {
   }, [txId])
 
   async function setStatus(task: TransactionTask, status: string) {
-    const updated = await tasksApi.patch(txId, task.id, { status })
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)))
+    try {
+      const updated = await tasksApi.patch(txId, task.id, { status })
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)))
+    } catch {
+      setError('Could not update the task.')
+    }
   }
 
   async function remove(id: string) {
-    await tasksApi.remove(txId, id)
-    setTasks((prev) => prev.filter((t) => t.id !== id))
+    try {
+      await tasksApi.remove(txId, id)
+      setTasks((prev) => prev.filter((t) => t.id !== id))
+    } catch {
+      setError('Could not delete the task.')
+    }
   }
 
   async function addTask() {

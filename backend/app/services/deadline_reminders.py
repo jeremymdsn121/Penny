@@ -16,6 +16,7 @@ reminders), which a scheduled job can call. There is no in-process scheduler.
 """
 
 import asyncio
+import html as _html
 import logging
 from dataclasses import dataclass
 from datetime import date
@@ -134,15 +135,20 @@ def build_party_notice(
     due_str = due.strftime("%B %d, %Y") if due else "soon"
     subject = f"Upcoming deadline: {label} — {address}"
 
+    # Label/address come from user input and extracted contract data — escape
+    # them so a crafted value can't become markup in outside-party mail.
+    esc_label = _html.escape(label)
+    esc_address = _html.escape(address)
+    esc_brokerage = _html.escape(brokerage_name)
     html = (
         '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
         'color:#222;line-height:1.5;">'
         "<p>Hi,</p>"
-        f"<p>A quick heads-up that <strong>{label}</strong> for the transaction at "
-        f"{address} is due on <strong>{due_str}</strong>.</p>"
+        f"<p>A quick heads-up that <strong>{esc_label}</strong> for the transaction at "
+        f"{esc_address} is due on <strong>{due_str}</strong>.</p>"
         "<p>Please reach out if you have any questions or need anything ahead of this "
         "date.</p>"
-        f"<p>Thanks,<br>Penny<br>Transaction Coordinator, {brokerage_name}</p>"
+        f"<p>Thanks,<br>Penny<br>Transaction Coordinator, {esc_brokerage}</p>"
         "</div>"
     )
     plain = (
@@ -170,9 +176,19 @@ async def _is_autonomous(brokerage_id: str) -> bool:
     )
 
 
-async def _send_nudge(contacts: list[dict[str, Any]], text: str) -> bool:
+async def _send_nudge(
+    contacts: list[dict[str, Any]],
+    text: str,
+    template: tuple[str, list[str]] | None = None,
+) -> bool:
     """Best-effort WhatsApp nudge to every registered contact. Returns True if
-    at least one send was attempted without Twilio being unconfigured."""
+    at least one send was attempted without Twilio being unconfigured.
+
+    ``template`` is the (template_key, variables) pair for the approved-template
+    path — proactive nudges fire outside the 24h window on the production
+    WhatsApp API, so they must be template sends once ContentSids are
+    configured. ``text`` remains the free-form fallback (sandbox behavior).
+    """
     if not contacts:
         return False
     sent_any = False
@@ -181,7 +197,12 @@ async def _send_nudge(contacts: list[dict[str, Any]], text: str) -> bool:
         if not phone:
             continue
         try:
-            await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, text)
+            if template:
+                await asyncio.to_thread(
+                    twilio_client.send_whatsapp_template, phone, template[0], template[1], text
+                )
+            else:
+                await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, text)
             sent_any = True
         except twilio_client.TwilioNotConfigured:
             return False
@@ -218,6 +239,21 @@ async def run_reminders(brokerage_id: str) -> dict[str, Any]:
         if fire is None:
             continue
 
+        # Claim the mark BEFORE anything goes out. The party email is external
+        # comms and must be at-most-once: flipping the flags after the send
+        # meant a DB failure re-emailed the same parties on the next scan (and
+        # aborted the rest of the loop). Claim-first inverts the failure mode —
+        # a crash mid-item can at worst drop one reminder, never duplicate one.
+        # A failed claim skips just this deadline; the next scan retries it.
+        try:
+            await sb.update_deadline(deadline["id"], flags)
+        except sb.SupabaseError as exc:
+            logger.error(
+                "Could not flip reminder flags for deadline %s; skipping: %s",
+                deadline.get("id"), exc,
+            )
+            continue
+
         due = _parse_due(deadline.get("due_date"))
         days_until = (due - today).days if due else 0
 
@@ -245,7 +281,20 @@ async def run_reminders(brokerage_id: str) -> dict[str, Any]:
             party_action = "pending_confirm"
 
         nudge = build_agent_nudge(tx, deadline, days_until, parties, party_action)
-        nudged = await _send_nudge(contacts, nudge)
+        # Template vars per WHATSAPP_TEMPLATES.md `deadline_reminder`:
+        # {{1}} label, {{2}} address, {{3}} due phrase without the leading "is".
+        nudged = await _send_nudge(
+            contacts,
+            nudge,
+            template=(
+                "deadline_reminder",
+                [
+                    (deadline.get("label") or "A deadline").strip(),
+                    (tx.get("address") or "a transaction").strip(),
+                    describe_timing(days_until).removeprefix("is "),
+                ],
+            ),
+        )
 
         emailed: list[str] = []
         if party_action == "sent":
@@ -274,9 +323,6 @@ async def run_reminders(brokerage_id: str) -> dict[str, Any]:
                     })
                 except Exception:  # noqa: BLE001
                     pass
-
-        # Flip the crossed flags so this mark (and any passed ones) won't repeat.
-        await sb.update_deadline(deadline["id"], flags)
 
         items.append({
             "deadline_id": deadline["id"],

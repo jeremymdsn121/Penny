@@ -118,12 +118,19 @@ async def _notify_agent(tx: dict[str, Any], subject: str, body: str) -> None:
         recipients = (
             [c for c in contacts if c.get("agent_id") == agent_id] if agent_id else contacts
         )
+        # Proactive (out-of-window) nudge — catch-all template
+        # `agent_action_needed` per WHATSAPP_TEMPLATES.md ({{1}} address,
+        # {{2}} what's needed); free-form fallback until ContentSids are set.
+        template_vars = [tx.get("address") or "a transaction", subject]
         for c in recipients:
             phone = c.get("phone_number")
             if not phone:
                 continue
             try:
-                await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, body)
+                await asyncio.to_thread(
+                    twilio_client.send_whatsapp_template,
+                    phone, "agent_action_needed", template_vars, body,
+                )
             except twilio_client.TwilioNotConfigured:
                 break
             except Exception:  # noqa: BLE001

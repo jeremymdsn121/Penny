@@ -13,10 +13,13 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.core import supabase_client as sb
-from app.core.security import get_current_brokerage
+from app.core.security import get_current_brokerage, require_admin
 from app.services import compliance_checklist, reporting
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+# Admin-only surface (see security.require_admin — a no-op until multi-seat).
+router = APIRouter(
+    prefix="/reports", tags=["reports"], dependencies=[Depends(require_admin)]
+)
 
 _PERIODS = ("month", "quarter", "ytd")
 

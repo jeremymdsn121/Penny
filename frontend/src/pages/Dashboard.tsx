@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { brokerApi, deadlinesApi, transactionsApi, type Transaction } from '../lib/api'
+import { daysUntil } from '../lib/dates'
 import { useAuthStore } from '../store/auth'
 
 const ACTIVE_STAGES = new Set(['under_contract', 'pending'])
@@ -49,12 +50,6 @@ function fmtMoney(v?: number | null): string {
   return `$${v}`
 }
 
-function daysUntil(dateStr?: string | null): number | null {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-  return Math.ceil((d.getTime() - Date.now()) / 86_400_000)
-}
 
 function StatCard({
   label,

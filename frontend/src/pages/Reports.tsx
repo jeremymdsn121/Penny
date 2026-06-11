@@ -37,12 +37,25 @@ export default function Reports() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Ignore stale responses: two quick period switches can resolve out of
+    // order, leaving the wrong period's data on screen.
+    let ignore = false
     setLoading(true)
+    setError(null)
     reportsApi
       .summary(period)
-      .then(setData)
-      .catch(() => setError('Could not load the report.'))
-      .finally(() => setLoading(false))
+      .then((d) => {
+        if (!ignore) setData(d)
+      })
+      .catch(() => {
+        if (!ignore) setError('Could not load the report.')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
   }, [period])
 
   const stageEntries = data ? Object.entries(data.pipeline.by_stage) : []

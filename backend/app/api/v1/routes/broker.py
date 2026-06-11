@@ -25,10 +25,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core import supabase_client as sb
-from app.core.security import get_current_brokerage
+from app.core.security import get_current_brokerage, require_admin
 from app.services import compliance_checklist
 
-router = APIRouter(prefix="/broker", tags=["broker"])
+# Admin-only surface (see security.require_admin — a no-op until multi-seat).
+router = APIRouter(
+    prefix="/broker", tags=["broker"], dependencies=[Depends(require_admin)]
+)
 
 ACTIVE_STAGES = ("under_contract", "pending")
 STALE_DAYS = 7
@@ -143,10 +146,13 @@ async def review_queue(
                 _row(tx, agent, pct, f"EMD not received — was due {tx.get('emd_due_date')}")
             )
 
-        last = _parse_dt(tx.get("last_activity_at"))
-        if last is None or (now - last).days >= STALE_DAYS:
-            days_txt = f"{(now - last).days} days" if last else "a while"
-            stale_transactions.append(_row(tx, agent, pct, f"No activity in {days_txt}"))
+        # Rows predating migration 010 have no last_activity_at — fall back to
+        # created_at rather than flagging a deal created today as stale.
+        last = _parse_dt(tx.get("last_activity_at")) or _parse_dt(tx.get("created_at"))
+        if last is not None and (now - last).days >= STALE_DAYS:
+            stale_transactions.append(
+                _row(tx, agent, pct, f"No activity in {(now - last).days} days")
+            )
 
     return {
         "compliance_attention": compliance_attention,

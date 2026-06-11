@@ -10,7 +10,9 @@ endpoints, which require auth.
 """
 
 import asyncio
+import hmac
 import html
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -21,9 +23,16 @@ from pydantic import BaseModel
 from app.config import settings
 from app.core import supabase_client as sb
 from app.core.security import get_current_brokerage, get_current_user
-from app.services import email_autoreply, email_client, email_scheduler, twilio_client
+from app.services import (
+    activity,
+    email_autoreply,
+    email_client,
+    email_scheduler,
+    twilio_client,
+)
 
 router = APIRouter(tags=["email"])
+logger = logging.getLogger(__name__)
 
 _TX_RE = re.compile(r"tx-([0-9a-fA-F-]{8,})@")
 _ADDR_RE = re.compile(r"<([^>]+)>")
@@ -84,10 +93,19 @@ def _forward_plain(
 @router.post("/email/inbound")
 async def inbound_email(request: Request) -> Any:
     """Receive a parsed inbound email from SendGrid Inbound Parse."""
-    # Optional shared-secret check (Inbound Parse isn't signed by default).
+    # Shared-secret check (Inbound Parse isn't signed by default). Timing-safe
+    # compare; without the key the endpoint accepts unauthenticated posts, which
+    # is acceptable only in local dev — warn loudly so a prod misconfig is seen.
     if settings.SENDGRID_WEBHOOK_KEY:
-        if request.query_params.get("key") != settings.SENDGRID_WEBHOOK_KEY:
+        supplied = request.query_params.get("key") or ""
+        if not hmac.compare_digest(supplied, settings.SENDGRID_WEBHOOK_KEY):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid key")
+    else:
+        logger.warning(
+            "POST /email/inbound accepted without SENDGRID_WEBHOOK_KEY set — "
+            "the webhook is unauthenticated. Set the key and add ?key=... to the "
+            "SendGrid Inbound Parse URL."
+        )
 
     form = await request.form()
     data = {k: str(v) for k, v in form.items()}
@@ -198,6 +216,9 @@ async def inbound_email(request: Request) -> Any:
         f'"{preview}"\n\n'
         "View the full message in the Penny dashboard."
     )
+    # Proactive (out-of-window) nudge — template `email_reply_received` per
+    # WHATSAPP_TEMPLATES.md; free-form fallback until ContentSids are configured.
+    template_vars = [address, who, preview]
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
         if agent_id:
@@ -213,7 +234,10 @@ async def inbound_email(request: Request) -> Any:
             if not phone:
                 continue
             try:
-                await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, nudge)
+                await asyncio.to_thread(
+                    twilio_client.send_whatsapp_template,
+                    phone, "email_reply_received", template_vars, nudge,
+                )
             except twilio_client.TwilioNotConfigured:
                 break
             except Exception:  # noqa: BLE001
@@ -222,6 +246,137 @@ async def inbound_email(request: Request) -> Any:
         pass
 
     return {"ok": True, "matched": True, "action": outcome}
+
+
+# --------------------------------------------------------------------------- #
+# Delivery feedback — SendGrid Event Webhook (bounce / dropped / spamreport).
+# send_email only knows SendGrid *accepted* a message; when a party's address
+# was extracted with a typo, every notice silently vanishes while the broker
+# believes the parties were informed. Outbound transaction mail carries its
+# transaction_id as a custom arg (set in email_client.send_email from the
+# tx-{id}@ Reply-To), which SendGrid echoes back on every event — so failures
+# attribute straight to the deal. Configure in SendGrid: Settings → Mail
+# Settings → Event Webhook → POST /api/v1/email/events?key=<SENDGRID_WEBHOOK_KEY>
+# with the Bounced / Dropped / Spam Report events enabled.
+# --------------------------------------------------------------------------- #
+
+_DELIVERY_EVENTS = {"bounce", "dropped", "spamreport"}
+
+
+def _delivery_failure_line(email_addr: str, event: str, reason: str) -> str:
+    """One human sentence describing the failure, for the agent nudge."""
+    if event == "spamreport":
+        return (
+            f"{email_addr} marked my email as spam — I'd hold off emailing them. "
+            "Is there a better address or channel for this party?"
+        )
+    detail = f" ({reason})" if reason else ""
+    return (
+        f"My email to {email_addr} didn't go through{detail}. "
+        "Can you check that address on the deal?"
+    )
+
+
+async def _nudge_delivery_failure(
+    tx: dict[str, Any], email_addr: str, event: str, reason: str
+) -> None:
+    """WhatsApp the deal's agent (or the brokerage) that a party isn't getting mail."""
+    address = tx.get("address") or "a transaction"
+    line = _delivery_failure_line(email_addr, event, reason)
+    nudge = f"⚠️ Penny update on {address}: {line}"
+    try:
+        contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
+    except sb.SupabaseError:
+        return
+    agent_id = tx.get("agent_id")
+    recipients = (
+        [c for c in contacts if c.get("agent_id") == agent_id] if agent_id else contacts
+    )
+    for c in recipients:
+        phone = c.get("phone_number")
+        if not phone:
+            continue
+        try:
+            await asyncio.to_thread(
+                twilio_client.send_whatsapp_template,
+                phone, "agent_action_needed", [address, line], nudge,
+            )
+        except twilio_client.TwilioNotConfigured:
+            break
+        except Exception:  # noqa: BLE001 — nudges are best-effort
+            pass
+
+
+@router.post("/email/events")
+async def email_events(request: Request) -> Any:
+    """Receive a SendGrid Event Webhook batch (a JSON array of events)."""
+    if settings.SENDGRID_WEBHOOK_KEY:
+        supplied = request.query_params.get("key") or ""
+        if not hmac.compare_digest(supplied, settings.SENDGRID_WEBHOOK_KEY):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid key")
+    else:
+        logger.warning(
+            "POST /email/events accepted without SENDGRID_WEBHOOK_KEY set — "
+            "the webhook is unauthenticated. Set the key and add ?key=... to the "
+            "SendGrid Event Webhook URL."
+        )
+
+    try:
+        events = await request.json()
+    except Exception:  # noqa: BLE001 — malformed body; ack so SendGrid stops retrying
+        return {"ok": True, "processed": 0}
+    if not isinstance(events, list):
+        return {"ok": True, "processed": 0}
+
+    processed = 0
+    for e in events:
+        if not isinstance(e, dict) or e.get("event") not in _DELIVERY_EVENTS:
+            continue
+        # Custom args are echoed back as top-level event fields.
+        tx_id = str(e.get("transaction_id") or "").strip()
+        email_addr = (e.get("email") or "").strip()
+        if not tx_id or not email_addr:
+            continue
+        tx = await sb.get_transaction_by_id(tx_id)
+        if tx is None:
+            continue
+        reason = str(e.get("reason") or e.get("response") or "").strip()[:500]
+        try:
+            inserted = await sb.insert_email_delivery_event(
+                {
+                    "brokerage_id": tx["brokerage_id"],
+                    "transaction_id": tx["id"],
+                    "email": email_addr,
+                    "event": e["event"],
+                    "reason": reason or None,
+                    "sg_event_id": str(e.get("sg_event_id") or "") or None,
+                }
+            )
+            if inserted is None:
+                continue  # SendGrid re-delivered this event — already recorded + nudged
+        except sb.SupabaseError as exc:
+            # Recording is best-effort (e.g. migration 025 not applied yet) —
+            # the agent nudge is the load-bearing part, so carry on.
+            logger.error("Could not record delivery event for tx %s: %s", tx_id, exc.detail)
+        processed += 1
+        await _nudge_delivery_failure(tx, email_addr, e["event"], reason)
+
+    return {"ok": True, "processed": processed}
+
+
+@router.get("/transactions/{transaction_id}/delivery-events")
+async def list_delivery_events(
+    transaction_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> list[dict[str, Any]]:
+    """Delivery problems (bounces etc.) for a deal's outbound email."""
+    tx = await sb.get_transaction(brokerage["id"], transaction_id)
+    if tx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    try:
+        return await sb.list_delivery_events_for_transaction(transaction_id)
+    except sb.SupabaseError:
+        return []  # table missing pre-migration-025 — degrade to "no problems"
 
 
 # --------------------------------------------------------------------------- #
@@ -320,6 +475,15 @@ async def send_pending_reply(
         )
     except sb.SupabaseError:
         pass
+    await activity.record(
+        brokerage_id=brokerage["id"],
+        transaction_id=row["transaction_id"],
+        kind="reply_sent",
+        title=f"Reply sent to {row.get('to_name') or to_email}",
+        detail=subject or None,
+        actor="You",
+        via="web",
+    )
     return {"sent": True, "recipient": to_email}
 
 

@@ -25,6 +25,7 @@ import {
   type Transaction,
 } from '../lib/api'
 import { useUiStore } from '../store/ui'
+import { daysUntil } from '../lib/dates'
 
 const ACTIVE_STAGES = new Set(['under_contract', 'pending'])
 
@@ -59,13 +60,6 @@ function greeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
-}
-
-function daysUntil(dateStr?: string | null): number | null {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-  return Math.ceil((d.getTime() - Date.now()) / 86_400_000)
 }
 
 // Short street line of an address (drop city/state) for compact prompts.
@@ -153,7 +147,7 @@ function useTypewriter(phrases: string[], enabled: boolean): string {
           phase = 'holding'
           timer = setTimeout(tick, 5200)
         } else {
-          timer = setTimeout(tick, 85)
+          timer = setTimeout(tick, 54)
         }
       } else if (phase === 'holding') {
         phase = 'deleting'
@@ -166,7 +160,7 @@ function useTypewriter(phrases: string[], enabled: boolean): string {
           phraseIdx = (phraseIdx + 1) % phrases.length
           timer = setTimeout(tick, 2200)
         } else {
-          timer = setTimeout(tick, 45)
+          timer = setTimeout(tick, 29)
         }
       }
     }
@@ -418,12 +412,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark — does NOT fade up with the rest; it waits for the page to
-          arrive, then falls in from the top of the page (pin lands, pings,
-          house settles). The wrapper still reserves its space so nothing
-          reflows when the pin lands. */}
+      {/* Brand mark — flies in from below last, after the chat bar and pills
+          have started rising. Then hovers gently. */}
       <div className="mb-6 flex justify-center">
-        <PennyRibbon size={132} animated />
+        <PennyRibbon size={198} animated delay={reduceMotion ? 0 : 370} />
       </div>
 
       {/* Greeting + briefing */}
@@ -441,10 +433,23 @@ export default function Home() {
         {ChatBar}
       </div>
 
+      {/* Starter chips — contextual, clickable shortcuts */}
+      <div className={`mt-3 flex flex-wrap justify-center gap-2 ${riseClass}`} style={rise(200)}>
+        {suggestions.slice(0, 3).map((s) => (
+          <button
+            key={s}
+            onClick={() => send(s)}
+            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-penny/40 hover:text-ink"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
       {/* Next actions — Penny's prioritized "what I'd tackle" list. Clicking
           one hands the task straight to her in chat. */}
       {nextActions.length > 0 && (
-        <div className={`mt-6 ${riseClass}`} style={rise(200)}>
+        <div className={`mt-6 ${riseClass}`} style={rise(230)}>
           <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">
             <Sparkles size={14} />
             What I'd tackle first
@@ -480,19 +485,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Starter chips — contextual, clickable shortcuts */}
-      <div className={`mt-3 flex flex-wrap justify-center gap-2 ${riseClass}`} style={rise(230)}>
-        {suggestions.slice(0, 3).map((s) => (
-          <button
-            key={s}
-            onClick={() => send(s)}
-            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-penny/40 hover:text-ink"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
 
       {/* Nav pills */}
       <div className={`mt-10 ${riseClass}`} style={rise(300)}>

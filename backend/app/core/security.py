@@ -37,6 +37,27 @@ async def get_current_user(
         )
 
 
+async def require_admin(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """The caller must hold the brokerage-admin role.
+
+    Today every login IS the admin (signup stamps app_metadata.role =
+    'broker_in_charge' and agents have no logins), so this changes nothing
+    functionally — it exists so that the day a second seat type is added,
+    the admin-only surfaces (review queue, reports, autonomy, settings)
+    don't silently open up. Legacy accounts created before the role stamp
+    are treated as admins (single-login era ⇒ they are the broker).
+    """
+    role = (user.get("app_metadata") or {}).get("role")
+    if role not in (None, "broker_in_charge"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This area is for the broker-in-charge.",
+        )
+    return user
+
+
 async def get_current_brokerage(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:

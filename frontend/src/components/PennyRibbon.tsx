@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { RIBBON_VIEWBOX, RIBBON_DOTS } from './pennyRibbonArt'
 import pennyP from '../assets/penny-p.png'
 
@@ -24,6 +25,8 @@ interface PennyRibbonProps {
   size?: number
   /** Run the fade/scale-in entrance + idle breathe + twinkle. Off by default. */
   animated?: boolean
+  /** Optional ms delay before the entrance fires (also offsets the hover idle). */
+  delay?: number
   label?: string
   className?: string
 }
@@ -31,15 +34,20 @@ interface PennyRibbonProps {
 export default function PennyRibbon({
   size = 120,
   animated = false,
+  delay = 0,
   label = 'Penny',
   className = '',
 }: PennyRibbonProps) {
+  const style: CSSProperties = { width: size, height: size }
+  if (animated && delay > 0) {
+    ;(style as CSSProperties & Record<string, string>)['--penny-ribbon-delay'] = `${delay}ms`
+  }
   return (
     <div
       role="img"
       aria-label={label}
       className={`penny-ribbon ${animated ? 'penny-ribbon--anim' : ''} ${className}`}
-      style={{ width: size, height: size }}
+      style={style}
     >
       <svg viewBox={RIBBON_VIEWBOX} width={size} height={size} aria-hidden="true">
         <g className="penny-ribbon__breathe">

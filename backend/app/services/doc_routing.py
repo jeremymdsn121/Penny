@@ -15,6 +15,7 @@ the *only* thing that lets the immediate path run without a human. Idempotent: t
 """
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core import supabase_client as sb
@@ -84,11 +85,15 @@ async def _nudge_agent(tx: dict[str, Any], route: dict[str, Any], roles: list[st
     """WhatsApp the deal's agent that a routing send is waiting for approval."""
     address = tx.get("address") or "a transaction"
     role_list = ", ".join(roles) if roles else "the selected parties"
+    stage_label = (route.get("trigger_stage") or "a new stage").replace("_", " ")
     msg = (
-        f"📄 {address} entered {route.get('trigger_stage')}.\n"
+        f"📄 {address} entered {stage_label}.\n"
         f"Penny has the contract ready to send to {role_list}.\n\n"
         "Approve the send in the Penny dashboard (Document routing)."
     )
+    # Proactive (out-of-window) nudge — template `document_ready_to_send` per
+    # WHATSAPP_TEMPLATES.md; free-form fallback until ContentSids are configured.
+    template_vars = [address, stage_label, role_list]
     try:
         contacts = await sb.list_whatsapp_contacts(tx["brokerage_id"])
     except sb.SupabaseError:
@@ -102,7 +107,10 @@ async def _nudge_agent(tx: dict[str, Any], route: dict[str, Any], roles: list[st
         if not phone:
             continue
         try:
-            await asyncio.to_thread(twilio_client.send_whatsapp_message, phone, msg)
+            await asyncio.to_thread(
+                twilio_client.send_whatsapp_template,
+                phone, "document_ready_to_send", template_vars, msg,
+            )
         except twilio_client.TwilioNotConfigured:
             break
         except Exception:  # noqa: BLE001 — nudges are best-effort
@@ -194,13 +202,38 @@ async def run_stage_routing(tx: dict[str, Any], stage: str) -> list[dict[str, An
             "status": "pending",
         }
 
-        if autonomous and emails and document_url:
-            sent = await _send_route(tx, document_url, source, emails)
-            row["status"] = "sent" if sent else "pending"
-
+        # Claim the (transaction, rule) slot BEFORE any send: the unique index is
+        # the idempotency guard, so the insert must win before email goes out —
+        # otherwise re-entering a stage re-emails outside parties.
         inserted = await sb.insert_pending_doc_route(row)
         if inserted is None:
             continue  # already routed for this (transaction, rule)
+
+        if autonomous and emails and document_url:
+            sent = await _send_route(tx, document_url, source, emails)
+            if sent:
+                try:
+                    inserted = await sb.update_pending_doc_route(
+                        inserted["id"],
+                        {
+                            "status": "sent",
+                            "resolved_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                    )
+                except sb.SupabaseError:
+                    inserted["status"] = "sent"  # sent either way; don't re-nudge
+            if sent:
+                from app.services import activity
+
+                await activity.record(
+                    brokerage_id=brokerage_id,
+                    transaction_id=tx["id"],
+                    kind="document_routed",
+                    title=f"Contract auto-sent on entering {stage.replace('_', ' ')}",
+                    detail="to " + ", ".join(emails),
+                    actor="Penny",
+                    via="system",
+                )
         created.append(inserted)
 
         # Not sent (autonomy off, or send failed / nothing to send): tell the agent.

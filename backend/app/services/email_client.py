@@ -11,7 +11,9 @@ can treat email as best-effort.
 """
 
 import base64
+import html as _html
 import logging
+import re
 from typing import Any
 
 from app.config import settings
@@ -210,6 +212,15 @@ def send_email(
     )
     if reply_to:
         message.reply_to = reply_to
+        # Transaction-scoped mail carries its id as a custom arg so the Event
+        # Webhook can attribute bounces back to the deal. Derived from the
+        # tx-{id}@ Reply-To rather than a new param so every call site that
+        # threads replies gets delivery feedback for free.
+        tx_match = re.match(r"tx-([0-9a-fA-F-]{8,})@", reply_to)
+        if tx_match:
+            from sendgrid.helpers.mail import CustomArg
+
+            message.custom_arg = CustomArg("transaction_id", tx_match.group(1))
     for att in attachments or []:
         content = att.get("content")
         if not content:
@@ -346,8 +357,14 @@ def _intro_html(
     parties: list[dict[str, str]],
     dates: list[tuple[str, str]],
 ) -> str:
-    roster = "".join(f"<li>{p['role']}: {p['name']}</li>" for p in parties)
-    date_rows = "".join(f"<li>{label}: {value}</li>" for label, value in dates)
+    # Party names/addresses are AI-extracted from uploaded contracts (or CSV
+    # imports) — escape them so a crafted value can't become markup in mail
+    # sent to every party on the deal.
+    esc = _html.escape
+    address = esc(address)
+    brokerage_name = esc(brokerage_name)
+    roster = "".join(f"<li>{esc(p['role'])}: {esc(p['name'])}</li>" for p in parties)
+    date_rows = "".join(f"<li>{esc(label)}: {esc(value)}</li>" for label, value in dates)
     date_block = f"<p>Key dates:</p><ul>{date_rows}</ul>" if date_rows else ""
 
     # Plain, human-typed style — no branded header/card/footer (see
@@ -424,16 +441,21 @@ def build_appointment_coordination_content(
     subject = f"Proposed {type_label} time — {address}"
 
     # Minimal HTML so it renders like an ordinary email, not a marketing template.
+    # Escape the interpolations — address comes from extracted contract data.
+    b = _html.escape(brokerage_name)
+    a = _html.escape(address)
+    t = _html.escape(type_label)
+    w = _html.escape(when_str)
     html = (
         '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
         'color:#222;line-height:1.5;">'
         "<p>Hi,</p>"
-        f"<p>I'm Penny, the transaction coordinator working with {brokerage_name} on "
-        f"{address}. We're hoping to set up the {type_label}, and I wanted to check "
-        f"whether <strong>{when_str}</strong> works for you.</p>"
+        f"<p>I'm Penny, the transaction coordinator working with {b} on "
+        f"{a}. We're hoping to set up the {t}, and I wanted to check "
+        f"whether <strong>{w}</strong> works for you.</p>"
         "<p>If that time doesn't work, just reply with what's better and I'll "
         "coordinate with everyone. Nothing's locked in until we've all confirmed.</p>"
-        f"<p>Thanks,<br>Penny<br>Transaction Coordinator, {brokerage_name}</p>"
+        f"<p>Thanks,<br>Penny<br>Transaction Coordinator, {b}</p>"
         "</div>"
     )
 

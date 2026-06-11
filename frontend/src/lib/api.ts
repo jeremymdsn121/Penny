@@ -8,11 +8,28 @@ export function setAuthToken(token: string | null): void {
   authToken = token
 }
 
-// In dev, baseURL is '/api/v1' and Vite proxies it to the local backend. In a
+// Registered by the auth store: exchanges the stored refresh token for a new
+// session and returns the fresh access token (null when refresh fails). Lives
+// behind a callback for the same no-cycle reason as setAuthToken.
+let refreshHandler: (() => Promise<string | null>) | null = null
+
+export function setRefreshHandler(fn: (() => Promise<string | null>) | null): void {
+  refreshHandler = fn
+}
+
+// Single in-flight refresh shared by all 401s that race in together.
+let refreshing: Promise<string | null> | null = null
+
+// In dev, the base is '/api/v1' and Vite proxies it to the local backend. In a
 // deployed static build there's no proxy, so VITE_API_BASE_URL points at the
 // backend's public origin (e.g. "https://api.poweredbypenny.com/api/v1").
+// The raw fetch() calls below (multipart uploads, blob downloads) can't go
+// through the axios instance — they MUST build URLs from this same base or
+// they 404 against the static host in deployed builds.
+const API_BASE: string = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -23,17 +40,35 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// When the server returns 401 the token is expired or missing — clear local
-// auth state and redirect to login so the user gets a fresh token.
+// When the server returns 401, the access token has likely expired (Supabase
+// tokens last ~an hour) — try a silent refresh and retry the request once
+// before giving up and redirecting to login. Auth endpoints are exempt: a
+// failed login/signup is itself a 401, and reloading /login here wiped the
+// "Invalid email or password" message before the user could see it.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      authToken = null
-      // Wipe the persisted Zustand store so ProtectedRoute redirects properly.
-      localStorage.removeItem('penny-auth')
-      window.location.href = '/login'
+  async (error) => {
+    const cfg = error.config ?? {}
+    const url: string = cfg.url ?? ''
+    const isAuthEndpoint =
+      url === '/auth/login' || url === '/auth/signup' || url === '/auth/refresh'
+    if (error.response?.status !== 401 || isAuthEndpoint) {
+      return Promise.reject(error)
     }
+    if (refreshHandler && !cfg._retriedAfterRefresh) {
+      refreshing = refreshing ?? refreshHandler().finally(() => (refreshing = null))
+      const newToken = await refreshing
+      if (newToken) {
+        cfg._retriedAfterRefresh = true
+        cfg.headers = { ...cfg.headers, Authorization: `Bearer ${newToken}` }
+        return api.request(cfg)
+      }
+    }
+    // Refresh unavailable or failed — the session is really over.
+    authToken = null
+    // Wipe the persisted Zustand store so ProtectedRoute redirects properly.
+    localStorage.removeItem('penny-auth')
+    window.location.href = '/login'
     return Promise.reject(error)
   },
 )
@@ -75,6 +110,14 @@ export const authApi = {
     api.post<AuthResponse>('/auth/signup', data).then((r) => r.data),
   login: (email: string, password: string) =>
     api.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data),
+  // GoTrue rotates the refresh token on every exchange — persist BOTH tokens.
+  refresh: (refresh_token: string) =>
+    api
+      .post<{ access_token: string; refresh_token: string; expires_in?: number }>(
+        '/auth/refresh',
+        { refresh_token },
+      )
+      .then((r) => r.data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get<Brokerage>('/auth/me').then((r) => r.data),
 }
@@ -366,7 +409,7 @@ export const transactionsApi = {
     form.append('file', file)
     // Use native fetch so the browser sets Content-Type: multipart/form-data
     // with the correct boundary — axios's default json Content-Type interferes.
-    return fetch('/api/v1/transactions/extract', {
+    return fetch(`${API_BASE}/transactions/extract`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -391,7 +434,7 @@ export const transactionsApi = {
   importPreview: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch('/api/v1/transactions/import/preview', {
+    return fetch(`${API_BASE}/transactions/import/preview`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -406,7 +449,7 @@ export const transactionsApi = {
   importCommit: (rows: Record<string, unknown>[]) =>
     api.post<ImportResult>('/transactions/import', { rows }).then((r) => r.data),
   downloadTemplate: async () => {
-    const res = await fetch('/api/v1/transactions/import/template', {
+    const res = await fetch(`${API_BASE}/transactions/import/template`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     })
     if (!res.ok) throw new Error('Could not download template')
@@ -486,10 +529,16 @@ export const transactionsApi = {
         data,
       )
       .then((r) => r.data),
+  // Marking EMD received is confirmation-gated server-side; pass confirmed: true
+  // only from an explicit confirm step in the UI.
+  setEmdReceived: (
+    id: string,
+    data: { received: boolean; received_date?: string | null; confirmed: boolean },
+  ) => api.post<Transaction>(`/transactions/${id}/emd-received`, data).then((r) => r.data),
   uploadEmdReceipt: (id: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch(`/api/v1/transactions/${id}/emd-receipt`, {
+    return fetch(`${API_BASE}/transactions/${id}/emd-receipt`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -502,7 +551,6 @@ export const transactionsApi = {
       }
       return res.json() as Promise<{
         emd_receipt_document_url: string
-        emd_received: boolean
         transaction: Transaction
       }>
     })
@@ -551,7 +599,7 @@ export const checklistApi = {
   uploadDocument: (txId: string, itemId: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch(`/api/v1/transactions/${txId}/checklist/items/${itemId}/document`, {
+    return fetch(`${API_BASE}/transactions/${txId}/checklist/items/${itemId}/document`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -585,11 +633,40 @@ export interface TransactionEmail {
   received_at: string
 }
 
+// Delivery problems reported by the SendGrid Event Webhook (bounces etc.).
+export interface EmailDeliveryEvent {
+  id: string
+  transaction_id?: string | null
+  email: string
+  event: 'bounce' | 'dropped' | 'spamreport'
+  reason?: string | null
+  created_at: string
+}
+
 export const emailsApi = {
   list: (txId: string) =>
     api.get<TransactionEmail[]>(`/transactions/${txId}/emails`).then((r) => r.data),
   markRead: (txId: string) =>
     api.post<{ ok: boolean }>(`/transactions/${txId}/emails/read`).then((r) => r.data),
+  deliveryEvents: (txId: string) =>
+    api
+      .get<EmailDeliveryEvent[]>(`/transactions/${txId}/delivery-events`)
+      .then((r) => r.data),
+}
+
+// Merged per-deal activity feed (audit events + emails + delivery + appts).
+export interface ActivityEntry {
+  at: string
+  kind: string
+  title: string
+  detail?: string | null
+  actor: string
+  via: string
+}
+
+export const activityApi = {
+  list: (txId: string) =>
+    api.get<ActivityEntry[]>(`/transactions/${txId}/activity`).then((r) => r.data),
 }
 
 // Suggested replies to outside parties — Penny drafts, the agent confirm-sends.
@@ -759,7 +836,7 @@ export const reportsApi = {
       .get<BrokerSummary>('/reports/broker-summary', { params: { period } })
       .then((r) => r.data),
   downloadExport: async (period: string) => {
-    const res = await fetch(`/api/v1/reports/transactions-export?period=${period}`, {
+    const res = await fetch(`${API_BASE}/reports/transactions-export?period=${period}`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     })
     if (!res.ok) throw new Error('export failed')
@@ -1079,7 +1156,7 @@ export const listingsApi = {
   extract: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch('/api/v1/listings/extract', {
+    return fetch(`${API_BASE}/listings/extract`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -1149,7 +1226,7 @@ export const knowledgeApi = {
     const form = new FormData()
     form.append('file', file)
     // Native fetch so the browser sets the multipart boundary (see extract above).
-    return fetch('/api/v1/knowledge/documents', {
+    return fetch(`${API_BASE}/knowledge/documents`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,
@@ -1199,7 +1276,7 @@ export const agentsApi = {
   uploadStyleDocument: (id: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch(`/api/v1/agents/${id}/style-documents`, {
+    return fetch(`${API_BASE}/agents/${id}/style-documents`, {
       method: 'POST',
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: form,

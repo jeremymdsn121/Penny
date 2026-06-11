@@ -28,12 +28,16 @@ function ItemRow({
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [rowError, setRowError] = useState<string | null>(null)
   const done = DONE.has(item.status)
 
   async function setStatus(status: string) {
     setBusy(true)
+    setRowError(null)
     try {
       onChange(await checklistApi.patchItem(txId, item.id, { status }))
+    } catch {
+      setRowError('Could not update this item.')
     } finally {
       setBusy(false)
     }
@@ -41,8 +45,11 @@ function ItemRow({
 
   async function upload(file: File) {
     setBusy(true)
+    setRowError(null)
     try {
       onChange(await checklistApi.uploadDocument(txId, item.id, file))
+    } catch {
+      setRowError('Upload failed.')
     } finally {
       setBusy(false)
       if (fileInput.current) fileInput.current.value = ''
@@ -82,6 +89,7 @@ function ItemRow({
           )}
           {item.waiver_note && <span title={item.waiver_note}>· note</span>}
           {item.document_url && <span className="text-violet-600">· doc on file</span>}
+          {rowError && <span className="text-red-500">{rowError}</span>}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
