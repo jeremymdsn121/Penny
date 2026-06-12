@@ -32,14 +32,18 @@ Most of these are code-complete with passing unit/type checks but have **never b
 exercised against live services / in a browser in a real brokerage**. Ordered by
 tester impact. Each needs a real run + fix-what-breaks.
 
+**Verification bar:** driving the real API/HTTP path on a throwaway tenant (deleted
+after) counts as verified — manual browser click-throughs are not required. Accepted
+tradeoff: this won't catch a purely visual render bug; typecheck + correct API
+responses cover most of it, and the real UI is spot-checked in normal use.
+
 - [x] **1. Core deal flow, fresh brokerage** — VERIFIED 2026-06-11 via the real HTTP
   path on a throwaway tenant (since deleted): signup → JWT carries `brokerage_id` →
   onboarding completes (all tasks default non-autonomous) → extract on a 10-page
   contract returned clean fields with `not_found` correctly empty (no hallucination) →
   transaction created + scoped to the new brokerage; listing under its token returned
   only its own deal (tenant isolation holds). Run with SendGrid/Twilio keys blanked —
-  zero outbound. **Remaining (low-risk):** a manual click-through of the 5-step browser
-  wizard for UX (only the API path was driven).
+  zero outbound. (Browser wizard click-through waived per the verification bar above.)
 - [ ] **2. WhatsApp media intake (1A)** — DEFERRED 2026-06-11 (needs a real photo/PDF
   MMS from a phone; revisit when one's available). Text round-trip is live-verified; the
   **PDF/photo MMS** round-trip through `media_extract` → `pending_whatsapp_transactions`
@@ -50,12 +54,22 @@ tester impact. Each needs a real run + fix-what-breaks.
   `{sent: true}` to the operator's own inbox (no outside party). **Remaining:** the
   separate **intro-email** send path (`send_intro_email`) wasn't exercised here — quick
   follow-up.
-- [ ] **4. Deadline reminders firing live** — run the scan against a deal with real
-  marks (5/2/day-of) and confirm the WhatsApp nudge + the confirm-gated party email
-  actually fire and flip the `reminder_*_sent` flags. Marks logic is unit-checked only.
-- [ ] **5. Compliance review (AI pass) + checklist UI** — run `compliance-review` on a
-  real contract PDF in the browser; confirm findings + suggested status surface and the
-  confirm-gated decision records. Walk the checklist panel (2A).
+- [x] **4. Deadline reminders firing live** — VERIFIED 2026-06-11 (API, throwaway tenant,
+  Twilio blanked). Seeded deadlines at +5/+2/today: one scan fired the correct mark each
+  (5day/2day/day) and silently consumed passed marks (flags `(5,2,day)` =
+  `(T,F,F)`/`(T,T,F)`/`(T,T,T)`); a second scan processed 0 (**idempotent**). With
+  `deadline-reminders` non-autonomous, the party email was held as `pending_confirm` (no
+  auto-send). Confirm-gated `notify-parties` rejected `confirmed=false` (400) and sent on
+  `confirmed=true` to the operator's inbox. **Not exercised:** the internal WhatsApp nudge
+  send (no registered contact; scan no-ops gracefully — needs Twilio + a real number).
+- [x] **5. Compliance review (AI pass) + checklist (2A)** — VERIFIED 2026-06-11 (API,
+  throwaway tenant). On a deal with the contract on file: the 2A checklist auto-
+  instantiated **16 buy-side items** and an item PATCH → `complete` set `completed_at`;
+  `compliance-review` ran the **AI contract pass** (`contract_reviewed`) and surfaced 3
+  findings (incl. structural "closing date passed, not marked closed" + AI disclosure
+  checks), a `suggested_status`, an annotated checklist, and the legal disclaimer; the
+  confirm-gated `compliance-decision` rejected `confirmed=false` (400) and recorded on
+  `confirmed=true`. (Review is surface-only — it suggests; the human decision sets it.)
 - [ ] **6. Review queue page (2B)** — live render of `/review` with real bucket data
   (compliance attention / closing-soon-incomplete / past-closing / overdue / emd-overdue
   / stale). Page hasn't been rendered live.
