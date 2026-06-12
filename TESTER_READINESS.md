@@ -70,9 +70,16 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   checks), a `suggested_status`, an annotated checklist, and the legal disclaimer; the
   confirm-gated `compliance-decision` rejected `confirmed=false` (400) and recorded on
   `confirmed=true`. (Review is surface-only — it suggests; the human decision sets it.)
-- [ ] **6. Review queue page (2B)** — live render of `/review` with real bucket data
-  (compliance attention / closing-soon-incomplete / past-closing / overdue / emd-overdue
-  / stale). Page hasn't been rendered live.
+- [x] **6. Review queue (2B)** — VERIFIED 2026-06-11 (API, throwaway tenant). Seeded one
+  deal per bucket; `GET /broker/review-queue` (admin-gated, `require_admin` accepts
+  `broker_in_charge`) sorted **all six** correctly with accurate reasons:
+  compliance_attention, past_closing_not_closed ("Closed 1 day ago…"), closing_soon_incomplete
+  ("Closing in 3 days, file 0% complete"), overdue_deadlines, emd_overdue, stale_transactions
+  ("No activity in 9 days"). **Gotcha learned:** migration 010's `set_last_activity` is a
+  `BEFORE UPDATE` trigger that bumps `last_activity_at = now()` on *any* write, so a stale
+  deal can't be seeded by an UPDATE — seed it with a **direct INSERT** carrying an old
+  `last_activity_at` (no update trigger fires). In production deals go stale naturally
+  (nothing writes to them for 7+ days).
 - [ ] **7. Workflow tasks (3)** — confirm triggers fire on transaction create, stage
   PATCH, and inside the reminder scan; `get_pending_tasks` groups correctly.
 - [ ] **8. EMD receipt tracking (5)** — browser walk of the EMD card: set amount/due,
