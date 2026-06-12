@@ -139,6 +139,29 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   agent flowed the merged style through — the body opened in the agent's casual first-name
   tone.
 
+## Follow-ups from the Tier-1 sweep (next session — Jeremy decided 2026-06-11)
+
+Tuning items surfaced during verification; **do these next**.
+
+- [ ] **A. Extraction: extrapolate within reason from truncated fields.** When a contract
+  field is obviously clipped by a form box (e.g. `The Sonny Noiel Liv Trus` → `…Living
+  Trust`), Penny should complete it sensibly rather than return the truncated string. A
+  **scoped** softening of the "never hallucinate extracted fields" rule — applies only to
+  completing visibly-truncated values, **not** to inventing missing fields. Update
+  `ai_extract._build_system` and the CLAUDE.md hard-rule wording to match. See
+  [[feedback_extraction_extrapolate_truncations]].
+- [ ] **B. Compliance: suggested status leans `needs_attention` when findings exist.**
+  Today `compliance.review_transaction` can suggest `approved` despite open findings.
+  Make the suggested status default to `needs_attention` whenever there are findings
+  (still surface-only; the human decision is unchanged).
+- [ ] **C. Reporting: measure "days to close" from `contract_date`, not `created_at`.**
+  `reporting.build_summary` (avg_days_to_close) + `build_export_rows` (CSV "Days to close")
+  use `created_at` (entered-into-Penny). Switch to `contract_date → closed_at`, the
+  industry-standard contract-to-close metric.
+- [ ] **D. (Minor) Verify the intro-email send path.** `send_intro_email` (introduces all
+  parties on a deal) wasn't exercised in #3 — it reuses the already-verified `send_email`,
+  so low-risk. Send one to the operator's inbox to confirm, or skip.
+
 ## Tier 2 — Production hardening before real client NPI
 
 - [ ] **Unattended cron actually scheduled** — point a Render Cron Job at
