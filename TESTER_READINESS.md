@@ -80,8 +80,12 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   deal can't be seeded by an UPDATE — seed it with a **direct INSERT** carrying an old
   `last_activity_at` (no update trigger fires). In production deals go stale naturally
   (nothing writes to them for 7+ days).
-- [ ] **7. Workflow tasks (3)** — confirm triggers fire on transaction create, stage
-  PATCH, and inside the reminder scan; `get_pending_tasks` groups correctly.
+- [x] **7. Workflow tasks (3)** — VERIFIED 2026-06-11 (API, throwaway tenant). All three
+  triggers fired from the buy-side seed: **create** → 4 `under_contract` stage-entry tasks;
+  **stage→pending** → 3 more (appraisal / title commitment); an **inspection deadline @+5
+  + reminder scan** → "Confirm inspection is scheduled" (days_before_deadline).
+  `get_pending_tasks` bucketed every pending task correctly by due date (overdue / today /
+  this week / upcoming).
 - [ ] **8. EMD receipt tracking (5)** — browser walk of the EMD card: set amount/due,
   upload a receipt to `compliance-docs`, confirm-gated mark-received.
 - [x] **9. Comparable sales + property record (Rentcast)** — VERIFIED 2026-06-11 against
