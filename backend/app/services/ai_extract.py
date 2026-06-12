@@ -57,6 +57,12 @@ MAX_TOKENS = 1500
 EXTRACT_TIMEOUT_SECONDS = 60.0
 EXTRACT_MAX_RETRIES = 1
 
+# Extraction is a deterministic read, not a creative task — decode at temperature
+# 0 so the same contract yields the same fields every time (the API default of
+# 1.0 was sampling randomly, which is how a typed price read right one run and
+# wrong the next).
+EXTRACT_TEMPERATURE = 0.0
+
 # Keys map 1:1 to columns on the transactions table.
 CONTRACT_FIELDS: list[str] = [
     "address", "city", "state", "zip",
@@ -116,8 +122,19 @@ def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
         f"Extract these fields and return ONLY a JSON object with exactly these keys: {keys}.\n"
         "Strict rules:\n"
         "- If a field is not clearly present in the text, use null. NEVER guess, infer, or fabricate.\n"
+        "- A purchase contract contains SEVERAL dollar amounts and SEVERAL dates. Match each "
+        "value to its field by the label next to it in the document, not by where it appears. "
+        "Read the relevant line carefully and copy the figure exactly — do not round or transpose digits.\n"
         "- Dates must be ISO format YYYY-MM-DD.\n"
         "- Prices must be plain numbers with no currency symbol or commas (e.g. 450000).\n"
+        "- sale_price is the TOTAL PURCHASE PRICE / total sales price the buyer pays for the "
+        "property (the headline contract price). Do NOT confuse it with any other dollar amount "
+        "in the contract: loan/financing amount, down payment, earnest money deposit, option fee, "
+        "closing-cost credits, seller concessions, or the original list price. Take it from the "
+        "purchase-price line specifically.\n"
+        "- contract_date is the date the contract was fully signed / executed (the effective or "
+        "acceptance date). closing_date is the settlement / closing date. Do not swap them, and do "
+        "not use other dates (inspection, financing, or appraisal deadlines) for either.\n"
         "- emd_amount is the earnest money deposit amount; emd_due_date is the date the "
         "earnest money must be delivered (often 'within N days of acceptance' — compute it "
         "from the contract date only if the contract states the day count explicitly).\n"
@@ -192,6 +209,7 @@ async def extract_contract_fields_from_image(
         response = await client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
+            temperature=EXTRACT_TEMPERATURE,
             system=_build_system(knowledge_rules or []),
             messages=[
                 {
@@ -268,6 +286,7 @@ async def interpret_pending_reply(
         response = await client.messages.create(
             model=MODEL,
             max_tokens=500,
+            temperature=EXTRACT_TEMPERATURE,
             messages=[{"role": "user", "content": prompt}],
         )
     except _TRANSIENT_AI_ERRORS as exc:
@@ -310,6 +329,7 @@ async def extract_contract_fields(
         response = await client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
+            temperature=EXTRACT_TEMPERATURE,
             system=_build_system(knowledge_rules or []),
             messages=[
                 {
