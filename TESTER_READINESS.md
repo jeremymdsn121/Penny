@@ -118,11 +118,13 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   #3's send). HMAC consent link: a valid signed link recorded the acknowledgment (method
   `email_link`, listed via `/transactions/{id}/consents`); a forged token was rejected
   ("invalid"). `CONSENT_SECRET` set.
-- [ ] **13. Two-way email (Phase 1 + 2)** — inbound from an internal agent triggers the
-  agent loop reply; inbound from an outside party drafts into `pending_email_replies`
-  and briefs the agent; `approve_and_send_reply` / `schedule_reply` / the
-  `/email/run-scheduled-replies` scan. Inbound threading itself is live; the auto-reply
-  layer isn't.
+- [x] **13. Two-way email (Phase 1 + 2)** — VERIFIED 2026-06-11 (API, crafted inbound
+  payloads; all email to the operator's own inbox). Outside-party inbound → `outside_drafted`:
+  Penny summarized + drafted a non-committal reply into `pending_email_replies` and briefed
+  the agent; the send is confirm-gated (400 on `confirmed=false`); dismiss works. Internal-
+  agent inbound (SPF-authenticated, matches an `agents.email`) → `agent_replied` (ran the
+  agent loop, replied in-thread). `/email/run-scheduled-replies` idempotent. Loop guard:
+  `no-reply@` sender → `skipped`. (Inbound-threading logging was already live.)
 - [ ] **14. Email delivery events (025) + Activity timeline (026)** — both migrations
   applied 2026-06-11 but not exercised: set up the SendGrid Event Webhook, force a
   bounce, confirm it records + nudges the agent; render the per-deal Activity timeline.
