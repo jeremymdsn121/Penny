@@ -54,9 +54,14 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   `{sent: true}` to the operator's own inbox (no outside party). **Remaining:** the
   separate **intro-email** send path (`send_intro_email`) wasn't exercised here — quick
   follow-up.
-- [ ] **4. Deadline reminders firing live** — run the scan against a deal with real
-  marks (5/2/day-of) and confirm the WhatsApp nudge + the confirm-gated party email
-  actually fire and flip the `reminder_*_sent` flags. Marks logic is unit-checked only.
+- [x] **4. Deadline reminders firing live** — VERIFIED 2026-06-11 (API, throwaway tenant,
+  Twilio blanked). Seeded deadlines at +5/+2/today: one scan fired the correct mark each
+  (5day/2day/day) and silently consumed passed marks (flags `(5,2,day)` =
+  `(T,F,F)`/`(T,T,F)`/`(T,T,T)`); a second scan processed 0 (**idempotent**). With
+  `deadline-reminders` non-autonomous, the party email was held as `pending_confirm` (no
+  auto-send). Confirm-gated `notify-parties` rejected `confirmed=false` (400) and sent on
+  `confirmed=true` to the operator's inbox. **Not exercised:** the internal WhatsApp nudge
+  send (no registered contact; scan no-ops gracefully — needs Twilio + a real number).
 - [ ] **5. Compliance review (AI pass) + checklist UI** — run `compliance-review` on a
   real contract PDF in the browser; confirm findings + suggested status surface and the
   confirm-gated decision records. Walk the checklist panel (2A).
