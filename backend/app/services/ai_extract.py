@@ -15,10 +15,27 @@ import json
 import re
 from typing import Any
 
-from anthropic import AsyncAnthropic
+from anthropic import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncAnthropic,
+    InternalServerError,
+    OverloadedError,
+    RateLimitError,
+)
 
 from app.config import settings
 from app.core import supabase_client as sb
+
+# Transient Anthropic failures we want to report as "service slow/busy" rather
+# than "couldn't read the contract" — they warrant a retry, not a re-upload.
+_TRANSIENT_AI_ERRORS = (
+    APITimeoutError,
+    APIConnectionError,
+    RateLimitError,
+    OverloadedError,
+    InternalServerError,
+)
 
 
 def _usage_dict(usage: Any) -> dict[str, int]:
@@ -32,6 +49,13 @@ def _usage_dict(usage: Any) -> dict[str, int]:
 
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1500
+
+# Per-request timeout + retry budget for extraction calls. Vision over a PDF /
+# photo is heavier than a chat turn, so this is more generous than the agent's
+# 15s — but it still bounds a stuck call instead of riding the SDK's ~10-min
+# default × 2 retries (which could hang an inbound media upload for ~30 minutes).
+EXTRACT_TIMEOUT_SECONDS = 60.0
+EXTRACT_MAX_RETRIES = 1
 
 # Keys map 1:1 to columns on the transactions table.
 CONTRACT_FIELDS: list[str] = [
@@ -62,10 +86,23 @@ class AIExtractionError(Exception):
     """Raised when the model response can't be parsed into fields."""
 
 
+class AIServiceUnavailable(AIExtractionError):
+    """Raised when the AI service times out / is overloaded / is unreachable.
+
+    A subclass of AIExtractionError so existing ``except AIExtractionError``
+    callers keep working; callers that want to tell "service is slow, retry"
+    apart from "this file was unreadable" can catch this first.
+    """
+
+
 def _client() -> AsyncAnthropic:
     if not settings.ANTHROPIC_API_KEY:
         raise AINotConfigured("ANTHROPIC_API_KEY is not set")
-    return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return AsyncAnthropic(
+        api_key=settings.ANTHROPIC_API_KEY,
+        timeout=EXTRACT_TIMEOUT_SECONDS,
+        max_retries=EXTRACT_MAX_RETRIES,
+    )
 
 
 def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
@@ -176,6 +213,8 @@ async def extract_contract_fields_from_image(
                 }
             ],
         )
+    except _TRANSIENT_AI_ERRORS as exc:
+        raise AIServiceUnavailable(f"Anthropic unavailable: {exc}") from exc
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
     await sb.log_ai_usage(brokerage_id, "extract_image", MODEL, _usage_dict(response.usage))
@@ -261,6 +300,8 @@ async def extract_contract_fields(
                 }
             ],
         )
+    except _TRANSIENT_AI_ERRORS as exc:
+        raise AIServiceUnavailable(f"Anthropic unavailable: {exc}") from exc
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
     await sb.log_ai_usage(brokerage_id, "extract_pdf", MODEL, _usage_dict(response.usage))

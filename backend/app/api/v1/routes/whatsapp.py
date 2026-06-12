@@ -199,6 +199,15 @@ async def _handle_media_extraction(
             "Please upload it via the Penny web dashboard.",
         )
         return
+    except ai_extract.AIServiceUnavailable as exc:
+        logger.warning("WhatsApp contract extraction unavailable: %s", exc)
+        send_whatsapp_message(
+            phone_number,
+            "I got your contract, but our AI service is running slow or busy right "
+            "now and I couldn't read it in time. Please send it again in a few "
+            "minutes — no need to re-enter anything.",
+        )
+        return
     except ai_extract.AIExtractionError as exc:
         logger.error("WhatsApp contract extraction failed: %s", exc)
         send_whatsapp_message(
