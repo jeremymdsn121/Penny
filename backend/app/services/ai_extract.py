@@ -85,6 +85,14 @@ def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
         "earnest money must be delivered (often 'within N days of acceptance' — compute it "
         "from the contract date only if the contract states the day count explicitly).\n"
         "- Emails and phones exactly as written.\n"
+        "- Names of parties, trusts, and entities: capture the COMPLETE legal name exactly "
+        "as written (e.g. a trust's full name) — never abbreviate or truncate it.\n"
+        "- Representation: 'listing_agent' represents the seller; 'selling_agent' represents "
+        "the buyer. If the contract explicitly states a party is unrepresented, representing "
+        "themselves, or acting as their own agent, set that side's agent name to the party's "
+        "own name followed by ' (self-represented)' and use that party's own email/phone for "
+        "that agent (seller self-represents -> listing_agent; buyer self-represents -> "
+        "selling_agent).\n"
         "- Return only the JSON object, no prose, no markdown fences."
     )
 
