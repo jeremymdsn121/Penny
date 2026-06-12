@@ -125,9 +125,12 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   agent inbound (SPF-authenticated, matches an `agents.email`) → `agent_replied` (ran the
   agent loop, replied in-thread). `/email/run-scheduled-replies` idempotent. Loop guard:
   `no-reply@` sender → `skipped`. (Inbound-threading logging was already live.)
-- [ ] **14. Email delivery events (025) + Activity timeline (026)** — both migrations
-  applied 2026-06-11 but not exercised: set up the SendGrid Event Webhook, force a
-  bounce, confirm it records + nudges the agent; render the per-deal Activity timeline.
+- [x] **14. Email delivery events (025) + Activity timeline (026)** — VERIFIED 2026-06-11
+  (API, throwaway tenant). `POST /email/events` recorded a bounce and was idempotent on
+  re-delivery (`processed:0` the 2nd time); `delivery-events` listed it with reason; the
+  bounce nudge fired (no-op with Twilio blanked). `GET /{id}/activity` merged the audit
+  trail newest-first: delivery_problem, emd_received, compliance_decision, stage_change,
+  created. Migrations 025 + 026 confirmed working.
 - [ ] **15. Per-agent style (1B)** — agent-profile style CRUD; confirm agent-specific
   rules merge over brokerage-wide and win on conflict in a real doc generation.
 
