@@ -127,9 +127,16 @@ HTML in `marketing/` (and the constants at the top of `legal.py` for the backend
 
 ## 6. Scheduled jobs
 
-- Deadline reminders + workflow `days_before_deadline` task generation run from
-  `POST /api/v1/deadlines/run-reminders` (idempotent, per-brokerage). Point a cron
-  at it. (For unattended all-brokerage runs, add a shared-secret variant.)
+- **Unattended scans (all brokerages):** `POST /api/v1/cron/run-scans`, guarded by
+  the `CRON_SECRET` shared secret (`X-Cron-Secret` header; 503 when unset). It loops
+  every brokerage and runs both the deadline-reminder scan and the scheduled-reply
+  scan (both idempotent). The Render blueprint wires this as the `penny-cron-scans`
+  cron service (every 15 min, `backend/scripts/run_cron_scans.py`); it pulls
+  `CRON_SECRET` from `penny-api` via `fromService` so the generated value matches on
+  both sides. Without it, reminders + scheduled-reply resurfacing only run from the
+  dashboard dev buttons.
+- The per-brokerage `POST /api/v1/deadlines/run-reminders` (idempotent) still exists
+  for the dashboard "Run reminders" button and JWT-scoped callers.
 - The broker review queue auto-refreshes client-side every 5 minutes; no job needed.
 
 ## 7. Deferred integrations (see BLOCKERS.md)
@@ -150,4 +157,4 @@ Calendar OAuth (Google/Microsoft), MLS write APIs, and DocuSign are behind seams
       served by `penny-marketing`; apex domain attached in Render); `support@` monitored
 - [ ] `REPLY_EMAIL_DOMAIN` MX record live; `SENDGRID_WEBHOOK_KEY` set
 - [ ] `CONSENT_SECRET`, `PUBLIC_BASE_URL` set
-- [ ] Reminder cron pointed at `/deadlines/run-reminders`
+- [ ] `CRON_SECRET` set; `penny-cron-scans` cron job live (hits `/cron/run-scans`)
