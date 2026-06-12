@@ -1,7 +1,7 @@
-# Render Blueprint — one-click deploy of the Penny API + web app.
+# Render Blueprint — one-click deploy of the Penny API + web app + marketing site.
 #
 # Usage: in the Render dashboard, New > Blueprint, point it at this repo. Render
-# reads this file, creates both services, and prompts for every env var marked
+# reads this file, creates the services, and prompts for every env var marked
 # `sync: false` (the secrets — never commit those). The Python version is pinned
 # by backend/.python-version.
 #
@@ -87,3 +87,19 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # ---- Marketing site (static HTML — apex domain) -------------------------
+  # Plain multi-page static site (landing, pricing, privacy, terms). No build
+  # step — the files in marketing/ are served as-is, so privacy.html and
+  # terms.html resolve at the site root. The A2P 10DLC campaign's Privacy +
+  # Terms URLs (poweredbypenny.com/privacy.html, /terms.html) point here, so
+  # this service must stay publicly reachable. After the first deploy, attach
+  # the apex domain in the Render dashboard (penny-marketing > Settings >
+  # Custom Domains) — see DEPLOYMENT.md section 4b. No SPA rewrite here: we want
+  # literal file serving so /privacy.html and /terms.html are served verbatim.
+  - type: web
+    name: penny-marketing
+    runtime: static
+    rootDir: marketing
+    buildCommand: "true"
+    staticPublishPath: .

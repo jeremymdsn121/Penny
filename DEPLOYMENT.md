@@ -93,17 +93,27 @@ a code change. Order of operations:
 
 ## 4b. Public legal pages (A2P privacy + terms)
 
-Carrier A2P registration requires publicly reachable privacy + terms URLs. These are
-served by the backend (no auth, no DB) from `app/api/v1/routes/legal.py`:
+Carrier A2P registration requires publicly reachable privacy + terms URLs. There are
+**two** copies; the campaign points at the marketing-site copy (the pretty URLs):
 
-- `GET /api/v1/privacy` — privacy policy
-- `GET /api/v1/terms` — SMS program terms (carrier-required: program name/description,
-  message frequency, "message & data rates may apply", **HELP**/**STOP** instructions,
-  carrier-liability disclaimer)
+- **Marketing site (the URLs in the A2P campaign):**
+  `https://poweredbypenny.com/privacy.html` and `/terms.html`. Static HTML in
+  `marketing/`, deployed by the `penny-marketing` service in `render.yaml`. These
+  carry the carrier-required SMS section (program name/description, message
+  frequency, "message & data rates may apply", **HELP**/**STOP** instructions,
+  "no mobile information shared with third parties" clause).
+- **Backend copy (fallback / programmatic):** `GET /api/v1/privacy` and
+  `GET /api/v1/terms`, served with no auth/DB from `app/api/v1/routes/legal.py`.
+
+**Pointing the apex domain at the marketing site:** after the blueprint deploy,
+open `penny-marketing` in the Render dashboard → Settings → **Custom Domains** → add
+`poweredbypenny.com` (and `www.`). Render shows the exact DNS records to add at your
+registrar — typically an `ALIAS`/`ANAME` (or `A`) on the apex and a `CNAME` on `www`.
+The pages must be **live and loading** (open them in a real browser) before
+submitting, and again whenever the carrier re-checks the URLs.
 
 Business identity (company name, support email, address, last-updated) lives in the
-constants at the top of `legal.py` — edit there. The pages must be **redeployed and
-loading** before submitting/again whenever the carrier re-checks the URLs.
+HTML in `marketing/` (and the constants at the top of `legal.py` for the backend copy).
 
 ## 5. AI disclosure consent links (6)
 
@@ -132,7 +142,8 @@ Calendar OAuth (Google/Microsoft), MLS write APIs, and DocuSign are behind seams
 - [ ] `TWILIO_SKIP_VALIDATION=false`; webhooks signature-validated
 - [ ] SMS: A2P brand + campaign approved; number on the Messaging Service;
       `TWILIO_SMS_FROM` set; inbound webhook on the Messaging Service
-- [ ] `/api/v1/privacy` and `/api/v1/terms` live (A2P URLs); `support@` inbox monitored
+- [ ] `poweredbypenny.com/privacy.html` and `/terms.html` live (A2P campaign URLs,
+      served by `penny-marketing`; apex domain attached in Render); `support@` monitored
 - [ ] `REPLY_EMAIL_DOMAIN` MX record live; `SENDGRID_WEBHOOK_KEY` set
 - [ ] `CONSENT_SECRET`, `PUBLIC_BASE_URL` set
 - [ ] Reminder cron pointed at `/deadlines/run-reminders`
