@@ -104,20 +104,40 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   confirm-gated `push` rejected `confirmed=false` (400) and on `confirmed=true` returned
   the no-op seam ("Direct MLS publishing isn't connected… per-market write integration is
   a planned add-on").
-- [ ] **11. Broker reporting (7)** — live render of `/reports` (pipeline / production /
-  compliance health) + CSV export, against real closed/active deals.
-- [ ] **12. AI disclosure + consent (6)** — disclosure footer on a real send; exercise
-  the HMAC consent link path (`CONSENT_SECRET`) end to end.
-- [ ] **13. Two-way email (Phase 1 + 2)** — inbound from an internal agent triggers the
-  agent loop reply; inbound from an outside party drafts into `pending_email_replies`
-  and briefs the agent; `approve_and_send_reply` / `schedule_reply` / the
-  `/email/run-scheduled-replies` scan. Inbound threading itself is live; the auto-reply
-  layer isn't.
-- [ ] **14. Email delivery events (025) + Activity timeline (026)** — both migrations
-  applied 2026-06-11 but not exercised: set up the SendGrid Event Webhook, force a
-  bounce, confirm it records + nudges the agent; render the per-deal Activity timeline.
-- [ ] **15. Per-agent style (1B)** — agent-profile style CRUD; confirm agent-specific
-  rules merge over brokerage-wide and win on conflict in a real doc generation.
+- [x] **11. Broker reporting (7)** — VERIFIED 2026-06-11 (API, throwaway tenant). Seeded
+  3 active + 2 closed deals: `broker-summary` returned correct pipeline (active=3, volume,
+  by_stage, closing_this_month), production (closed_count=2, closed_volume $900k,
+  avg_days_to_close, agent_breakdown), compliance, and at_risk; month/quarter/ytd all 200;
+  `transactions-export` returned a valid CSV of closed deals. **Observation:**
+  avg_days_to_close is measured from `created_at` (deal entered into Penny), not
+  `contract_date` (contract-to-close) — under-reports if deals are entered late; switch to
+  `contract_date` for the conventional metric if desired.
+- [x] **12. AI disclosure + consent (6)** — VERIFIED 2026-06-11 (API, throwaway tenant).
+  Disclosure footer toggles via `PUT /compliance-settings` — `disclosure_text` returns the
+  brokerage text when enabled and `None` when disabled (the append path is already live via
+  #3's send). HMAC consent link: a valid signed link recorded the acknowledgment (method
+  `email_link`, listed via `/transactions/{id}/consents`); a forged token was rejected
+  ("invalid"). `CONSENT_SECRET` set.
+- [x] **13. Two-way email (Phase 1 + 2)** — VERIFIED 2026-06-11 (API, crafted inbound
+  payloads; all email to the operator's own inbox). Outside-party inbound → `outside_drafted`:
+  Penny summarized + drafted a non-committal reply into `pending_email_replies` and briefed
+  the agent; the send is confirm-gated (400 on `confirmed=false`); dismiss works. Internal-
+  agent inbound (SPF-authenticated, matches an `agents.email`) → `agent_replied` (ran the
+  agent loop, replied in-thread). `/email/run-scheduled-replies` idempotent. Loop guard:
+  `no-reply@` sender → `skipped`. (Inbound-threading logging was already live.)
+- [x] **14. Email delivery events (025) + Activity timeline (026)** — VERIFIED 2026-06-11
+  (API, throwaway tenant). `POST /email/events` recorded a bounce and was idempotent on
+  re-delivery (`processed:0` the 2nd time); `delivery-events` listed it with reason; the
+  bounce nudge fired (no-op with Twilio blanked). `GET /{id}/activity` merged the audit
+  trail newest-first: delivery_problem, emd_received, compliance_decision, stage_change,
+  created. Migrations 025 + 026 confirmed working.
+- [x] **15. Per-agent style (1B)** — VERIFIED 2026-06-11 (API, throwaway tenant). With a
+  brokerage-wide `tone` (formal) + `signoff` and an agent-specific `tone` (casual),
+  `get_confirmed_knowledge_rules(brk, agent)` merged them so the **agent's tone won** on
+  conflict (formal suppressed) while the non-conflicting brokerage `signoff` was retained;
+  brokerage-only resolution returned just the brokerage rules. A `draft-document` with the
+  agent flowed the merged style through — the body opened in the agent's casual first-name
+  tone.
 
 ## Tier 2 — Production hardening before real client NPI
 
