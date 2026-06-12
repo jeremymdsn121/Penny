@@ -12,8 +12,11 @@ text-extraction pre-processing needed.
 
 import base64
 import json
+import logging
 import re
 from typing import Any
+
+import fitz  # PyMuPDF — rasterise scanned PDFs to sharp page images
 
 from anthropic import (
     APIConnectionError,
@@ -26,6 +29,8 @@ from anthropic import (
 
 from app.config import settings
 from app.core import supabase_client as sb
+
+logger = logging.getLogger(__name__)
 
 # Transient Anthropic failures we want to report as "service slow/busy" rather
 # than "couldn't read the contract" — they warrant a retry, not a re-upload.
@@ -62,6 +67,14 @@ EXTRACT_MAX_RETRIES = 1
 # 1.0 was sampling randomly, which is how a typed price read right one run and
 # wrong the next).
 EXTRACT_TEMPERATURE = 0.0
+
+# Scanned-PDF handling. A scan has ~no extractable text, so the API's own PDF
+# rasterisation can render digits too coarsely (a fuzzy 3 reads as a 2). For
+# those we rasterise the pages ourselves at the sharpest size the API keeps
+# (~1568px long edge) and send them as images. Text-layer PDFs are untouched.
+SCAN_TEXT_CHARS_PER_PAGE = 50   # avg chars/page below this ⇒ treat as a scan
+SCAN_RENDER_LONG_EDGE_PX = 1568  # Anthropic's max image dimension before downscale
+SCAN_MAX_PAGES = 25              # cap pages rasterised (memory/token guard)
 
 # Keys map 1:1 to columns on the transactions table.
 CONTRACT_FIELDS: list[str] = [
@@ -111,6 +124,49 @@ def _client() -> AsyncAnthropic:
     )
 
 
+def _pdf_is_scanned(pdf_bytes: bytes) -> bool:
+    """True when a PDF has little/no extractable text — i.e. it's a scan/photo.
+
+    A real text-layer contract yields hundreds of characters per page; a scanned
+    image yields ~0. On any failure we return False so the caller falls back to
+    the native-document path (current behaviour).
+    """
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return False
+    try:
+        pages = doc.page_count or 1
+        chars = sum(len(page.get_text("text").strip()) for page in doc)
+    except Exception:
+        return False
+    finally:
+        doc.close()
+    return chars < SCAN_TEXT_CHARS_PER_PAGE * pages
+
+
+def _render_pdf_pages_to_pngs(pdf_bytes: bytes) -> list[bytes]:
+    """Rasterise PDF pages to PNG bytes, sized so the long edge is ~1568px.
+
+    1568px is the largest dimension Anthropic keeps before it downscales, so this
+    hands the model the sharpest legal image — the difference between reading a
+    scanned "3" correctly and misreading it as a "2".
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    images: list[bytes] = []
+    try:
+        for i, page in enumerate(doc):
+            if i >= SCAN_MAX_PAGES:
+                break
+            long_edge_pt = max(page.rect.width, page.rect.height) or 612.0
+            zoom = max(1.0, min(SCAN_RENDER_LONG_EDGE_PX / long_edge_pt, 4.0))
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+            images.append(pix.tobytes("png"))
+    finally:
+        doc.close()
+    return images
+
+
 def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
     rules = "\n".join(f"- {r.get('category')}: {r.get('rule')}" for r in knowledge_rules)
     rules_block = rules or "None on file yet."
@@ -122,6 +178,10 @@ def _build_system(knowledge_rules: list[dict[str, Any]]) -> str:
         f"Extract these fields and return ONLY a JSON object with exactly these keys: {keys}.\n"
         "Strict rules:\n"
         "- If a field is not clearly present in the text, use null. NEVER guess, infer, or fabricate.\n"
+        "- This contract may be a SCAN or photo. Read every number (prices, dates, amounts) one "
+        "digit at a time, exactly as printed. Do NOT infer a digit from context or round — a "
+        "misread leading digit (e.g. 3 vs 2) changes the price by $100,000. If a digit is truly "
+        "illegible, prefer null over a guess.\n"
         "- A purchase contract contains SEVERAL dollar amounts and SEVERAL dates. Match each "
         "value to its field by the label next to it in the document, not by where it appears. "
         "Read the relevant line carefully and copy the figure exactly — do not round or transpose digits.\n"
@@ -319,43 +379,69 @@ async def extract_contract_fields(
 ) -> dict[str, Any]:
     """Extract structured fields from a contract PDF.
 
-    The PDF is sent directly to the Anthropic API as a base64-encoded document
-    so the model can read it with vision — handling text-layer, AcroForm,
-    flattened, and scanned PDFs without any pre-processing.
+    A text-layer PDF is sent directly to the Anthropic API as a base64-encoded
+    document (vision-capable, handles AcroForm / flattened forms). A SCANNED PDF
+    (no text layer) is instead rasterised to high-resolution page images here, so
+    the model reads crisp digits rather than the API's coarser PDF rendering —
+    which fixes single-digit OCR misreads (e.g. a price of 315000 read as 215000).
     """
     client = _client()
-    pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    usage_label = "extract_pdf"
+
+    content: list[dict[str, Any]] | None = None
+    if _pdf_is_scanned(pdf_bytes):
+        try:
+            page_images = _render_pdf_pages_to_pngs(pdf_bytes)
+        except Exception as exc:  # noqa: BLE001 — fall back to the document path
+            logger.warning("Scanned-PDF rasterisation failed, using document path: %r", exc)
+            page_images = []
+        if page_images:
+            usage_label = "extract_pdf_scanned"
+            content = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": base64.standard_b64encode(img).decode("utf-8"),
+                    },
+                }
+                for img in page_images
+            ]
+            content.append({
+                "type": "text",
+                "text": (
+                    "These images are the pages, in order, of one SCANNED real estate "
+                    "purchase contract. Read the digits carefully and extract the contract fields."
+                ),
+            })
+
+    if content is None:  # text-layer PDF (or rasterisation unavailable)
+        content = [
+            {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.standard_b64encode(pdf_bytes).decode("utf-8"),
+                },
+            },
+            {"type": "text", "text": "Extract the contract fields from this document."},
+        ]
+
     try:
         response = await client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             temperature=EXTRACT_TEMPERATURE,
             system=_build_system(knowledge_rules or []),
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "document",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "application/pdf",
-                                "data": pdf_b64,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": "Extract the contract fields from this document.",
-                        },
-                    ],
-                }
-            ],
+            messages=[{"role": "user", "content": content}],
         )
     except _TRANSIENT_AI_ERRORS as exc:
         raise AIServiceUnavailable(f"Anthropic unavailable: {exc}") from exc
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
-    await sb.log_ai_usage(brokerage_id, "extract_pdf", MODEL, _usage_dict(response.usage))
+    await sb.log_ai_usage(brokerage_id, usage_label, MODEL, _usage_dict(response.usage))
     raw = "".join(block.text for block in response.content if block.type == "text")
     data = _parse_json(raw)
     return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}
