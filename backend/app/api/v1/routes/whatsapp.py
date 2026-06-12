@@ -199,6 +199,15 @@ async def _handle_media_extraction(
             "Please upload it via the Penny web dashboard.",
         )
         return
+    except ai_extract.AIServiceUnavailable as exc:
+        logger.warning("WhatsApp contract extraction unavailable: %s", exc)
+        send_whatsapp_message(
+            phone_number,
+            "I got your contract, but our AI service is running slow or busy right "
+            "now and I couldn't read it in time. Please send it again in a few "
+            "minutes — no need to re-enter anything.",
+        )
+        return
     except ai_extract.AIExtractionError as exc:
         logger.error("WhatsApp contract extraction failed: %s", exc)
         send_whatsapp_message(
@@ -306,12 +315,14 @@ async def _handle_pending_reply(
         )
         return
 
-    # Correction — ask Claude to parse and apply
+    # Not a plain YES/NO — let Penny interpret it: apply a stated correction, or
+    # converse (answer a question / ask for the value she's missing) when no
+    # concrete new value was given. Avoids the old robotic "I'm still waiting" loop.
     fields = pending.get("extracted_fields") or {}
     try:
-        updates = await ai_extract.parse_correction(fields, message_body)
+        updates, convo_reply = await ai_extract.interpret_pending_reply(fields, message_body)
     except (ai_extract.AINotConfigured, ai_extract.AIExtractionError):
-        updates = {}
+        updates, convo_reply = {}, ""
 
     if updates:
         merged = {**fields, **updates}
@@ -320,8 +331,11 @@ async def _handle_pending_reply(
         reply = "Got it — here's the updated summary:\n\n" + media_extract.format_extraction_summary(
             merged, not_found
         )
+    elif convo_reply:
+        # A question or a flagged-but-unspecified field — reply in context.
+        reply = convo_reply
     else:
-        # Could not parse correction — show summary again
+        # Couldn't interpret it at all — show the summary again as a fallback.
         not_found = [k for k, v in fields.items() if v is None]
         reply = (
             "I'm still waiting on your response. "

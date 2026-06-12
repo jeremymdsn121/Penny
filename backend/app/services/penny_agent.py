@@ -15,11 +15,19 @@ Tools available to Claude:
 """
 
 import asyncio
+import logging
 from contextvars import ContextVar
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from anthropic import AsyncAnthropic
+from anthropic import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncAnthropic,
+    InternalServerError,
+    OverloadedError,
+    RateLimitError,
+)
 
 from app.config import settings
 from app.core import supabase_client as sb
@@ -35,8 +43,24 @@ from app.services import (
     workflow,
 )
 
+logger = logging.getLogger(__name__)
+
 MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS = 1024
+
+# Overall wall-clock ceiling on a single agent run. The loop makes several Claude
+# round-trips plus tool calls; over WhatsApp/SMS a little latency is fine, but a
+# request must NEVER hang (a slow Anthropic call once stalled an inbound for 22
+# minutes). 40s is generous enough for a legitimate multi-tool answer yet bails
+# fast on a stuck call. Drop this to tighten the ceiling.
+AGENT_DEADLINE_SECONDS = 40.0
+
+# Per-request timeout + retry budget for each Claude call inside the loop. Short
+# enough that a single stuck call surfaces a specific "AI service is slow"
+# message well before the overall deadline, instead of riding the SDK's ~10-min
+# default timeout × 2 retries.
+ANTHROPIC_TIMEOUT_SECONDS = 15.0
+ANTHROPIC_MAX_RETRIES = 1
 
 # Set per-request so document-drafting tools can layer the requesting agent's
 # personal style rules on top of the brokerage's (V2 Section 1B).
@@ -1904,7 +1928,11 @@ async def run_penny_agent(
     _current_agent_id.set(agent_id)
     _current_transaction_id.set(transaction_id)
 
-    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = AsyncAnthropic(
+        api_key=settings.ANTHROPIC_API_KEY,
+        timeout=ANTHROPIC_TIMEOUT_SECONDS,
+        max_retries=ANTHROPIC_MAX_RETRIES,
+    )
 
     today = date.today().strftime("%B %d, %Y")
     agent_label = contact_display_name or "the agent"
@@ -2191,70 +2219,103 @@ async def run_penny_agent(
     }
 
     try:
-        # Agentic tool-use loop.
-        for _ in range(8):  # max 8 tool rounds to prevent runaway loops
-            response = await client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=system_blocks,
-                tools=_TOOLS,
-                messages=messages,
-            )
+        # The whole run is bounded so a slow Anthropic call can never hang the
+        # inbound webhook (see AGENT_DEADLINE_SECONDS). On the deadline / a
+        # provider error we return a reply that names the actual cause rather
+        # than a blanket "having trouble" note, and log the precise error.
+        async with asyncio.timeout(AGENT_DEADLINE_SECONDS):
+            # Agentic tool-use loop.
+            for _ in range(8):  # max 8 tool rounds to prevent runaway loops
+                response = await client.messages.create(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=system_blocks,
+                    tools=_TOOLS,
+                    messages=messages,
+                )
 
-            u = response.usage
-            usage["input_tokens"] += u.input_tokens or 0
-            usage["output_tokens"] += u.output_tokens or 0
-            usage["cache_creation_input_tokens"] += (
-                getattr(u, "cache_creation_input_tokens", 0) or 0
-            )
-            usage["cache_read_input_tokens"] += (
-                getattr(u, "cache_read_input_tokens", 0) or 0
-            )
+                u = response.usage
+                usage["input_tokens"] += u.input_tokens or 0
+                usage["output_tokens"] += u.output_tokens or 0
+                usage["cache_creation_input_tokens"] += (
+                    getattr(u, "cache_creation_input_tokens", 0) or 0
+                )
+                usage["cache_read_input_tokens"] += (
+                    getattr(u, "cache_read_input_tokens", 0) or 0
+                )
 
-            if response.stop_reason == "end_turn":
-                # Extract the final text reply.
+                if response.stop_reason == "end_turn":
+                    # Extract the final text reply.
+                    text_parts = [
+                        block.text for block in response.content if block.type == "text"
+                    ]
+                    return " ".join(text_parts).strip() or "Done."
+
+                if response.stop_reason == "tool_use":
+                    # Add the assistant's tool-use turn to the conversation.
+                    messages.append({"role": "assistant", "content": response.content})
+
+                    # Execute all tool calls and collect results.
+                    tool_results: list[dict[str, Any]] = []
+                    for block in response.content:
+                        if block.type != "tool_use":
+                            continue
+                        executor = _TOOL_MAP.get(block.name)
+                        if executor is None:
+                            result_text = f"Unknown tool: {block.name}"
+                        else:
+                            try:
+                                result_text = await executor(brokerage_id, block.input)
+                            except Exception as exc:
+                                result_text = f"Tool error: {exc}"
+
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result_text,
+                        })
+
+                    messages.append({"role": "user", "content": tool_results})
+                    continue
+
+                # Unexpected stop reason — return whatever text we have.
                 text_parts = [
                     block.text for block in response.content if block.type == "text"
                 ]
-                return " ".join(text_parts).strip() or "Done."
+                return (
+                    " ".join(text_parts).strip()
+                    or "I'm not sure how to help with that."
+                )
 
-            if response.stop_reason == "tool_use":
-                # Add the assistant's tool-use turn to the conversation.
-                messages.append({"role": "assistant", "content": response.content})
-
-                # Execute all tool calls and collect results.
-                tool_results: list[dict[str, Any]] = []
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
-                    executor = _TOOL_MAP.get(block.name)
-                    if executor is None:
-                        result_text = f"Unknown tool: {block.name}"
-                    else:
-                        try:
-                            result_text = await executor(brokerage_id, block.input)
-                        except Exception as exc:
-                            result_text = f"Tool error: {exc}"
-
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result_text,
-                    })
-
-                messages.append({"role": "user", "content": tool_results})
-                continue
-
-            # Unexpected stop reason — return whatever text we have.
-            text_parts = [
-                block.text for block in response.content if block.type == "text"
-            ]
-            return (
-                " ".join(text_parts).strip()
-                or "I'm not sure how to help with that."
-            )
-
-        return "I ran into a problem processing your request. Please try again."
+            return "I ran into a problem processing your request. Please try again."
+    except (asyncio.TimeoutError, APITimeoutError) as exc:
+        logger.warning(
+            "penny_agent timed out (channel=%s, deadline=%ss): %r",
+            channel, AGENT_DEADLINE_SECONDS, exc,
+        )
+        return (
+            "Sorry, that one took longer than I could wait on — our AI service is "
+            "running slow right now. Please send it again in a moment and it should "
+            "go right through."
+        )
+    except RateLimitError as exc:
+        logger.warning("penny_agent rate-limited (channel=%s): %r", channel, exc)
+        return (
+            "I'm getting rate-limited at the moment (a lot of requests at once). "
+            "Give me a minute and try again."
+        )
+    except (OverloadedError, InternalServerError) as exc:
+        logger.warning("penny_agent provider overloaded (channel=%s): %r", channel, exc)
+        return (
+            "Our AI service is overloaded right now and couldn't get to your message. "
+            "Please try again in a few minutes."
+        )
+    except APIConnectionError as exc:
+        logger.warning("penny_agent connection error (channel=%s): %r", channel, exc)
+        return (
+            "I'm having trouble reaching our AI service right now. Please try again "
+            "in a moment."
+        )
     finally:
         if any(usage.values()):
             try:
