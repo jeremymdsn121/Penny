@@ -97,8 +97,13 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   returned the full public profile (year built, sqft, beds/baths, last sale, and
   tax-assessment / property-tax history). Note: Rentcast returned no value range for this
   address (estimate + comps only) — data variance, not a bug.
-- [ ] **10. MLS listing prep** — upload a listing packet, AI-extract fields, save via
-  `listings` CRUD. Push stays a no-op seam (expected).
+- [x] **10. MLS listing prep** — VERIFIED 2026-06-11 (API, throwaway tenant).
+  `listings/extract` AI-pulled MLS-ready fields from a packet (address, city/state/zip,
+  property_type, list_price, parcel/legal, listing agent, seller) with MLS-only fields
+  correctly in `not_found`; saved via `listings` POST (status `draft`, scoped); the
+  confirm-gated `push` rejected `confirmed=false` (400) and on `confirmed=true` returned
+  the no-op seam ("Direct MLS publishing isn't connected… per-market write integration is
+  a planned add-on").
 - [ ] **11. Broker reporting (7)** — live render of `/reports` (pipeline / production /
   compliance health) + CSV export, against real closed/active deals.
 - [ ] **12. AI disclosure + consent (6)** — disclosure footer on a real send; exercise
