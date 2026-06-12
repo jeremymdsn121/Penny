@@ -104,8 +104,14 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   confirm-gated `push` rejected `confirmed=false` (400) and on `confirmed=true` returned
   the no-op seam ("Direct MLS publishing isn't connected… per-market write integration is
   a planned add-on").
-- [ ] **11. Broker reporting (7)** — live render of `/reports` (pipeline / production /
-  compliance health) + CSV export, against real closed/active deals.
+- [x] **11. Broker reporting (7)** — VERIFIED 2026-06-11 (API, throwaway tenant). Seeded
+  3 active + 2 closed deals: `broker-summary` returned correct pipeline (active=3, volume,
+  by_stage, closing_this_month), production (closed_count=2, closed_volume $900k,
+  avg_days_to_close, agent_breakdown), compliance, and at_risk; month/quarter/ytd all 200;
+  `transactions-export` returned a valid CSV of closed deals. **Observation:**
+  avg_days_to_close is measured from `created_at` (deal entered into Penny), not
+  `contract_date` (contract-to-close) — under-reports if deals are entered late; switch to
+  `contract_date` for the conventional metric if desired.
 - [ ] **12. AI disclosure + consent (6)** — disclosure footer on a real send; exercise
   the HMAC consent link path (`CONSENT_SECRET`) end to end.
 - [ ] **13. Two-way email (Phase 1 + 2)** — inbound from an internal agent triggers the
