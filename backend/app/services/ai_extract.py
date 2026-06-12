@@ -223,24 +223,46 @@ async def extract_contract_fields_from_image(
     return {key: _clean(key, data.get(key)) for key in CONTRACT_FIELDS}
 
 
-async def parse_correction(
-    current_fields: dict[str, Any], correction_text: str
-) -> dict[str, Any]:
-    """Parse a free-form correction message and return only the updated fields.
+async def interpret_pending_reply(
+    current_fields: dict[str, Any], message: str
+) -> tuple[dict[str, Any], str]:
+    """Interpret an agent's reply during the pending-confirmation flow.
 
-    Returns an empty dict if no fields can be identified in the correction.
+    The agent has been shown an extracted-contract summary and replied with
+    something that isn't a plain YES/NO. They might be supplying a corrected
+    value ("price is 450k"), questioning one ("are you sure that's the price?"),
+    flagging one as wrong without giving the value ("the price is incorrect"),
+    or saying something unclear.
+
+    Returns ``(updates, reply)``:
+      - ``updates``: cleaned field corrections to apply (empty if none stated).
+      - ``reply``: a conversational message to send when no concrete correction
+        was given (empty string when ``updates`` is populated — the caller then
+        renders the refreshed summary instead).
     """
     client = _client()
     keys = ", ".join(CONTRACT_FIELDS)
     prompt = (
-        f"Current extracted contract fields:\n{json.dumps(current_fields, indent=2)}\n\n"
-        f'The user\'s correction: "{correction_text}"\n\n'
-        "Update only the fields mentioned in the correction. "
-        "Return ONLY a JSON object with the changed field names and their new values. "
-        f"Available field names: {keys}. "
-        "Date format: YYYY-MM-DD. Prices: plain numbers, no currency symbols or commas. "
-        "Return empty object {} if you cannot identify any field to update. "
-        "Return only the JSON object, no prose."
+        "You are Penny, a real estate transaction coordinator. You extracted a "
+        "contract and showed the agent this summary of fields. They've replied — "
+        "work out what they mean and respond.\n\n"
+        f"Current extracted fields (JSON):\n{json.dumps(current_fields, indent=2)}\n\n"
+        f'The agent\'s reply: "{message}"\n\n'
+        'Return ONLY a JSON object: {"updates": {...}, "reply": "..."}\n'
+        "Rules:\n"
+        f"- Field keys you may set in \"updates\": {keys}.\n"
+        "- Put a field in \"updates\" ONLY if the agent stated a NEW concrete value "
+        "for it. Dates as YYYY-MM-DD; prices as plain numbers (no $ or commas). "
+        "Never invent or guess a value — if they didn't give one, use {}.\n"
+        "- \"reply\": a short, warm, plain-text message (no markdown).\n"
+        "    * If \"updates\" is non-empty, set \"reply\" to \"\" (the app shows the "
+        "updated summary itself).\n"
+        "    * If the agent disputes or questions a field WITHOUT giving the new "
+        "value (e.g. \"are you sure that's the price?\", \"the price is wrong\"), "
+        "acknowledge it, state the CURRENT value you have for that field, and ask "
+        "them for the correct value. Do NOT repeat the whole summary.\n"
+        "    * If it's unclear, briefly ask what they'd like to change, or note they "
+        "can reply YES if everything looks right.\n"
     )
     try:
         response = await client.messages.create(
@@ -248,18 +270,27 @@ async def parse_correction(
             max_tokens=500,
             messages=[{"role": "user", "content": prompt}],
         )
+    except _TRANSIENT_AI_ERRORS as exc:
+        raise AIServiceUnavailable(f"Anthropic unavailable: {exc}") from exc
     except Exception as exc:
         raise AIExtractionError(f"Anthropic API error: {exc}") from exc
+
     raw = "".join(block.text for block in response.content if block.type == "text")
     try:
-        updates = _parse_json(raw)
+        parsed = _parse_json(raw)
     except AIExtractionError:
-        return {}
+        return {}, ""
+
     # Keep only fields that cleaned to a real value. A correction that fails to
     # parse (e.g. a date the model didn't return as YYYY-MM-DD) must NOT be
-    # written back as None — that would erase the value the user is correcting.
-    cleaned = {k: _clean(k, v) for k, v in updates.items() if k in CONTRACT_FIELDS}
-    return {k: v for k, v in cleaned.items() if v is not None}
+    # written back as None — that would erase the value the agent is correcting.
+    raw_updates = parsed.get("updates") if isinstance(parsed.get("updates"), dict) else {}
+    cleaned = {k: _clean(k, v) for k, v in raw_updates.items() if k in CONTRACT_FIELDS}
+    updates = {k: v for k, v in cleaned.items() if v is not None}
+
+    reply = parsed.get("reply")
+    reply = reply.strip() if isinstance(reply, str) else ""
+    return updates, reply
 
 
 async def extract_contract_fields(
