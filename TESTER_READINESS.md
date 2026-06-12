@@ -40,14 +40,16 @@ tester impact. Each needs a real run + fix-what-breaks.
   only its own deal (tenant isolation holds). Run with SendGrid/Twilio keys blanked —
   zero outbound. **Remaining (low-risk):** a manual click-through of the 5-step browser
   wizard for UX (only the API path was driven).
-- [ ] **2. WhatsApp media intake (1A)** — text round-trip is live-verified; a real
+- [ ] **2. WhatsApp media intake (1A)** — DEFERRED 2026-06-11 (needs a real photo/PDF
+  MMS from a phone; revisit when one's available). Text round-trip is live-verified; the
   **PDF/photo MMS** round-trip through `media_extract` → `pending_whatsapp_transactions`
-  → YES-commit is **not**. (Gated behind Tier-0 WhatsApp for non-sandbox testers, but
-  verifiable now via sandbox.)
-- [ ] **3. Document generation + intro email — live send** — draft panel rendered with
-  a real transaction, then a real confirm-gated SendGrid send (intro email + a drafted
-  document). SendGrid outbound is already live-verified, but these specific flows
-  aren't.
+  → YES-commit is not yet exercised.
+- [x] **3. Document generation — live send** — VERIFIED 2026-06-11 on a throwaway deal:
+  `draft-document` produced a clean status update in Penny's voice; the send **confirm
+  gate** rejected `confirmed=false` (400); a real `confirmed=true` SendGrid send returned
+  `{sent: true}` to the operator's own inbox (no outside party). **Remaining:** the
+  separate **intro-email** send path (`send_intro_email`) wasn't exercised here — quick
+  follow-up.
 - [ ] **4. Deadline reminders firing live** — run the scan against a deal with real
   marks (5/2/day-of) and confirm the WhatsApp nudge + the confirm-gated party email
   actually fire and flip the `reminder_*_sent` flags. Marks logic is unit-checked only.
@@ -61,9 +63,11 @@ tester impact. Each needs a real run + fix-what-breaks.
   PATCH, and inside the reminder scan; `get_pending_tasks` groups correctly.
 - [ ] **8. EMD receipt tracking (5)** — browser walk of the EMD card: set amount/due,
   upload a receipt to `compliance-docs`, confirm-gated mark-received.
-- [ ] **9. Comparable sales + property record (Rentcast)** — run both calls against the
-  live Rentcast API (needs `RENTCAST_API_KEY`); confirm estimate/comps + assessor
-  history render and the 503/502 degradation paths.
+- [x] **9. Comparable sales + property record (Rentcast)** — VERIFIED 2026-06-11 against
+  live Rentcast: `comps` returned an estimate ($224k) + 6 comparables; `property-record`
+  returned the full public profile (year built, sqft, beds/baths, last sale, and
+  tax-assessment / property-tax history). Note: Rentcast returned no value range for this
+  address (estimate + comps only) — data variance, not a bug.
 - [ ] **10. MLS listing prep** — upload a listing packet, AI-extract fields, save via
   `listings` CRUD. Push stays a no-op seam (expected).
 - [ ] **11. Broker reporting (7)** — live render of `/reports` (pipeline / production /
