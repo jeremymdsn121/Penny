@@ -112,8 +112,12 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   avg_days_to_close is measured from `created_at` (deal entered into Penny), not
   `contract_date` (contract-to-close) — under-reports if deals are entered late; switch to
   `contract_date` for the conventional metric if desired.
-- [ ] **12. AI disclosure + consent (6)** — disclosure footer on a real send; exercise
-  the HMAC consent link path (`CONSENT_SECRET`) end to end.
+- [x] **12. AI disclosure + consent (6)** — VERIFIED 2026-06-11 (API, throwaway tenant).
+  Disclosure footer toggles via `PUT /compliance-settings` — `disclosure_text` returns the
+  brokerage text when enabled and `None` when disabled (the append path is already live via
+  #3's send). HMAC consent link: a valid signed link recorded the acknowledgment (method
+  `email_link`, listed via `/transactions/{id}/consents`); a forged token was rejected
+  ("invalid"). `CONSENT_SECRET` set.
 - [ ] **13. Two-way email (Phase 1 + 2)** — inbound from an internal agent triggers the
   agent loop reply; inbound from an outside party drafts into `pending_email_replies`
   and briefs the agent; `approve_and_send_reply` / `schedule_reply` / the
