@@ -45,7 +45,7 @@ def _confirmation_text(brokerage_name: str) -> str:
         f"{brokerage_name} set up Penny, your transaction assistant, to text you. "
         "Reply YES to get deal updates & reminders. Msg frequency varies; msg & data "
         "rates may apply. Reply STOP to opt out, HELP for help. "
-        "Terms: api.poweredbypenny.com/api/v1/terms"
+        "Terms: poweredbypenny.com/terms.html"
     )
 
 

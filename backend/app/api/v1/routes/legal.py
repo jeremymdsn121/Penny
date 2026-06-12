@@ -123,7 +123,7 @@ transactions. {_PRODUCT} then sends you a single confirmation text:</p>
 <p style="background:#F3F4F6;border-radius:8px;padding:12px 16px;font-style:italic;">
 "[Your brokerage] set up Penny, your transaction assistant, to text you. Reply YES to
 get deal updates &amp; reminders. Msg frequency varies; msg &amp; data rates may apply.
-Reply STOP to opt out, HELP for help. Terms: api.poweredbypenny.com/api/v1/terms"</p>
+Reply STOP to opt out, HELP for help. Terms: poweredbypenny.com/terms.html"</p>
 <p>You must reply <strong>YES</strong> to activate messaging. If you do not reply YES,
 you will not receive any further messages. You can reply <strong>STOP</strong> at any
 time to opt out.</p>
@@ -159,7 +159,7 @@ legal obligations.</p>
 
 <h2 style="font-size:18px;">Privacy</h2>
 <p>Your use of {_PRODUCT} is also governed by our
-<a href="/api/v1/privacy" style="color:#7C3AED;">Privacy Policy</a>.</p>
+<a href="https://poweredbypenny.com/privacy.html" style="color:#7C3AED;">Privacy Policy</a>.</p>
 
 <h2 style="font-size:18px;">Contact us</h2>
 <p>{_COMPANY} &middot; {_ADDRESS} &middot;

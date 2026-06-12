@@ -66,11 +66,15 @@ a code change. Order of operations:
    - **Sample messages** — include the sender identity ("Penny … at <brokerage>") and
      `Reply STOP to opt out`.
    - **Opt-in description** — recipients give their number to the brokerage to be
-     contacted by Penny; that registration is consent. **No keyword opt-in** (leave
-     the opt-in keyword/message fields blank).
-   - **Privacy Policy URL** → `https://<api-host>/api/v1/privacy`
-   - **Terms URL** → `https://<api-host>/api/v1/terms` (see Section 4b — these must be
-     live/redeployed before the carrier checks them).
+     contacted by Penny; an admin enters it, Penny sends one confirmation text, and the
+     recipient replies **YES** to activate (double opt-in).
+   - **Opt-in keywords** → `YES, START`. **Opt-in message** → the exact confirmation
+     SMS from `_confirmation_text` in `app/api/v1/routes/sms.py`. Do **not** leave these
+     blank — the carrier compares them against the described double opt-in, and a blank
+     field reads as a contradiction (this caused a CTA rejection).
+   - **Privacy Policy URL** → `https://poweredbypenny.com/privacy.html`
+   - **Terms URL** → `https://poweredbypenny.com/terms.html` (see Section 4b — these must
+     be live before the carrier checks them).
 3. After approval: **attach the 10DLC number to the campaign's Messaging Service**,
    set `TWILIO_SMS_FROM` (bare E.164), and set the **inbound webhook on the Messaging
    Service** → `POST /api/v1/sms/inbound` (on a Messaging Service, set it there, not on

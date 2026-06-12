@@ -29,9 +29,8 @@ Env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 3. **OAuth consent screen:**
    - User type: **External** (brokerage users sign in with their own Google accounts).
    - App name, support email, app logo, **app homepage**, **privacy policy URL**,
-     authorized domain. (Privacy/terms are already served at
-     `https://api.poweredbypenny.com/api/v1/privacy` + `/terms` — confirm Google
-     accepts that domain, or host them on the public marketing domain.)
+     authorized domain. (Privacy/terms are served on the public marketing domain at
+     `https://poweredbypenny.com/privacy.html` + `/terms.html`.)
    - **Scopes** (these are *sensitive*, not *restricted* — verification required
      but lighter than Gmail/Drive, no CASA security assessment):
      - `https://www.googleapis.com/auth/calendar.events` — create/manage events
