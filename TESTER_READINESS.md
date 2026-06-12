@@ -32,14 +32,18 @@ Most of these are code-complete with passing unit/type checks but have **never b
 exercised against live services / in a browser in a real brokerage**. Ordered by
 tester impact. Each needs a real run + fix-what-breaks.
 
+**Verification bar:** driving the real API/HTTP path on a throwaway tenant (deleted
+after) counts as verified — manual browser click-throughs are not required. Accepted
+tradeoff: this won't catch a purely visual render bug; typecheck + correct API
+responses cover most of it, and the real UI is spot-checked in normal use.
+
 - [x] **1. Core deal flow, fresh brokerage** — VERIFIED 2026-06-11 via the real HTTP
   path on a throwaway tenant (since deleted): signup → JWT carries `brokerage_id` →
   onboarding completes (all tasks default non-autonomous) → extract on a 10-page
   contract returned clean fields with `not_found` correctly empty (no hallucination) →
   transaction created + scoped to the new brokerage; listing under its token returned
   only its own deal (tenant isolation holds). Run with SendGrid/Twilio keys blanked —
-  zero outbound. **Remaining (low-risk):** a manual click-through of the 5-step browser
-  wizard for UX (only the API path was driven).
+  zero outbound. (Browser wizard click-through waived per the verification bar above.)
 - [ ] **2. WhatsApp media intake (1A)** — DEFERRED 2026-06-11 (needs a real photo/PDF
   MMS from a phone; revisit when one's available). Text round-trip is live-verified; the
   **PDF/photo MMS** round-trip through `media_extract` → `pending_whatsapp_transactions`
