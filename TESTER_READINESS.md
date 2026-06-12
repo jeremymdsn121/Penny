@@ -86,8 +86,12 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   + reminder scan** → "Confirm inspection is scheduled" (days_before_deadline).
   `get_pending_tasks` bucketed every pending task correctly by due date (overdue / today /
   this week / upcoming).
-- [ ] **8. EMD receipt tracking (5)** — browser walk of the EMD card: set amount/due,
-  upload a receipt to `compliance-docs`, confirm-gated mark-received.
+- [x] **8. EMD receipt tracking (5)** — VERIFIED 2026-06-11 (API, throwaway tenant). EMD
+  scalars (amount $5,000 / due date / held_by / notes) set via the generic PATCH; receipt
+  uploaded to the `compliance-docs` bucket (`emd_receipt_document_url` set); `mark-received`
+  rejected `confirmed=false` (400) and on `confirmed=true` set `emd_received=true` +
+  `emd_received_date`, receipt still on file. Receipt-tracking only — no calculations or
+  disbursements (hard rule).
 - [x] **9. Comparable sales + property record (Rentcast)** — VERIFIED 2026-06-11 against
   live Rentcast: `comps` returned an estimate ($224k) + 6 comparables; `property-record`
   returned the full public profile (year built, sqft, beds/baths, last sale, and
