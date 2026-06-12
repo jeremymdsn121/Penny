@@ -141,9 +141,14 @@ responses cover most of it, and the real UI is spot-checked in normal use.
 
 ## Tier 2 — Production hardening before real client NPI
 
-- [ ] **Unattended cron actually scheduled** — point a Render Cron Job at
-  `POST /api/v1/cron/run-scans` with `X-Cron-Secret` (set `CRON_SECRET`). Without it,
-  reminders + scheduled-reply resurfacing only run from the dashboard dev buttons.
+- [x] **Unattended cron actually scheduled** — DONE 2026-06-12. Added the
+  `penny-cron-scans` Render Cron Job to `render.yaml` (every 15 min,
+  `backend/scripts/run_cron_scans.py` → `POST /api/v1/cron/run-scans`); it pulls
+  `CRON_SECRET` from `penny-api` via `fromService` so the generated value matches
+  on both sides. **Remaining:** apply the blueprint in Render (re-sync) so the cron
+  service is actually created on the deployed account, then confirm one run logs a
+  200 + idempotent summary. Reminders + scheduled-reply resurfacing no longer depend
+  on the dashboard dev buttons once that's live.
 - [ ] **Frontend custom domain** — currently `sloane-web.onrender.com`; move to
   `app.poweredbypenny.com` (and rebuild with `VITE_API_BASE_URL`).
 - [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for

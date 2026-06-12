@@ -70,6 +70,30 @@ services:
       - key: TWILIO_SMS_FROM
         sync: false
 
+  # ---- Unattended scans (cron) --------------------------------------------
+  # Runs every 15 minutes: POSTs to the API's /cron/run-scans, which loops every
+  # brokerage and fires the deadline-reminder + scheduled-reply scans (both
+  # idempotent). CRON_SECRET is pulled from penny-api so the generated value
+  # matches on both sides — no manual copy. Without this job, reminders and
+  # scheduled-reply resurfacing only run from the dashboard dev buttons.
+  - type: cron
+    name: penny-cron-scans
+    runtime: python
+    rootDir: backend
+    plan: starter
+    schedule: "*/15 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/run_cron_scans.py
+    envVars:
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: penny-api
+          envVarKey: CRON_SECRET
+      # The API's public endpoint. Override if the API origin differs.
+      - key: CRON_TARGET_URL
+        value: https://api.poweredbypenny.com/api/v1/cron/run-scans
+
   # ---- Frontend (static Vite build) ---------------------------------------
   - type: web
     name: penny-web
