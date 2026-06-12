@@ -62,9 +62,14 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   auto-send). Confirm-gated `notify-parties` rejected `confirmed=false` (400) and sent on
   `confirmed=true` to the operator's inbox. **Not exercised:** the internal WhatsApp nudge
   send (no registered contact; scan no-ops gracefully — needs Twilio + a real number).
-- [ ] **5. Compliance review (AI pass) + checklist UI** — run `compliance-review` on a
-  real contract PDF in the browser; confirm findings + suggested status surface and the
-  confirm-gated decision records. Walk the checklist panel (2A).
+- [x] **5. Compliance review (AI pass) + checklist (2A)** — VERIFIED 2026-06-11 (API,
+  throwaway tenant). On a deal with the contract on file: the 2A checklist auto-
+  instantiated **16 buy-side items** and an item PATCH → `complete` set `completed_at`;
+  `compliance-review` ran the **AI contract pass** (`contract_reviewed`) and surfaced 3
+  findings (incl. structural "closing date passed, not marked closed" + AI disclosure
+  checks), a `suggested_status`, an annotated checklist, and the legal disclaimer; the
+  confirm-gated `compliance-decision` rejected `confirmed=false` (400) and recorded on
+  `confirmed=true`. (Review is surface-only — it suggests; the human decision sets it.)
 - [ ] **6. Review queue page (2B)** — live render of `/review` with real bucket data
   (compliance attention / closing-soon-incomplete / past-closing / overdue / emd-overdue
   / stale). Page hasn't been rendered live.
