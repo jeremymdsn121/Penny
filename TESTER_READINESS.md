@@ -131,8 +131,13 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   bounce nudge fired (no-op with Twilio blanked). `GET /{id}/activity` merged the audit
   trail newest-first: delivery_problem, emd_received, compliance_decision, stage_change,
   created. Migrations 025 + 026 confirmed working.
-- [ ] **15. Per-agent style (1B)** — agent-profile style CRUD; confirm agent-specific
-  rules merge over brokerage-wide and win on conflict in a real doc generation.
+- [x] **15. Per-agent style (1B)** — VERIFIED 2026-06-11 (API, throwaway tenant). With a
+  brokerage-wide `tone` (formal) + `signoff` and an agent-specific `tone` (casual),
+  `get_confirmed_knowledge_rules(brk, agent)` merged them so the **agent's tone won** on
+  conflict (formal suppressed) while the non-conflicting brokerage `signoff` was retained;
+  brokerage-only resolution returned just the brokerage rules. A `draft-document` with the
+  agent flowed the merged style through — the body opened in the agent's casual first-name
+  tone.
 
 ## Tier 2 — Production hardening before real client NPI
 
