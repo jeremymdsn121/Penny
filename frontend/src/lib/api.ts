@@ -184,6 +184,8 @@ export interface CalendarAgentStatus {
   email?: string | null
   provider?: string | null
   connected: boolean
+  // Connected but the token went bad — the user must reconnect.
+  needs_reconnect?: boolean
   // Per-agent working-hours override; null on any field means inherit the brokerage.
   work_start?: string | null
   work_end?: string | null
@@ -192,7 +194,12 @@ export interface CalendarAgentStatus {
 
 export interface CalendarStatus {
   oauth_configured: boolean
-  brokerage: { provider: string | null; connected: boolean; sync_enabled: boolean }
+  brokerage: {
+    provider: string | null
+    connected: boolean
+    sync_enabled: boolean
+    needs_reconnect?: boolean
+  }
   agents: CalendarAgentStatus[]
 }
 

@@ -20,7 +20,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { brokerApi } from '../lib/api'
+import { brokerApi, calendarApi } from '../lib/api'
 import PennyRibbon from './PennyRibbon'
 import { useAuthStore } from '../store/auth'
 import { useThemeStore } from '../store/theme'
@@ -56,6 +56,8 @@ export default function AppShell() {
   const toggleTheme = useThemeStore((s) => s.toggle)
   const chatStarted = useUiStore((s) => s.chatStarted)
   const [reviewCount, setReviewCount] = useState(0)
+  // A connected calendar whose token went bad → alert dot on the Calendar nav.
+  const [calendarAlert, setCalendarAlert] = useState(false)
   // Mobile-only: the sidebar collapses into a slide-in drawer below `md`.
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
@@ -70,6 +72,15 @@ export default function AppShell() {
       .reviewQueue()
       .then((q) => setReviewCount(q.total))
       .catch(() => {/* badge is best-effort (non-admins 403) */})
+  }, [location.pathname])
+
+  // Calendar health for the nav alert. Re-checked when navigating away from the
+  // Calendar page, so reconnecting there clears the dot.
+  useEffect(() => {
+    calendarApi
+      .status()
+      .then((s) => setCalendarAlert(!!s.brokerage.needs_reconnect || s.agents.some((a) => a.needs_reconnect)))
+      .catch(() => {/* best-effort */})
   }, [location.pathname])
 
   // Close the mobile drawer on any navigation.
@@ -125,6 +136,12 @@ export default function AppShell() {
                 <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-500">
                   {reviewCount}
                 </span>
+              )}
+              {item.to === '/settings/calendar' && calendarAlert && (
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full bg-amber-500"
+                  title="Calendar needs reconnect"
+                />
               )}
             </Link>
           )

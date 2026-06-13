@@ -21,6 +21,7 @@ imported from both the agent and the route layer without a circular import.
 """
 
 import asyncio
+import hashlib
 from datetime import date
 from typing import Any
 
@@ -63,62 +64,193 @@ def _short_address(tx: dict[str, Any]) -> str:
     return addr or "this deal"
 
 
-def action_for_task_label(label: str, address: str) -> tuple[str, str]:
-    """Map a workflow-task label to (offer, prompt).
+# --- Phrasing variety ------------------------------------------------------ #
+# Recurring tasks otherwise read identically on every deal ("Send intro email to
+# all parties" everywhere). These give a deal-stable but varied phrasing —
+# _pick is seeded by transaction id, so wording differs across deals and doesn't
+# flicker between refreshes of the same one. Prompts (sent to Penny) stay fixed.
 
-    ``offer`` is first-person prose for display; ``prompt`` is the imperative
-    message sent to Penny when the user clicks to act on it.
-    """
+def _pick(options: list[str], *seed_parts: object) -> str:
+    if not options:
+        return ""
+    seed = "|".join(str(p) for p in seed_parts)
+    idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(options)
+    return options[idx]
+
+
+def _cap(s: str) -> str:
+    return s[:1].upper() + s[1:] if s else s
+
+
+def _task_kind(label: str) -> str | None:
+    """Classify a workflow-task label into a phrasing bucket (order matters)."""
     lower = (label or "").lower()
     if "inspection" in lower and "objection" not in lower:
-        return (
-            "propose inspection times for the buyer",
-            f"Propose inspection times for {address}",
-        )
+        return "inspection"
     if "walkthrough" in lower or "final walk" in lower:
-        return (
-            "propose times for the final walkthrough",
-            f"Propose final walkthrough times for {address}",
-        )
+        return "walkthrough"
     if "appraisal" in lower:
-        return (
-            "draft an email to the lender about appraisal scheduling",
-            f"Draft an email to the lender about appraisal scheduling for {address}",
-        )
+        return "appraisal"
     if "lender" in lower or "loan" in lower or "financing" in lower:
-        return (
-            "draft an email to the lender",
-            f"Draft an email to the lender on {address}",
-        )
+        return "financing"
     if "intro" in lower or "introduction" in lower:
-        return (
-            "preview the intro email so you can send it",
-            f"Preview the intro email for {address}",
-        )
+        return "intro"
     if "earnest" in lower or "emd" in lower:
-        return (
-            "check EMD status, or draft an email to title for the receipt",
-            f"What's the EMD status on {address}?",
-        )
+        return "emd"
     if "title" in lower or "settlement" in lower or "closing" in lower:
-        return (
-            "draft an email to title",
-            f"Draft an email to the title company on {address}",
-        )
+        return "title"
     if "hoa" in lower:
-        return (
-            "draft an email to the listing agent for HOA docs",
-            f"Draft an email to the listing agent on {address} requesting HOA documents",
-        )
+        return "hoa"
     if "disclosure" in lower:
-        return (
-            "draft an email to the listing agent for the disclosure",
-            f"Draft an email to the listing agent on {address} about the disclosure",
-        )
-    return (
-        "draft an email or schedule a time — tell me which",
-        f'What should I do about "{label}" on {address}?',
-    )
+        return "disclosure"
+    return None
+
+
+# Noun phrase for a recognised task, dropped into "<subject> is due …" headlines.
+_TASK_SUBJECTS: dict[str, list[str]] = {
+    "inspection": [
+        "the home inspection",
+        "getting the inspection scheduled",
+        "the buyer's inspection",
+        "booking the inspection",
+    ],
+    "walkthrough": [
+        "the final walkthrough",
+        "scheduling the final walkthrough",
+        "the buyer's final walk-through",
+    ],
+    "appraisal": [
+        "the appraisal",
+        "getting the appraisal ordered",
+        "the lender's appraisal",
+    ],
+    "financing": [
+        "the financing check-in",
+        "the loan status",
+        "following up with the lender",
+        "the financing update",
+    ],
+    "intro": [
+        "the intro email to all parties",
+        "the intro that introduces everyone on the deal",
+        "the kickoff intro email",
+        "introductions for everyone on the file",
+    ],
+    "emd": [
+        "the earnest money receipt",
+        "confirming the earnest money landed",
+        "the EMD receipt",
+        "the earnest money confirmation",
+    ],
+    "title": [
+        "the title company follow-up",
+        "looping in title",
+        "the title coordination",
+        "the closing-side title check-in",
+    ],
+    "hoa": [
+        "the HOA documents",
+        "tracking down the HOA docs",
+        "the HOA paperwork",
+    ],
+    "disclosure": [
+        "the seller's disclosure",
+        "the disclosure follow-up",
+        "the property disclosure",
+    ],
+}
+
+_TASK_OFFERS: dict[str, list[str]] = {
+    "inspection": [
+        "propose inspection times for the buyer",
+        "find open inspection times to send the buyer",
+        "line up inspection slots for the buyer",
+        "pull a few inspection times to propose",
+    ],
+    "walkthrough": [
+        "propose times for the final walkthrough",
+        "find final walkthrough times to send",
+        "line up the final walk-through",
+    ],
+    "appraisal": [
+        "draft an email to the lender about appraisal scheduling",
+        "email the lender to get the appraisal moving",
+        "nudge the lender on the appraisal",
+    ],
+    "financing": [
+        "draft an email to the lender",
+        "check in with the lender by email",
+        "draft a financing follow-up to the lender",
+    ],
+    "intro": [
+        "preview the intro email so you can send it",
+        "pull up the intro email to introduce everyone",
+        "get the intro ready for your review",
+        "draft the all-parties intro for you to send",
+    ],
+    "emd": [
+        "check EMD status, or draft an email to title for the receipt",
+        "look up where earnest money stands and chase the receipt",
+        "pull the EMD status and nudge title if it's still out",
+    ],
+    "title": [
+        "draft an email to title",
+        "email the title company for you",
+        "reach out to title to keep things moving",
+    ],
+    "hoa": [
+        "draft an email to the listing agent for HOA docs",
+        "email the listing agent to request the HOA documents",
+        "ask the listing agent for the HOA paperwork",
+    ],
+    "disclosure": [
+        "draft an email to the listing agent for the disclosure",
+        "email the listing agent about the disclosure",
+        "request the disclosure from the listing agent",
+    ],
+}
+
+
+def _task_prompt(kind: str | None, label: str, address: str) -> str:
+    """The imperative message sent to Penny on click — fixed per kind (stability
+    matters here; only the displayed wording varies)."""
+    return {
+        "inspection": f"Propose inspection times for {address}",
+        "walkthrough": f"Propose final walkthrough times for {address}",
+        "appraisal": f"Draft an email to the lender about appraisal scheduling for {address}",
+        "financing": f"Draft an email to the lender on {address}",
+        "intro": f"Preview the intro email for {address}",
+        "emd": f"What's the EMD status on {address}?",
+        "title": f"Draft an email to the title company on {address}",
+        "hoa": f"Draft an email to the listing agent on {address} requesting HOA documents",
+        "disclosure": f"Draft an email to the listing agent on {address} about the disclosure",
+    }.get(kind or "", f'What should I do about "{label}" on {address}?')
+
+# The EMD-overdue card (separate from a workflow task).
+_EMD_OVERDUE_HEADLINES = [
+    "EMD is {days} overdue on {address}",
+    "Still waiting on the earnest money receipt for {address} — {days} past due",
+    "Earnest money receipt is {days} overdue on {address}",
+    "{address} hasn't logged its EMD receipt yet — {days} overdue",
+]
+_EMD_OVERDUE_OFFERS = [
+    "draft an email to title asking for the receipt",
+    "email the title company to chase the receipt",
+    "nudge title for the earnest money receipt",
+]
+
+
+def action_for_task_label(label: str, address: str, seed: str = "") -> tuple[str, str]:
+    """Map a workflow-task label to (offer, prompt).
+
+    ``offer`` is first-person prose for display, varied per ``seed`` (deal id)
+    across the recognised task kinds; ``prompt`` is the fixed imperative message
+    sent to Penny when the user clicks to act on it.
+    """
+    kind = _task_kind(label)
+    offers = _TASK_OFFERS.get(kind) if kind else None
+    offer = _pick(offers, seed, kind) if offers else "draft an email or schedule a time — tell me which"
+    return offer, _task_prompt(kind, label, address)
 
 
 async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
@@ -151,18 +283,17 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
     emd_due = _parse_date(tx.get("emd_due_date"))
     if emd_due and not tx.get("emd_received") and emd_due < today:
         days_over = (today - emd_due).days
+        days_str = f"{days_over} day{'s' if days_over != 1 else ''}"
         if tx.get("title_email"):
-            offer = "draft an email to title asking for the receipt"
+            offer = _pick(_EMD_OVERDUE_OFFERS, tx_id, "emd_overdue_offer")
             prompt = f"Draft an email to the title company on {address} requesting the earnest money receipt"
         else:
             offer = "check EMD status — there's no title email on file to chase it"
             prompt = f"What's the EMD status on {address}?"
-        add(
-            P_EMD_OVERDUE,
-            f"EMD is {days_over} day{'s' if days_over != 1 else ''} overdue on {address}",
-            offer,
-            prompt,
+        headline = _pick(_EMD_OVERDUE_HEADLINES, tx_id, "emd_overdue").format(
+            days=days_str, address=address
         )
+        add(P_EMD_OVERDUE, headline, offer, prompt)
 
     # 3. Pending workflow tasks, bucketed by urgency
     try:
@@ -176,21 +307,26 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
         if d is None:
             continue  # undated tasks stay out of the synthesis
         label = t.get("label") or "a task"
-        offer, prompt = action_for_task_label(label, address)
+        offer, prompt = action_for_task_label(label, address, seed=str(tx_id or ""))
+        # Vary the subject for recognised kinds so the headline doesn't echo the
+        # same static label everywhere; fall back to the quoted label otherwise.
+        kind = _task_kind(label)
+        subjects = _TASK_SUBJECTS.get(kind) if kind else None
+        subject = _cap(_pick(subjects, tx_id, kind)) if subjects else f"'{label}'"
         days_to = (d - today).days
         if days_to < 0:
             add(
                 P_TASK_OVERDUE,
-                f"'{label}' is overdue on {address} (was due {_fmt_date(t.get('due_date'))})",
+                f"{subject} is overdue on {address} (was due {_fmt_date(t.get('due_date'))})",
                 offer,
                 prompt,
             )
         elif days_to == 0:
-            add(P_TASK_DUE_TODAY, f"'{label}' is due today on {address}", offer, prompt)
+            add(P_TASK_DUE_TODAY, f"{subject} is due today on {address}", offer, prompt)
         elif days_to <= 7:
             add(
                 P_TASK_DUE_THIS_WEEK,
-                f"'{label}' is due in {days_to} day{'s' if days_to != 1 else ''} on {address}",
+                f"{subject} is due in {days_to} day{'s' if days_to != 1 else ''} on {address}",
                 offer,
                 prompt,
             )
