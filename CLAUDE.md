@@ -225,9 +225,15 @@ URL when done.
   the deadline-reminder + scheduled-reply scans — point a Render cron at it;
   live-verified idempotent. (2) **WhatsApp template seam:**
   `twilio_client.send_whatsapp_template(to, key, vars, fallback)` — all five
-  proactive nudge sites route through it; free-form fallback until
-  `TWILIO_CONTENT_SIDS` maps a key to an approved ContentSid (production API
-  rejects free-form outside the 24h window). (3) **Session refresh:**
+  proactive nudge sites route through it. **Live as of 2026-06-13:** the five
+  Utility templates (`deadline_reminder`, `document_ready_to_send`,
+  `email_reply_received`, `draft_reply_ready`, `agent_action_needed`) are
+  Meta-approved and `TWILIO_CONTENT_SIDS` is set in production mapping each key
+  to its `HX…` ContentSid, so proactive nudges now go out as approved templates
+  (the production API rejects free-form outside the 24h window). Free-form
+  remains the fallback for any key left unmapped. Note: `_content_sids` swallows
+  a malformed-JSON value into `{}` silently (every key falls back) — verify a
+  closed-window template send after editing the env var. (3) **Session refresh:**
   `POST /auth/refresh` + a 401-interceptor retry in `lib/api.ts` (single shared
   in-flight refresh; GoTrue rotates the refresh token — both are re-persisted),
   so brokers aren't logged out hourly. (4) **Email delivery feedback:** outbound
@@ -490,7 +496,8 @@ Post-V2 ops: `CRON_SECRET` (enables `POST /cron/run-scans`, the unattended
 all-brokerages scan a Render cron job hits every ~15 min — without it, deadline
 reminders and scheduled-reply resurfacing only run from the dashboard dev
 buttons), `TWILIO_CONTENT_SIDS` (JSON map of WhatsApp template key → approved
-`HX...` ContentSid; unset = free-form sandbox sends. See `WHATSAPP_TEMPLATES.md`).
+`HX...` ContentSid; **set in production 2026-06-13** mapping all five keys; unset
+= free-form sandbox sends. See `WHATSAPP_TEMPLATES.md`).
 
 Deferred (built behind seams, wired when credentials/approval exist):
 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
@@ -499,16 +506,21 @@ Deferred (built behind seams, wired when credentials/approval exist):
 `REDIS_URL`.
 
 WhatsApp specifics:
-- `TWILIO_WHATSAPP_FROM` is currently the **sandbox** number
-  (`whatsapp:+14155238886`) — replies must originate from a WhatsApp-enabled
-  number, and sandbox agents must first send `join <sandbox-word>` to opt in.
-  **Production plan (single number):** WhatsApp and SMS will share one number,
-  `+14053636555` — `TWILIO_WHATSAPP_FROM=whatsapp:+14053636555` and
-  `TWILIO_SMS_FROM=+14053636555`. Twilio routes the two channels by the
-  `whatsapp:` prefix to the separate `/whatsapp/inbound` + `/sms/inbound`
-  webhooks, so no code changes — realtors save one "Penny" contact for both. The
-  cutover waits on WhatsApp Business API production approval; see
-  `BLOCKERS.md` Hard Limit 4 for the Meta/Twilio onboarding plan.
+- **WhatsApp production is LIVE (2026-06-13).** The WABA ("Madison Solutions
+  LLC", display name "Penny by Madison Solutions" — Meta-approved) runs on the
+  production number `+14053636555` with **Twilio as the BSP**; the deployed
+  `TWILIO_WHATSAPP_FROM=whatsapp:+14053636555` and an inbound→reply text
+  round-trip is verified against that number (not the sandbox). All five
+  proactive templates are approved and `TWILIO_CONTENT_SIDS` is set (see the
+  template-seam bullet above), so business-initiated nudges send outside the 24h
+  window. **Still pending:** the SMS half of the shared number —
+  `TWILIO_SMS_FROM=+14053636555` plus A2P 10DLC (the double-opt-in flow) and the
+  number's SMS webhook → `/api/v1/sms/inbound`. Twilio routes the two channels by
+  the `whatsapp:` prefix to the separate `/whatsapp/inbound` + `/sms/inbound`
+  webhooks, so no code changes — realtors save one "Penny" contact for both.
+  Local dev may still use the Twilio **sandbox** number
+  (`whatsapp:+14155238886`, opt in with `join <sandbox-word>`). See
+  `BLOCKERS.md` Hard Limit 4 for the Meta/Twilio onboarding history.
 - `TWILIO_SKIP_VALIDATION=true` in local dev: signature validation fails behind
   ngrok because the signed URL doesn't match the reconstructed one. Never skip
   in production.
@@ -700,7 +712,12 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
   WhatsApp `get_pending_tasks` tool registered.
 - **4 Inbound email threading** — needs 012 + `SENDGRID_WEBHOOK_KEY` + DNS
   (`reply.poweredbypenny.com` MX → `mx.sendgrid.net`) + SendGrid Inbound Parse pointed
-  at `/api/v1/email/inbound`. **DNS is the gating step on Jeremy's side.**
+  at `/api/v1/email/inbound`. **DNS is done** — the `reply.poweredbypenny.com` MX →
+  `mx.sendgrid.net` resolves (verified 2026-06-13; DNS managed at Porkbun). The
+  inbound webhook is up + signature-enforcing (unsigned POST → 403). SendGrid Inbound
+  Parse is configured too (host `reply.poweredbypenny.com` → `/api/v1/email/inbound?key=…`,
+  the `?key=` matching `SENDGRID_WEBHOOK_KEY` on Render; confirmed 2026-06-13). Only a
+  live reply-threading test remains to fully verify Section 4 end-to-end.
 - **5 EMD tracking** — needs 013 applied. Already feeds the review queue.
 - **6 AI disclosure + consent** — needs 014 applied + `CONSENT_SECRET` set
   (the disclosure footer works without consent links; only the link path needs
@@ -719,9 +736,11 @@ mind the 008
 caveat in the Database section. Set new env vars where their feature is being
 exercised: `TWILIO_SMS_FROM` (1C), `SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` (6).
 V1 keys (`ANTHROPIC_API_KEY`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most
-V2 sections too. DNS for `reply.poweredbypenny.com` is the long-lead item — it's the gating
-step for Section 4 inbound replies **and** for the reply-forwarding toggle actually
-firing (forwarding only runs on a real inbound reply).
+V2 sections too. DNS for `reply.poweredbypenny.com` (the `mx.sendgrid.net` MX that
+Section 4 inbound replies **and** the reply-forwarding toggle depend on) is **done** —
+verified resolving 2026-06-13, managed at Porkbun. SendGrid Inbound Parse is wired to
+`/api/v1/email/inbound?key=…` (confirmed 2026-06-13), so the only remaining Section 4
+step is a live reply-threading test.
 
 ### Deferred (built behind seams, do not build blind)
 

@@ -3,6 +3,25 @@
 @tailwind utilities;
 
 /* ------------------------------------------------------------------ *
+ * Fonts (self-hosted, latin subset, in /public/fonts).
+ *   Plus Jakarta Sans — the app text face (warm humanist sans).
+ *   Geist — applied to NUMERALS ONLY via unicode-range, so digits, $ and %
+ *           render in Geist everywhere while letters fall through to Jakarta.
+ *           Geist must come first in fontFamily.sans for this to resolve.
+ * Numeric punctuation (comma, period, slash, colon) is deliberately left to
+ * Jakarta so body prose isn't peppered with Geist glyphs.
+ * ------------------------------------------------------------------ */
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/jakarta-400.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/jakarta-500.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/jakarta-600.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/jakarta-700.woff2') format('woff2'); }
+
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/geist-400.woff2') format('woff2'); unicode-range: U+0030-0039, U+0024, U+0025; }
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/geist-500.woff2') format('woff2'); unicode-range: U+0030-0039, U+0024, U+0025; }
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/geist-600.woff2') format('woff2'); unicode-range: U+0030-0039, U+0024, U+0025; }
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/geist-700.woff2') format('woff2'); unicode-range: U+0030-0039, U+0024, U+0025; }
+
+/* ------------------------------------------------------------------ *
  * Design tokens. Light values on :root, dark overrides under .dark.
  * Tailwind reads these via the surface/content/hairline color tokens.
  * ------------------------------------------------------------------ */
@@ -34,7 +53,10 @@
   }
 
   body {
-    @apply bg-[rgb(var(--app))] text-ink antialiased;
+    @apply bg-[rgb(var(--app))] text-ink antialiased font-sans;
+    /* Tabular figures so numeric columns (amounts, dates, %) align. Only
+       affects digits, so Jakarta prose is unchanged. */
+    font-variant-numeric: tabular-nums;
   }
 
   /* Anchored sections sit clear of any sticky header when scrolled to. */
