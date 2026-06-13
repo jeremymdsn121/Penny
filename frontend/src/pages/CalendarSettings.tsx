@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, Check, Copy, Link2 } from 'lucide-react'
+import { Calendar, Check, Clock, Copy, Link2 } from 'lucide-react'
 import { calendarApi, type CalendarStatus } from '../lib/api'
+import { useAuthStore } from '../store/auth'
 
 export default function CalendarSettings() {
   const [status, setStatus] = useState<CalendarStatus | null>(null)
@@ -11,6 +12,35 @@ export default function CalendarSettings() {
   const [busy, setBusy] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
+
+  // Working hours live on the brokerage; set in onboarding, edited here.
+  const brokerage = useAuthStore((s) => s.brokerage)
+  const setBrokerage = useAuthStore((s) => s.setBrokerage)
+  const [workStart, setWorkStart] = useState(brokerage?.work_start ?? '09:00')
+  const [workEnd, setWorkEnd] = useState(brokerage?.work_end ?? '17:00')
+  const [buffer, setBuffer] = useState<number>(brokerage?.buffer_minutes ?? 15)
+  const [savingHours, setSavingHours] = useState(false)
+
+  async function saveHours() {
+    if (workEnd <= workStart) {
+      setBanner({ ok: false, text: 'End time must be after start time.' })
+      return
+    }
+    setSavingHours(true)
+    try {
+      const saved = await calendarApi.updateWorkingHours({
+        work_start: workStart,
+        work_end: workEnd,
+        buffer_minutes: buffer,
+      })
+      if (brokerage) setBrokerage({ ...brokerage, ...saved })
+      setBanner({ ok: true, text: 'Working hours saved.' })
+    } catch {
+      setBanner({ ok: false, text: 'Could not save working hours.' })
+    } finally {
+      setSavingHours(false)
+    }
+  }
 
   function load() {
     setLoading(true)
@@ -104,6 +134,61 @@ export default function CalendarSettings() {
         </div>
       ) : (
         <>
+          {/* Working hours — independent of any calendar connection. */}
+          <section className="card space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <Clock size={20} className="text-ink-muted" />
+              <div>
+                <p className="text-sm font-medium text-ink">Working hours</p>
+                <p className="text-xs text-ink-muted">
+                  The window Penny proposes showing times within, and the gap she leaves
+                  between appointments.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Start</span>
+                <input
+                  className="input"
+                  type="time"
+                  value={workStart}
+                  onChange={(e) => setWorkStart(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">End</span>
+                <input
+                  className="input"
+                  type="time"
+                  value={workEnd}
+                  onChange={(e) => setWorkEnd(e.target.value)}
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-ink">
+                Buffer between appointments
+              </span>
+              <select
+                className="input"
+                value={buffer}
+                onChange={(e) => setBuffer(Number(e.target.value))}
+              >
+                {[0, 15, 30, 45, 60].map((m) => (
+                  <option key={m} value={m}>
+                    {m} minutes
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex justify-end">
+              <button onClick={saveHours} disabled={savingHours} className="btn-primary">
+                {savingHours ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </section>
+
           {!configured && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               Google Calendar isn&rsquo;t configured on the server yet, so connecting is

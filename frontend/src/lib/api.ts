@@ -206,6 +206,14 @@ export const calendarApi = {
     api.post('/calendar/disconnect', null, {
       params: agentId ? { agent_id: agentId } : {},
     }),
+  updateWorkingHours: (data: WorkingHours) =>
+    api.put<WorkingHours>('/calendar/working-hours', data).then((r) => r.data),
+}
+
+export interface WorkingHours {
+  work_start: string
+  work_end: string
+  buffer_minutes: number
 }
 
 // --------------------------------------------------------------------------- //
