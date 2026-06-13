@@ -52,6 +52,8 @@ async def test_review_queue_categorizes_each_bucket(monkeypatch):
     monkeypatch.setattr(broker.sb, "list_transactions", _async_return(txs))
     monkeypatch.setattr(broker.sb, "list_agents", _async_return([{"id": "a1", "name": "Agent A"}]))
     monkeypatch.setattr(broker.sb, "list_deadlines_in", _async_return(deadlines))
+    monkeypatch.setattr(broker.sb, "list_pending_email_replies", _async_return([]))
+    monkeypatch.setattr(broker.sb, "list_pending_status_updates", _async_return([]))
     monkeypatch.setattr(broker.compliance_checklist, "pct_for_transactions", _async_return(pct))
 
     res = await broker.review_queue(brokerage={"id": "b1"})
@@ -85,7 +87,47 @@ async def test_review_queue_overdue_deadline_skips_resolved(monkeypatch):
     monkeypatch.setattr(broker.sb, "list_transactions", _async_return(txs))
     monkeypatch.setattr(broker.sb, "list_agents", _async_return([]))
     monkeypatch.setattr(broker.sb, "list_deadlines_in", _async_return(deadlines))
+    monkeypatch.setattr(broker.sb, "list_pending_email_replies", _async_return([]))
+    monkeypatch.setattr(broker.sb, "list_pending_status_updates", _async_return([]))
     monkeypatch.setattr(broker.compliance_checklist, "pct_for_transactions", _async_return({"t1": 95}))
 
     res = await broker.review_queue(brokerage={"id": "b1"})
     assert res["overdue_deadlines"] == []
+
+
+# --------------------------------------------------------------------------- #
+# Stuck-draft escalation (needs_agent_routing).
+# --------------------------------------------------------------------------- #
+
+def test_escalation_flags_unassigned_and_old(monkeypatch):
+    now = dt.datetime(2026, 6, 13, 12, 0, tzinfo=dt.timezone.utc)
+    tx_by_id = {
+        "t_unassigned": {"id": "t_unassigned", "address": "1 A St", "agent_id": None},
+        "t_old": {"id": "t_old", "address": "2 B St", "agent_id": "a1"},
+        "t_fresh": {"id": "t_fresh", "address": "3 C St", "agent_id": "a1"},
+    }
+    agents = {"a1": "Agent A"}
+    pending = [
+        # unassigned but fresh → escalates on "no agent"
+        ("A drafted reply", {"transaction_id": "t_unassigned",
+                             "created_at": (now - dt.timedelta(hours=1)).isoformat()}),
+        # assigned but stale → escalates on time
+        ("A status update", {"transaction_id": "t_old",
+                             "created_at": (now - dt.timedelta(hours=30)).isoformat()}),
+        # assigned and fresh → not escalated
+        ("A drafted reply", {"transaction_id": "t_fresh",
+                             "created_at": (now - dt.timedelta(hours=2)).isoformat()}),
+    ]
+    rows = broker.build_routing_escalations(pending, tx_by_id, agents, now)
+    ids = {r["id"] for r in rows}
+    assert ids == {"t_unassigned", "t_old"}
+    by_id = {r["id"]: r["reason"] for r in rows}
+    assert "no agent assigned" in by_id["t_unassigned"]
+    assert "waiting" in by_id["t_old"]
+
+
+def test_escalation_ignores_unknown_transaction(monkeypatch):
+    now = dt.datetime(2026, 6, 13, 12, 0, tzinfo=dt.timezone.utc)
+    pending = [("A drafted reply", {"transaction_id": "gone",
+                                    "created_at": (now - dt.timedelta(hours=99)).isoformat()})]
+    assert broker.build_routing_escalations(pending, {}, {}, now) == []

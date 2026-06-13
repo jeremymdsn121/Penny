@@ -289,6 +289,99 @@ def build_preview(content: bytes, existing_addresses: set[str]) -> dict[str, Any
     }
 
 
+# --------------------------------------------------------------------------- #
+# Export — the other half of the migration story. A brokerage can run Penny as
+# its working layer and still keep its franchise-mandated compliance platform
+# (SkySlope / Dotloop) as the file of record, without double-keying: export the
+# deals, the activity trail, and a document manifest on a cadence and feed them
+# in. The deal export uses Penny's own import headers, so it round-trips cleanly
+# back into Penny too. All pure (no DB/IO) for testability; the route gathers.
+# --------------------------------------------------------------------------- #
+
+# Read-only context appended after the importable columns. The importer ignores
+# unmapped headers, so the file still round-trips into Penny unchanged.
+EXPORT_EXTRA_COLUMNS: list[str] = [
+    "compliance_status", "checklist_pct", "emd_received",
+    "last_activity_at", "closed_at",
+]
+
+
+def _csv_value(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "yes" if v else ""
+    return str(v)
+
+
+def export_transactions_csv(
+    transactions: list[dict[str, Any]], pct_by_id: dict[str, int] | None = None
+) -> str:
+    """All deals as a CSV that re-imports into Penny (and is clean enough for a
+    compliance platform to ingest). Importable columns first, read-only context
+    after."""
+    pct_by_id = pct_by_id or {}
+    columns = TEMPLATE_COLUMNS + EXPORT_EXTRA_COLUMNS
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for tx in transactions:
+        row = {col: _csv_value(tx.get(col)) for col in TEMPLATE_COLUMNS}
+        row["compliance_status"] = _csv_value(tx.get("compliance_status"))
+        row["checklist_pct"] = _csv_value(pct_by_id.get(tx.get("id")))
+        row["emd_received"] = _csv_value(bool(tx.get("emd_received")))
+        row["last_activity_at"] = _csv_value(tx.get("last_activity_at"))
+        row["closed_at"] = _csv_value(tx.get("closed_at"))
+        writer.writerow(row)
+    return out.getvalue()
+
+
+def export_activity_csv(rows: list[dict[str, Any]]) -> str:
+    """The merged activity trail across deals — one row per event, newest first.
+
+    ``rows`` are already-normalized timeline entries augmented with ``address``
+    (the route builds them from ``activity.build_timeline`` per deal).
+    """
+    columns = ["address", "at", "kind", "title", "detail", "actor", "via"]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({c: _csv_value(r.get(c)) for c in columns})
+    return out.getvalue()
+
+
+def export_documents_csv(rows: list[dict[str, Any]]) -> str:
+    """A manifest of the documents Penny holds per deal (type + link), so a
+    compliance platform's file of record can pull them."""
+    columns = ["address", "document", "url"]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({c: _csv_value(r.get(c)) for c in columns})
+    return out.getvalue()
+
+
+def document_manifest_rows(transactions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build document-manifest rows from deal-level document columns.
+
+    Pure: reads only fields already on the transaction record (the contract PDF
+    and the EMD receipt), so it needs no extra queries.
+    """
+    rows: list[dict[str, Any]] = []
+    for tx in transactions:
+        address = tx.get("address") or "(no address)"
+        for label, field in (
+            ("Contract", "contract_pdf_url"),
+            ("EMD receipt", "emd_receipt_document_url"),
+        ):
+            url = (tx.get(field) or "").strip()
+            if url:
+                rows.append({"address": address, "document": label, "url": url})
+    return rows
+
+
 def template_csv() -> str:
     """A header-only CSV template with one illustrative example row."""
     example = {

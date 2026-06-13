@@ -1633,6 +1633,23 @@ async def list_transaction_events(transaction_id: str) -> list[dict[str, Any]]:
     return resp.json()
 
 
+async def list_transaction_events_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Audit events for many transactions in one call (used by the activity export)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_events",
+            params={"transaction_id": f"in.({ids})", "select": "*",
+                    "order": "created_at.desc"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
 async def list_transaction_emails(transaction_id: str) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(
@@ -1644,6 +1661,42 @@ async def list_transaction_emails(transaction_id: str) -> list[dict[str, Any]]:
             },
             headers=_service_headers(),
         )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_transaction_emails_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Logged emails for many transactions in one call (activity export)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/transaction_emails",
+            params={"transaction_id": f"in.({ids})", "select": "*",
+                    "order": "received_at.asc"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_delivery_events_in(transaction_ids: list[str]) -> list[dict[str, Any]]:
+    """Bounce/dropped/spam events for many transactions in one call (activity export)."""
+    if not transaction_ids:
+        return []
+    ids = ",".join(transaction_ids)
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/email_delivery_events",
+            params={"transaction_id": f"in.({ids})", "select": "*",
+                    "order": "created_at.desc"},
+            headers=_service_headers(),
+        )
+    if resp.status_code == 404:
+        return []  # table predates migration 025
     if resp.status_code >= 400:
         raise SupabaseError(resp.status_code, _detail(resp))
     return resp.json()

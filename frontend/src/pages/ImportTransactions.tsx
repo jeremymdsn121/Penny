@@ -1,13 +1,20 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Download, FileSpreadsheet, Upload } from 'lucide-react'
-import { transactionsApi, type ImportPreview } from '../lib/api'
+import { transactionsApi, type ImportPreview, type ImportPreviewRow } from '../lib/api'
 
 type Phase = 'upload' | 'previewing' | 'preview' | 'importing' | 'done'
 
 function cell(v: string | number | undefined): string {
   if (v === undefined || v === null || v === '') return '—'
   return String(v)
+}
+
+interface DoneSummary {
+  created: number
+  attempted: number
+  // Rows that didn't make it in, each with a human reason.
+  notImported: { label: string; reason: string }[]
 }
 
 export default function ImportTransactions() {
@@ -19,7 +26,12 @@ export default function ImportTransactions() {
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [includeDuplicates, setIncludeDuplicates] = useState(false)
-  const [result, setResult] = useState<{ created: number; failed: number } | null>(null)
+  // Inline corrections keyed by row number (currently just the address — the
+  // only hard error — so a row that came in blank can be fixed and imported
+  // instead of silently dropped).
+  const [edits, setEdits] = useState<Record<number, string>>({})
+  const [summary, setSummary] = useState<DoneSummary | null>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
 
   async function handleFile(file: File | null) {
     if (!file) return
@@ -28,6 +40,7 @@ export default function ImportTransactions() {
       return
     }
     setError(null)
+    setEdits({})
     setPhase('previewing')
     try {
       const p = await transactionsApi.importPreview(file)
@@ -39,20 +52,55 @@ export default function ImportTransactions() {
     }
   }
 
-  // Rows that will actually be imported, given the duplicate toggle.
-  function selectedRows() {
-    if (!preview) return []
-    return preview.rows.filter((r) => r.importable && (includeDuplicates || !r.duplicate))
+  // Address after any inline edit (trimmed).
+  function effectiveAddress(r: ImportPreviewRow): string {
+    const raw = edits[r.row_number] ?? r.data.address ?? ''
+    return String(raw).trim()
+  }
+
+  // A row imports when it has an address (after edits) — the only blocking
+  // error normalize_row raises — and isn't an excluded duplicate.
+  function willImport(r: ImportPreviewRow): boolean {
+    return !!effectiveAddress(r) && (includeDuplicates || !r.duplicate)
+  }
+
+  function selectedRows(): ImportPreviewRow[] {
+    return preview ? preview.rows.filter(willImport) : []
   }
 
   async function doImport() {
-    const rows = selectedRows().map((r) => r.data)
-    if (rows.length === 0) return
+    if (!preview) return
+    const chosen = selectedRows()
+    if (chosen.length === 0) return
+    const rows = chosen.map((r) => ({ ...r.data, address: effectiveAddress(r) }))
+
+    // Snapshot what we're skipping (and why) before the round-trip, so the done
+    // screen can say exactly what didn't come in.
+    const notImported: { label: string; reason: string }[] = []
+    for (const r of preview.rows) {
+      if (willImport(r)) continue
+      const label = effectiveAddress(r) || `Row ${r.row_number}`
+      let reason: string
+      if (!effectiveAddress(r)) reason = 'No property address'
+      else if (r.duplicate) reason = 'Skipped as a possible duplicate'
+      else reason = r.errors.join('; ') || 'Skipped'
+      notImported.push({ label, reason })
+    }
+
     setPhase('importing')
     setError(null)
     try {
       const res = await transactionsApi.importCommit(rows as Record<string, unknown>[])
-      setResult({ created: res.created, failed: res.failed.length })
+      // Map any server-side failures back to addresses (failed.index is the
+      // position in the array we submitted).
+      for (const f of res.failed) {
+        const r = chosen[f.index]
+        notImported.push({
+          label: r ? effectiveAddress(r) || `Row ${r.row_number}` : `Row ${f.index + 1}`,
+          reason: f.reason,
+        })
+      }
+      setSummary({ created: res.created, attempted: rows.length, notImported })
       setPhase('done')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Import failed.')
@@ -68,12 +116,35 @@ export default function ImportTransactions() {
     }
   }
 
+  async function runExport(
+    kind: 'transactions' | 'activity' | 'documents',
+    fn: () => Promise<void>,
+  ) {
+    setError(null)
+    setExporting(kind)
+    try {
+      await fn()
+    } catch {
+      setError('Could not export. Please try again.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  function reset() {
+    setPhase('upload')
+    setPreview(null)
+    setSummary(null)
+    setEdits({})
+    setIncludeDuplicates(false)
+  }
+
   const selectedCount = selectedRows().length
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-6 py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Import transactions</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Import &amp; export</h1>
         <p className="mt-1 text-sm text-ink-muted">
           Already have deals in another tool? Export them to CSV and bring them into Penny.
           A lightly-edited Dotloop, SkySlope, or spreadsheet export usually maps automatically.
@@ -123,6 +194,42 @@ export default function ImportTransactions() {
               onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
             />
           </div>
+
+          {/* Export — the round-trip out, for a compliance platform of record. */}
+          <div className="rounded-2xl border border-hairline bg-surface p-5">
+            <h2 className="text-sm font-semibold text-ink">Export your data</h2>
+            <p className="mt-1 text-xs text-ink-muted">
+              Run Penny as your working layer and keep SkySlope or Dotloop as your file of
+              record. These CSVs round-trip back into Penny and feed most compliance platforms,
+              so you never double-key.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => runExport('transactions', transactionsApi.exportTransactions)}
+                disabled={exporting !== null}
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm font-medium text-ink hover:border-penny/50 disabled:opacity-50"
+              >
+                <Download size={15} />
+                {exporting === 'transactions' ? 'Exporting…' : 'Deals'}
+              </button>
+              <button
+                onClick={() => runExport('activity', transactionsApi.exportActivity)}
+                disabled={exporting !== null}
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm font-medium text-ink hover:border-penny/50 disabled:opacity-50"
+              >
+                <Download size={15} />
+                {exporting === 'activity' ? 'Exporting…' : 'Activity trail'}
+              </button>
+              <button
+                onClick={() => runExport('documents', transactionsApi.exportDocuments)}
+                disabled={exporting !== null}
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm font-medium text-ink hover:border-penny/50 disabled:opacity-50"
+              >
+                <Download size={15} />
+                {exporting === 'documents' ? 'Exporting…' : 'Document list'}
+              </button>
+            </div>
+          </div>
         </>
       )}
 
@@ -140,19 +247,19 @@ export default function ImportTransactions() {
                   {preview.summary.total} rows
                 </span>
                 <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-600 dark:text-emerald-400">
-                  {preview.summary.ready} ready
+                  {selectedCount} will import
                 </span>
-                {preview.summary.errors > 0 && (
-                  <span className="rounded-full bg-red-500/10 px-3 py-1 text-red-500">
-                    {preview.summary.errors} with errors
-                  </span>
-                )}
                 {preview.summary.duplicates > 0 && (
                   <span className="rounded-full bg-amber-500/10 px-3 py-1 text-amber-600 dark:text-amber-400">
                     {preview.summary.duplicates} possible duplicates
                   </span>
                 )}
               </div>
+
+              <p className="text-xs text-ink-subtle">
+                Rows missing an address won&apos;t import. Fix the address inline below and
+                they&apos;ll be included — no need to re-upload.
+              </p>
 
               {preview.unmapped_columns.length > 0 && (
                 <p className="text-xs text-ink-subtle">
@@ -176,23 +283,35 @@ export default function ImportTransactions() {
                   </thead>
                   <tbody>
                     {preview.rows.map((r) => {
-                      const willImport = r.importable && (includeDuplicates || !r.duplicate)
+                      const imports = willImport(r)
+                      const hasAddress = !!effectiveAddress(r)
                       return (
                         <tr
                           key={r.row_number}
-                          className={`border-t border-hairline ${willImport ? '' : 'opacity-50'}`}
+                          className={`border-t border-hairline ${imports ? '' : 'opacity-60'}`}
                         >
                           <td className="px-3 py-2 text-ink-subtle">{r.row_number}</td>
                           <td className="px-3 py-2">
-                            {!r.importable ? (
-                              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-500">Error</span>
-                            ) : r.duplicate ? (
+                            {!hasAddress ? (
+                              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-500">Needs address</span>
+                            ) : r.duplicate && !includeDuplicates ? (
                               <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400">Duplicate</span>
                             ) : (
                               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">Ready</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-ink">{cell(r.data.address)}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={String(edits[r.row_number] ?? r.data.address ?? '')}
+                              onChange={(e) =>
+                                setEdits((prev) => ({ ...prev, [r.row_number]: e.target.value }))
+                              }
+                              placeholder="Add an address…"
+                              className={`w-44 rounded-md border bg-surface px-2 py-1 text-sm text-ink outline-none focus:border-penny ${
+                                hasAddress ? 'border-hairline' : 'border-red-400'
+                              }`}
+                            />
+                          </td>
                           <td className="px-3 py-2 text-ink-muted">{cell(r.data.buyer_name)}</td>
                           <td className="px-3 py-2 text-ink-muted">{cell(r.data.sale_price ?? r.data.list_price)}</td>
                           <td className="px-3 py-2 text-ink-muted">{cell(r.data.closing_date)}</td>
@@ -220,7 +339,7 @@ export default function ImportTransactions() {
 
               <div className="flex items-center justify-end gap-3">
                 <button
-                  onClick={() => { setPhase('upload'); setPreview(null); setResult(null) }}
+                  onClick={reset}
                   className="text-sm text-ink-muted hover:text-ink"
                 >
                   Choose a different file
@@ -240,22 +359,33 @@ export default function ImportTransactions() {
       )}
 
       {/* Done */}
-      {phase === 'done' && result && (
-        <div className="space-y-4 rounded-2xl border border-hairline bg-surface p-8 text-center">
-          <p className="text-lg font-semibold text-ink">
-            Imported {result.created} deal{result.created === 1 ? '' : 's'}.
+      {phase === 'done' && summary && (
+        <div className="space-y-4 rounded-2xl border border-hairline bg-surface p-8">
+          <p className="text-center text-lg font-semibold text-ink">
+            Imported {summary.created} of {summary.attempted} deal{summary.attempted === 1 ? '' : 's'}.
           </p>
-          {result.failed > 0 && (
-            <p className="text-sm text-red-500">{result.failed} row(s) failed to import.</p>
+
+          {summary.notImported.length > 0 && (
+            <div className="rounded-xl border border-hairline bg-surface-2 p-4">
+              <p className="text-sm font-medium text-ink">
+                {summary.notImported.length} couldn&apos;t be imported:
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-ink-muted">
+                {summary.notImported.map((n, i) => (
+                  <li key={i} className="flex justify-between gap-4">
+                    <span className="text-ink">{n.label}</span>
+                    <span className="text-right text-ink-subtle">{n.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
+
           <div className="flex justify-center gap-3">
             <button onClick={() => navigate('/dashboard')} className="btn-primary">
               Go to dashboard
             </button>
-            <button
-              onClick={() => { setPhase('upload'); setPreview(null); setResult(null); setIncludeDuplicates(false) }}
-              className="text-sm text-ink-muted hover:text-ink"
-            >
+            <button onClick={reset} className="text-sm text-ink-muted hover:text-ink">
               Import another file
             </button>
           </div>

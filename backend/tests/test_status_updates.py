@@ -67,3 +67,64 @@ def test_content_handles_empty_deal_gracefully():
     subject, html, plain = su.build_status_update_content(tx, [], [], [], "Acme", today)
     assert "Nothing outstanding" in plain
     assert "<ul>" not in html  # no upcoming/outstanding lists rendered
+
+
+# --------------------------------------------------------------------------- #
+# Staleness guard — what may auto-send when status-updates is autonomous.
+# --------------------------------------------------------------------------- #
+
+def _healthy_tx(today):
+    """A current-looking deal that should clear every guard."""
+    return {
+        "address": "123 Main St",
+        "stage": "under_contract",
+        "closing_date": (today + dt.timedelta(days=20)).isoformat(),
+        "last_activity_at": (today - dt.timedelta(days=1)).isoformat(),
+        "created_at": (today - dt.timedelta(days=30)).isoformat(),
+        "buyer_name": "Jane Buyer",
+        "seller_name": "John Seller",
+    }
+
+
+def test_blockers_empty_for_healthy_deal():
+    today = dt.date(2026, 6, 13)
+    assert su.status_update_blockers(_healthy_tx(today), today) == []
+
+
+def test_blockers_flag_past_closing_date():
+    today = dt.date(2026, 6, 13)
+    tx = _healthy_tx(today)
+    tx["closing_date"] = (today - dt.timedelta(days=3)).isoformat()
+    reasons = su.status_update_blockers(tx, today)
+    assert any("closing date" in r for r in reasons)
+
+
+def test_blockers_flag_missing_closing_date():
+    today = dt.date(2026, 6, 13)
+    tx = _healthy_tx(today)
+    tx["closing_date"] = None
+    assert any("no closing date" in r for r in su.status_update_blockers(tx, today))
+
+
+def test_blockers_flag_stale_deal():
+    today = dt.date(2026, 6, 13)
+    tx = _healthy_tx(today)
+    tx["last_activity_at"] = (today - dt.timedelta(days=su.STALE_DAYS + 1)).isoformat()
+    assert any("no activity" in r for r in su.status_update_blockers(tx, today))
+
+
+def test_blockers_flag_thin_record():
+    today = dt.date(2026, 6, 13)
+    tx = _healthy_tx(today)
+    tx["buyer_name"] = ""
+    tx["seller_name"] = ""
+    assert any("buyer and seller" in r for r in su.status_update_blockers(tx, today))
+
+
+def test_blockers_recent_activity_not_stale():
+    today = dt.date(2026, 6, 13)
+    tx = _healthy_tx(today)
+    # Missing last_activity_at falls back to created_at, which is recent enough.
+    tx["last_activity_at"] = None
+    tx["created_at"] = (today - dt.timedelta(days=su.STALE_DAYS - 1)).isoformat()
+    assert su.status_update_blockers(tx, today) == []
