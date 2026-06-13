@@ -5,12 +5,11 @@
 # `sync: false` (the secrets — never commit those). The Python version is pinned
 # by backend/.python-version.
 #
-# After the first deploy:
-#   1. Set VITE_API_BASE_URL on penny-web to "<penny-api URL>/api/v1" and
-#      redeploy the static site (Vite inlines it at build time).
-#   2. Set EXTRA_CORS_ORIGINS on penny-api to the penny-web URL.
-#   3. Set PUBLIC_BASE_URL on penny-api to its own public URL.
-# See DEPLOYMENT.md for the full checklist.
+# The public (non-secret) URLs below are pinned to the canonical poweredbypenny.com
+# hosts — api on api.poweredbypenny.com, app on app.poweredbypenny.com. Custom
+# domains are declared on the services (`domains:`); after a deploy, add the matching
+# DNS records the Render dashboard shows (CNAME app -> penny-web's onrender host).
+# See DEPLOYMENT.md sections 4b + 4c for the cutover checklist.
 
 services:
   # ---- Backend API (FastAPI) ----------------------------------------------
@@ -43,10 +42,13 @@ services:
         generateValue: true
       # This service's own public origin (consent links, absolute URLs).
       - key: PUBLIC_BASE_URL
-        sync: false
-      # Comma-separated extra CORS origins — set to the penny-web URL.
+        value: https://api.poweredbypenny.com
+      # Public origin of the frontend, for the calendar OAuth redirect-back.
+      - key: FRONTEND_BASE_URL
+        value: https://app.poweredbypenny.com
+      # Comma-separated extra CORS origins the browser app is served from.
       - key: EXTRA_CORS_ORIGINS
-        sync: false
+        value: https://app.poweredbypenny.com
       # --- AI (required for extraction, chat, compliance, doc generation) ---
       - key: ANTHROPIC_API_KEY
         sync: false
@@ -95,17 +97,22 @@ services:
         value: https://api.poweredbypenny.com/api/v1/cron/run-scans
 
   # ---- Frontend (static Vite build) ---------------------------------------
+  # Served at app.poweredbypenny.com. After the first deploy, add the CNAME the
+  # Render dashboard shows (penny-web > Settings > Custom Domains) at the registrar
+  # so the cert issues — see DEPLOYMENT.md section 4c.
   - type: web
     name: penny-web
     runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    domains:
+      - app.poweredbypenny.com
     envVars:
       # Point at the API's public origin + /api/v1. Vite inlines this at build
       # time, so changing it requires a redeploy of this static site.
       - key: VITE_API_BASE_URL
-        sync: false
+        value: https://api.poweredbypenny.com/api/v1
     routes:
       # SPA fallback — every path serves index.html so client-side routing works.
       - type: rewrite
