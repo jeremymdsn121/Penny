@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Penny — Font Comparison</title>
+    <!-- All four directions, served from Google Fonts for this throwaway preview -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --app: 11 13 18;
+        --surface: 20 22 29;
+        --surface-2: 27 30 39;
+        --surface-3: 35 39 50;
+        --content: 232 234 240;
+        --content-muted: 160 164 178;
+        --content-subtle: 107 112 128;
+        --hairline: 38 42 53;
+        --penny: 124 58 237;
+        --penny-bright: 167 139 250;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: rgb(var(--app));
+        color: rgb(var(--content));
+        -webkit-font-smoothing: antialiased;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        padding: 40px 24px 80px;
+      }
+
+      .page { max-width: 1180px; margin: 0 auto; }
+
+      .page-head { margin-bottom: 8px; }
+      .page-head h1 {
+        font-size: 26px; font-weight: 700; margin: 0 0 6px;
+      }
+      .page-head p {
+        margin: 0; color: rgb(var(--content-muted)); font-size: 14px; max-width: 640px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 22px;
+        margin-top: 32px;
+      }
+      @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+      .card {
+        border: 1px solid rgb(var(--hairline));
+        background: rgb(var(--surface));
+        border-radius: 16px;
+        padding: 26px 26px 28px;
+        box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.4);
+      }
+
+      .tag {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-family: ui-monospace, monospace;
+        font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+        color: rgb(var(--penny-bright));
+        background: rgb(var(--penny) / 0.12);
+        border: 1px solid rgb(var(--penny) / 0.3);
+        padding: 4px 10px; border-radius: 999px;
+        margin-bottom: 20px;
+      }
+      .tag b { color: rgb(var(--content)); font-weight: 600; font-family: inherit; }
+
+      .eyebrow {
+        font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: rgb(var(--content-subtle)); margin: 0 0 6px;
+      }
+      .h-hero { font-size: 30px; line-height: 1.15; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
+      .h-sub  { font-size: 16px; font-weight: 600; margin: 22px 0 8px; }
+      .body   { font-size: 14px; line-height: 1.6; color: rgb(var(--content-muted)); margin: 0; }
+
+      .stats {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 12px; margin: 22px 0 8px;
+      }
+      .stat {
+        border: 1px solid rgb(var(--hairline));
+        background: rgb(var(--surface-2));
+        border-radius: 12px; padding: 12px 14px;
+      }
+      .stat .label { font-size: 11px; color: rgb(var(--content-subtle)); margin-bottom: 4px; }
+      .stat .num {
+        font-size: 22px; font-weight: 600;
+        font-variant-numeric: tabular-nums; /* aligned numerals — the "designed" touch */
+      }
+
+      .row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 11px 0; border-top: 1px solid rgb(var(--hairline));
+        font-size: 14px;
+      }
+      .row:first-of-type { border-top: none; }
+      .row .meta { color: rgb(var(--content-subtle)); font-size: 13px; }
+      .row .val  { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+      .btn {
+        display: inline-block; margin-top: 18px;
+        background: rgb(var(--penny)); color: white;
+        font-size: 13px; font-weight: 500;
+        padding: 9px 16px; border-radius: 9px;
+      }
+
+      /* ---- Per-card font assignment ---- */
+      .f-geist    { font-family: 'Geist', sans-serif; }
+      .f-jakarta  { font-family: 'Plus Jakarta Sans', sans-serif; }
+      .f-inter    { font-family: 'Inter', sans-serif; }
+      .f-pair     { font-family: 'Inter', sans-serif; }
+      .f-pair .h-hero, .f-pair .h-sub, .f-pair .eyebrow { font-family: 'Sora', sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="page-head">
+        <h1>Penny — font comparison</h1>
+        <p>
+          Each card is the same UI rendered in a different typeface, in Penny's dark theme with the purple accent.
+          Numbers use tabular figures so columns align. Compare the hero heading, the body paragraph, and the
+          numeric panels (the parts you stare at most).
+        </p>
+      </div>
+
+      <div class="grid">
+        <!-- GEIST -->
+        <section class="card f-geist">
+          <span class="tag">Option 1 · <b>Geist</b></span>
+          <p class="eyebrow">Closing soon</p>
+          <h2 class="h-hero">412 Magnolia Drive</h2>
+          <p class="body">
+            Under contract and on track. Inspection contingency clears Friday; earnest money is confirmed
+            with the title company. Penny will chase the lender for the appraisal order.
+          </p>
+          <div class="stats">
+            <div class="stat"><div class="label">EMD</div><div class="num">$15,000</div></div>
+            <div class="stat"><div class="label">Close in</div><div class="num">4 days</div></div>
+            <div class="stat"><div class="label">Checklist</div><div class="num">87%</div></div>
+          </div>
+          <h3 class="h-sub">Upcoming deadlines</h3>
+          <div class="row"><span class="meta">Inspection objection</span><span class="val">06/20/2026</span></div>
+          <div class="row"><span class="meta">Appraisal due</span><span class="val">06/24/2026</span></div>
+          <div class="row"><span class="meta">Financing contingency</span><span class="val">06/28/2026</span></div>
+          <span class="btn">Draft status update</span>
+        </section>
+
+        <!-- PLUS JAKARTA SANS -->
+        <section class="card f-jakarta">
+          <span class="tag">Option 2 · <b>Plus Jakarta Sans</b></span>
+          <p class="eyebrow">Closing soon</p>
+          <h2 class="h-hero">412 Magnolia Drive</h2>
+          <p class="body">
+            Under contract and on track. Inspection contingency clears Friday; earnest money is confirmed
+            with the title company. Penny will chase the lender for the appraisal order.
+          </p>
+          <div class="stats">
+            <div class="stat"><div class="label">EMD</div><div class="num">$15,000</div></div>
+            <div class="stat"><div class="label">Close in</div><div class="num">4 days</div></div>
+            <div class="stat"><div class="label">Checklist</div><div class="num">87%</div></div>
+          </div>
+          <h3 class="h-sub">Upcoming deadlines</h3>
+          <div class="row"><span class="meta">Inspection objection</span><span class="val">06/20/2026</span></div>
+          <div class="row"><span class="meta">Appraisal due</span><span class="val">06/24/2026</span></div>
+          <div class="row"><span class="meta">Financing contingency</span><span class="val">06/28/2026</span></div>
+          <span class="btn">Draft status update</span>
+        </section>
+
+        <!-- INTER -->
+        <section class="card f-inter">
+          <span class="tag">Option 3 · <b>Inter</b></span>
+          <p class="eyebrow">Closing soon</p>
+          <h2 class="h-hero">412 Magnolia Drive</h2>
+          <p class="body">
+            Under contract and on track. Inspection contingency clears Friday; earnest money is confirmed
+            with the title company. Penny will chase the lender for the appraisal order.
+          </p>
+          <div class="stats">
+            <div class="stat"><div class="label">EMD</div><div class="num">$15,000</div></div>
+            <div class="stat"><div class="label">Close in</div><div class="num">4 days</div></div>
+            <div class="stat"><div class="label">Checklist</div><div class="num">87%</div></div>
+          </div>
+          <h3 class="h-sub">Upcoming deadlines</h3>
+          <div class="row"><span class="meta">Inspection objection</span><span class="val">06/20/2026</span></div>
+          <div class="row"><span class="meta">Appraisal due</span><span class="val">06/24/2026</span></div>
+          <div class="row"><span class="meta">Financing contingency</span><span class="val">06/28/2026</span></div>
+          <span class="btn">Draft status update</span>
+        </section>
+
+        <!-- SORA + INTER PAIRING -->
+        <section class="card f-pair">
+          <span class="tag">Option 4 · <b>Sora headings + Inter body</b></span>
+          <p class="eyebrow">Closing soon</p>
+          <h2 class="h-hero">412 Magnolia Drive</h2>
+          <p class="body">
+            Under contract and on track. Inspection contingency clears Friday; earnest money is confirmed
+            with the title company. Penny will chase the lender for the appraisal order.
+          </p>
+          <div class="stats">
+            <div class="stat"><div class="label">EMD</div><div class="num">$15,000</div></div>
+            <div class="stat"><div class="label">Close in</div><div class="num">4 days</div></div>
+            <div class="stat"><div class="label">Checklist</div><div class="num">87%</div></div>
+          </div>
+          <h3 class="h-sub">Upcoming deadlines</h3>
+          <div class="row"><span class="meta">Inspection objection</span><span class="val">06/20/2026</span></div>
+          <div class="row"><span class="meta">Appraisal due</span><span class="val">06/24/2026</span></div>
+          <div class="row"><span class="meta">Financing contingency</span><span class="val">06/28/2026</span></div>
+          <span class="btn">Draft status update</span>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>
