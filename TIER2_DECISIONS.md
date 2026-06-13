@@ -5,7 +5,7 @@ engineering work**. Both are framed below — question, current state, options, 
 recommendation. The engineering groundwork for the recommended path already exists in
 each case, so "decide and proceed" is the intent, not "build first."
 
-Last updated: 2026-06-13.
+Last updated: 2026-06-13. **Both decisions accepted (Option A) by Jeremy on 2026-06-13.**
 
 ---
 
@@ -46,6 +46,11 @@ the "test or redacted data during pilot" expectation; (3) kick off the SOC 2 rea
 assessment. Defer real NPI-at-scale (and the retention **enforcement** seam) until that
 readiness work is moving.
 
+> **DECIDED 2026-06-13 — Option A accepted.** Pilot posture: design partners under a
+> written DPA + Privacy Policy, test/redacted data only. The three business follow-ups
+> above (DPA + Privacy Policy, tester-guide data note, SOC 2 readiness) are tracked on
+> the business track in `BLOCKERS.md` HL6, not the engineering punch-list.
+
 ---
 
 ## 2. Multi-seat (one admin login per brokerage)
@@ -80,3 +85,8 @@ multi-seat until a partner asks for agent web logins; the existing `agents` /
 
 **Confirm for the pilot:** every test brokerage is fine with a single broker-in-charge
 login, and agents acting only through WhatsApp/SMS. If yes, this item is closed.
+
+> **DECIDED 2026-06-13 — Option A accepted.** Single broker-in-charge login per
+> brokerage for the pilot; agents stay on WhatsApp/SMS. No engineering work. Revisit
+> only if a design partner asks for agent web logins (the `agents` / `agent_channels` /
+> role-stamp groundwork makes it an incremental add).
