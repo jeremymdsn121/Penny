@@ -158,12 +158,15 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   `api.poweredbypenny.com/api/v1` and returned 200 (CORS + baked `VITE_API_BASE_URL` +
   auth all good); only console noise was a browser-extension message, nothing app-side.
   Runbook in `DEPLOYMENT.md` § 4c.
-- [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for
-  design partners with test data; have the explicit conversation before real client PII
-  at scale. See `BLOCKERS.md` HL6.
-- [ ] **Multi-seat decision** — `require_admin` is a no-op; one admin login per
-  brokerage. Confirm that's acceptable for testers (agents use WhatsApp/SMS, not logins)
-  or scope real multi-seat.
+- [x] **NPI / data posture** — DECIDED 2026-06-13 (Option A, `TIER2_DECISIONS.md` § 1):
+  onboard design partners under a written DPA + Privacy Policy, test/redacted data only;
+  defer NPI-at-scale to SOC 2 readiness. The business follow-ups (publish DPA + Privacy
+  Policy, tester-guide data note, start SOC 2 readiness) live on the business track in
+  `BLOCKERS.md` HL6 — not the engineering punch-list.
+- [x] **Multi-seat decision** — DECIDED 2026-06-13 (Option A, `TIER2_DECISIONS.md` § 2):
+  single broker-in-charge login per brokerage for the pilot; agents stay on WhatsApp/SMS.
+  No engineering work — `require_admin` is already wired for the eventual flip. Revisit
+  only if a partner needs agent web logins.
 
 ## ⏸ Deferred — explicitly out of tester scope (behind seams)
 
