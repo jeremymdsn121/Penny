@@ -281,6 +281,86 @@ async def import_commit(
     return {"created": created, "failed": failed}
 
 
+# --------------------------------------------------------------------------- #
+# Export — round-trip the working data out so a brokerage can keep its mandated
+# compliance platform (SkySlope / Dotloop) as the file of record without
+# double-keying. Three CSVs: deals (re-imports into Penny), the activity trail,
+# and a document manifest. Declared before /{transaction_id} so "export" isn't
+# captured as an id.
+# --------------------------------------------------------------------------- #
+
+def _csv_response(content: str, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export")
+async def export_transactions(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> Response:
+    """All deals as a CSV using Penny's own import headers (round-trips back in,
+    and feeds a compliance platform)."""
+    txs = await sb.list_transactions(brokerage["id"])
+    pct = await compliance_checklist.pct_for_transactions([t["id"] for t in txs])
+    return _csv_response(
+        csv_import.export_transactions_csv(txs, pct), "penny-transactions.csv"
+    )
+
+
+@router.get("/export/activity")
+async def export_activity(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> Response:
+    """The merged activity trail across every deal, one event per row."""
+    txs = await sb.list_transactions(brokerage["id"])
+    ids = [t["id"] for t in txs]
+    address_by_id = {t["id"]: (t.get("address") or "(no address)") for t in txs}
+
+    async def _safe(coro):
+        try:
+            return await coro
+        except sb.SupabaseError:
+            return []
+
+    events = await _safe(sb.list_transaction_events_in(ids))
+    emails = await _safe(sb.list_transaction_emails_in(ids))
+    delivery = await _safe(sb.list_delivery_events_in(ids))
+    appointments = await _safe(sb.list_appointments_in(ids))
+
+    # Group each source by transaction, build a per-deal timeline, tag the
+    # address, and concatenate newest-first.
+    def _by_tx(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            grouped.setdefault(r.get("transaction_id"), []).append(r)
+        return grouped
+
+    ev_g, em_g, dl_g, ap_g = _by_tx(events), _by_tx(emails), _by_tx(delivery), _by_tx(appointments)
+    out_rows: list[dict[str, Any]] = []
+    for tx_id in ids:
+        timeline = activity.build_timeline(
+            events=ev_g.get(tx_id, []), emails=em_g.get(tx_id, []),
+            delivery=dl_g.get(tx_id, []), appointments=ap_g.get(tx_id, []),
+        )
+        for entry in timeline:
+            out_rows.append({"address": address_by_id.get(tx_id), **entry})
+    out_rows.sort(key=lambda r: r.get("at") or "", reverse=True)
+    return _csv_response(csv_import.export_activity_csv(out_rows), "penny-activity.csv")
+
+
+@router.get("/export/documents")
+async def export_documents(
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> Response:
+    """A manifest of the documents Penny holds per deal (type + link)."""
+    txs = await sb.list_transactions(brokerage["id"])
+    rows = csv_import.document_manifest_rows(txs)
+    return _csv_response(csv_import.export_documents_csv(rows), "penny-documents.csv")
+
+
 @router.get("/{transaction_id}")
 async def get_one(
     transaction_id: str,

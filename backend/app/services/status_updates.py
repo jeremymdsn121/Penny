@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 CADENCE_DAYS = 7
 ACTIVE_STAGES = ("under_contract", "pending")
 
+# A deterministic auto-send is only as trustworthy as the deal record behind it.
+# Before Penny mails parties on her own (the `status-updates` task is autonomous),
+# these guards catch the records most likely to be stale or wrong, so she never
+# sends e.g. a "on track to close" note off a deal whose closing date has already
+# passed. A blocked deal is queued for the agent instead, with the reason — the
+# difference between "Penny emailed my seller the wrong date" and "Penny flagged
+# this deal looks stale before sending."
+STALE_DAYS = 14
+
 _STAGE_LABELS = {
     "under_contract": "under contract",
     "pending": "pending (clear to close)",
@@ -69,6 +78,41 @@ def status_update_due(
     if last is None:
         return True
     return (today - last).days >= cadence_days
+
+
+def status_update_blockers(
+    tx: dict[str, Any], today: date, stale_days: int = STALE_DAYS
+) -> list[str]:
+    """Reasons an *autonomous* status update should be held for a human instead.
+
+    Pure and deterministic (no model, no I/O). Returns a list of plain-language
+    reasons; an empty list means the record looks current enough to auto-send.
+    The non-autonomous path doesn't use this — those already go to a human — so
+    the guard only ever turns an auto-send into a queued-for-review draft, never
+    blocks a send a person explicitly confirmed.
+    """
+    reasons: list[str] = []
+
+    closing = _parse_date(tx.get("closing_date"))
+    if closing is None:
+        reasons.append("no closing date is on file")
+    elif closing < today:
+        reasons.append(
+            f"the closing date ({closing.strftime('%b %d')}) has already passed "
+            "but the deal is still active"
+        )
+
+    # Stage gone quiet — the record probably hasn't kept pace with the deal.
+    last_activity = _parse_date(tx.get("last_activity_at")) or _parse_date(tx.get("created_at"))
+    if last_activity is not None and (today - last_activity).days >= stale_days:
+        reasons.append(f"no activity on the deal in {(today - last_activity).days} days")
+
+    # Thin record — a real deal has both sides; missing them means we'd be
+    # mailing a half-built party list.
+    if not (tx.get("buyer_name") or "").strip() and not (tx.get("seller_name") or "").strip():
+        reasons.append("the deal is missing both buyer and seller details")
+
+    return reasons
 
 
 # --------------------------------------------------------------------------- #
@@ -235,13 +279,28 @@ async def compose_status_update(
     return await _gather_deal_context(tx, brokerage_name, today or date.today())
 
 
-async def _nudge_agent(tx: dict[str, Any], contacts: list[dict[str, Any]]) -> None:
-    """WhatsApp the deal's agent that a status update is waiting for approval."""
+async def _nudge_agent(
+    tx: dict[str, Any], contacts: list[dict[str, Any]], blockers: list[str] | None = None
+) -> None:
+    """WhatsApp the deal's agent that a status update is waiting for approval.
+
+    When ``blockers`` is given, the update would have auto-sent but Penny held it
+    because the record looks stale — the nudge says why so the agent can fix the
+    record (or send anyway) rather than wondering what happened.
+    """
     address = tx.get("address") or "a transaction"
-    msg = (
-        f"📋 Status update ready for {address}.\n"
-        "Review and send it to the parties from the Penny dashboard (Communications)."
-    )
+    if blockers:
+        why = blockers[0] if len(blockers) == 1 else "; ".join(blockers)
+        msg = (
+            f"📋 I held the status update for {address} — {why}. "
+            "Take a look in the Penny dashboard (Communications): fix the deal and "
+            "send, or send it as-is."
+        )
+    else:
+        msg = (
+            f"📋 Status update ready for {address}.\n"
+            "Review and send it to the parties from the Penny dashboard (Communications)."
+        )
     agent_id = tx.get("agent_id")
     recipients = (
         [c for c in contacts if c.get("agent_id") == agent_id] if agent_id else contacts
@@ -325,7 +384,11 @@ async def run_status_updates(brokerage_id: str) -> dict[str, Any]:
             # email is added.
             continue
 
-        if autonomous:
+        # Staleness guard: even when autonomous, hold an auto-send off a record
+        # that looks out of date and route it to the agent instead.
+        blockers = status_update_blockers(tx, today) if autonomous else []
+
+        if autonomous and not blockers:
             # Claim BEFORE sending so a crash can't re-send to outside parties.
             try:
                 await sb.update_transaction(brokerage_id, tx["id"], {"last_status_update_at": now_iso})
@@ -376,9 +439,10 @@ async def run_status_updates(brokerage_id: str) -> dict[str, Any]:
                 await sb.update_transaction(brokerage_id, tx["id"], {"last_status_update_at": now_iso})
             except sb.SupabaseError:
                 pass
-            await _nudge_agent(tx, contacts)
+            await _nudge_agent(tx, contacts, blockers=blockers or None)
             items.append({"transaction_id": tx["id"], "address": tx.get("address"),
-                          "action": "queued", "recipients": emails})
+                          "action": "held_stale" if blockers else "queued",
+                          "reasons": blockers, "recipients": emails})
 
     return {"processed": len(items), "items": items}
 

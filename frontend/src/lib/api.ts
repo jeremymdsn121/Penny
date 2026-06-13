@@ -73,6 +73,23 @@ api.interceptors.response.use(
   },
 )
 
+// Fetch a CSV from an authed endpoint and trigger a browser download. Shared by
+// the import template and the export endpoints (blob downloads can't go through
+// axios cleanly).
+async function downloadCsv(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  })
+  if (!res.ok) throw new Error('Download failed')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export interface Brokerage {
   id: string
   name: string
@@ -475,19 +492,17 @@ export const transactionsApi = {
   },
   importCommit: (rows: Record<string, unknown>[]) =>
     api.post<ImportResult>('/transactions/import', { rows }).then((r) => r.data),
-  downloadTemplate: async () => {
-    const res = await fetch(`${API_BASE}/transactions/import/template`, {
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-    })
-    if (!res.ok) throw new Error('Could not download template')
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'penny-transactions-template.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  },
+  downloadTemplate: () =>
+    downloadCsv('/transactions/import/template', 'penny-transactions-template.csv'),
+
+  // CSV export — round-trip the working data out for a compliance platform of
+  // record (SkySlope / Dotloop) without double-keying.
+  exportTransactions: () =>
+    downloadCsv('/transactions/export', 'penny-transactions.csv'),
+  exportActivity: () =>
+    downloadCsv('/transactions/export/activity', 'penny-activity.csv'),
+  exportDocuments: () =>
+    downloadCsv('/transactions/export/documents', 'penny-documents.csv'),
   draftDocument: (
     id: string,
     data: { doc_type: string; recipient?: string; instructions?: string },
@@ -823,6 +838,7 @@ export interface ReviewQueue {
   overdue_deadlines: ReviewItem[]
   emd_overdue: ReviewItem[]
   stale_transactions: ReviewItem[]
+  needs_agent_routing: ReviewItem[]
   total: number
 }
 
