@@ -19,7 +19,11 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   .venv/bin/python -m pip install --upgrade pip >/dev/null
   .venv/bin/python -m pip install -r requirements.txt
   cd "$ROOT/frontend"
-  npm install
+  # Use `npm ci` (not `npm install`): it installs strictly from the lockfile and
+  # never rewrites it, so a differing local npm version can't re-format
+  # package-lock.json and leave the tree dirty every session. Falls back to
+  # `npm install` only if the lockfile is genuinely out of sync.
+  npm ci || npm install
   echo "session-start: backend + frontend dependencies installed"
   exit 0
 fi
