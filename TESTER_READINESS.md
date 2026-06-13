@@ -141,20 +141,23 @@ responses cover most of it, and the real UI is spot-checked in normal use.
 
 ## Tier 2 — Production hardening before real client NPI
 
-- [x] **Unattended cron actually scheduled** — DONE 2026-06-12. Added the
-  `penny-cron-scans` Render Cron Job to `render.yaml` (every 15 min,
-  `backend/scripts/run_cron_scans.py` → `POST /api/v1/cron/run-scans`); it pulls
-  `CRON_SECRET` from `penny-api` via `fromService` so the generated value matches
-  on both sides. **Remaining:** apply the blueprint in Render (re-sync) so the cron
-  service is actually created on the deployed account, then confirm one run logs a
-  200 + idempotent summary. Reminders + scheduled-reply resurfacing no longer depend
-  on the dashboard dev buttons once that's live.
-- [ ] **Frontend custom domain** — move the browser app to `app.poweredbypenny.com`.
-  Code prep done 2026-06-13: `render.yaml` declares the domain on `penny-web` and pins
-  the public URLs (`VITE_API_BASE_URL`, plus `penny-api`'s `EXTRA_CORS_ORIGINS` /
-  `FRONTEND_BASE_URL` → the app origin). **Remaining (dashboard/DNS):** add the custom
-  domain in Render + the `CNAME`, redeploy penny-web, and add the origin to Supabase
-  Auth's URL allowlist. Step-by-step in `DEPLOYMENT.md` § 4c.
+- [x] **Unattended cron actually scheduled** — DONE + VERIFIED LIVE 2026-06-13. The
+  `penny-cron-scans` Render Cron Job (every 15 min, `backend/scripts/run_cron_scans.py`
+  → `POST /api/v1/cron/run-scans`) pulls `CRON_SECRET` from `penny-api` via `fromService`
+  so the generated value matches on both sides. **Verified** in the Render logs: back-to-
+  back scheduled runs (08:15 / 08:30) each returned `200` with
+  `{"ok":true,"brokerages":4,...,"errors":[]}` and finished successfully — confirms the
+  schedule, the secret wiring, the per-brokerage loop, and idempotency. Reminders +
+  scheduled-reply resurfacing no longer depend on the dashboard dev buttons.
+- [x] **Frontend custom domain** — DONE 2026-06-13. Browser app live on
+  `app.poweredbypenny.com` (Render custom domain + cert; CNAME at Porkbun; penny-web
+  redeployed). `render.yaml` declares the domain on `penny-web` and pins the public URLs
+  (`VITE_API_BASE_URL`, plus `penny-api`'s `EXTRA_CORS_ORIGINS` / `FRONTEND_BASE_URL` →
+  the app origin); Supabase Auth Site URL set to the new host. **Verified live** in the
+  browser: dashboard loaded, `transactions` + `review-queue` XHRs hit
+  `api.poweredbypenny.com/api/v1` and returned 200 (CORS + baked `VITE_API_BASE_URL` +
+  auth all good); only console noise was a browser-extension message, nothing app-side.
+  Runbook in `DEPLOYMENT.md` § 4c.
 - [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for
   design partners with test data; have the explicit conversation before real client PII
   at scale. See `BLOCKERS.md` HL6.
