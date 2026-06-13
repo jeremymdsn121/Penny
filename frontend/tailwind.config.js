@@ -4,6 +4,22 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        // Geist leads so digits/$/% resolve to it (unicode-range @font-face in
+        // index.css); everything else falls through to Plus Jakarta Sans.
+        sans: [
+          'Geist',
+          'Plus Jakarta Sans',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
+      },
       colors: {
         penny: {
           DEFAULT: '#7C3AED',
