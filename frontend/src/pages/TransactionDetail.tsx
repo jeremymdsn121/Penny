@@ -1157,6 +1157,12 @@ export default function TransactionDetail() {
 
             {proposal && (
               <div className="mt-5 border-t border-hairline pt-5">
+                {proposal.calendar_unavailable && (
+                  <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    I couldn’t reach the connected calendar just now, so these times may not
+                    account for events on it. Try again in a moment before booking.
+                  </p>
+                )}
                 {proposal.slots.length === 0 ? (
                   <p className="text-sm text-ink-subtle">
                     No open times in your working hours over the next week.

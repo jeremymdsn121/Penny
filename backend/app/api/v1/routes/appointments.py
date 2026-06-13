@@ -140,9 +140,10 @@ async def _busy_intervals(
     account: dict[str, Any] | None,
     start: datetime,
     end: datetime,
-):
+) -> tuple[list[tuple[datetime, datetime]], bool]:
     """Existing local appointments (padded to a default duration) + the resolved
-    calendar's busy times."""
+    calendar's busy times. The bool is False when a connected calendar couldn't be
+    read — the caller surfaces that so slots aren't trusted as conflict-free."""
     txs = await sb.list_transactions(brokerage["id"])
     appts = await sb.list_appointments_in([t["id"] for t in txs])
     busy: list[tuple[datetime, datetime]] = []
@@ -155,8 +156,9 @@ async def _busy_intervals(
         except ValueError:
             continue
         busy.append((b_start, b_start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)))
-    busy.extend(await calendar_provider.get_busy(account, start, end))
-    return busy
+    cal_busy, cal_ok = await calendar_provider.get_busy_checked(account, start, end)
+    busy.extend(cal_busy)
+    return busy, cal_ok
 
 
 async def _sync_event_update(
@@ -209,7 +211,7 @@ async def propose(
     window_end = datetime.combine(
         start_day + timedelta(days=max(1, body.days)), datetime.min.time(), tzinfo=tz
     )
-    busy = await _busy_intervals(brokerage, account, now, window_end)
+    busy, cal_ok = await _busy_intervals(brokerage, account, now, window_end)
     slots = scheduling.propose_slots(
         work_start=work_start,
         work_end=work_end,
@@ -225,6 +227,9 @@ async def propose(
         "timezone": tz.key,
         "duration_minutes": body.duration_minutes,
         "calendar": calendar_provider.account_status(account),
+        # True only when a connected calendar couldn't be read — the UI warns that
+        # these slots may not account for real events.
+        "calendar_unavailable": account is not None and not cal_ok,
         "slots": [s.isoformat() for s in slots],
     }
 

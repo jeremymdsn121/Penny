@@ -331,9 +331,12 @@ _TOOLS: list[dict[str, Any]] = [
         "name": "propose_showing_times",
         "description": (
             "Propose open appointment times for a transaction based on the "
-            "brokerage's working hours and buffer, avoiding existing appointments. "
-            "Use this when the agent wants to schedule a showing or inspection. "
-            "Read-only — it suggests times but books nothing."
+            "working hours and buffer, avoiding existing appointments and the "
+            "connected calendar's busy times. Use this when the agent wants to "
+            "schedule a showing or inspection. To target a specific day the agent "
+            "names ('Monday', 'tomorrow', 'the 18th'), compute that calendar date "
+            "from today's date and pass it as start_date. Read-only — it suggests "
+            "times but books nothing."
         ),
         "input_schema": {
             "type": "object",
@@ -342,9 +345,19 @@ _TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Part of the property address to identify the transaction.",
                 },
+                "start_date": {
+                    "type": "string",
+                    "description": (
+                        "Day to start from, YYYY-MM-DD. Use this to target a specific "
+                        "day (compute it from today's date). Defaults to today."
+                    ),
+                },
                 "days": {
                     "type": "integer",
-                    "description": "How many days ahead to search (default 5).",
+                    "description": (
+                        "How many days from start_date to search. Defaults to 1 when "
+                        "start_date is given (just that day), else 5."
+                    ),
                 },
             },
             "required": ["address_query"],
@@ -1183,12 +1196,19 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
     brokerage = await sb.get_brokerage(brokerage_id) or {}
     tz = scheduling.resolve_timezone(brokerage.get("state"))
     now = datetime.now(tz)
-    days = int(inputs.get("days") or 5)
+    # Target day: a named day ('Monday') is passed as start_date; default today.
+    start_raw = inputs.get("start_date")
+    start_day = now.date()
+    if start_raw:
+        try:
+            start_day = datetime.strptime(str(start_raw), "%Y-%m-%d").date()
+        except ValueError:
+            start_day = now.date()
+    days = int(inputs.get("days") or (1 if start_raw else 5))
     busy = await _brokerage_busy(brokerage_id)
-    # Merge the connected Google calendar's busy times, like the web propose
-    # endpoint — otherwise Penny proposes (and then books) over real events.
-    # Same account routing as booking: the deal's agent if connected, else the
-    # brokerage. get_busy degrades to [] when nothing is connected or it errors.
+    # Merge the connected calendar's busy times — otherwise Penny proposes (and
+    # then books) over real events. Same account routing as booking: the deal's
+    # agent if connected, else the brokerage.
     cal_agent = None
     if tx.get("agent_id"):
         try:
@@ -1199,26 +1219,40 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
     # The deal's agent overrides the brokerage's working hours/buffer when set.
     work_start, work_end, buffer_minutes = scheduling.resolve_working_hours(brokerage, cal_agent)
     window_end = datetime.combine(
-        now.date() + timedelta(days=days), datetime.min.time(), tzinfo=tz
+        start_day + timedelta(days=days), datetime.min.time(), tzinfo=tz
     )
-    busy.extend(await calendar_provider.get_busy(account, now, window_end))
+    cal_busy, cal_ok = await calendar_provider.get_busy_checked(account, now, window_end)
+    # A connected calendar we couldn't read must NOT be treated as "free" — that's
+    # how Penny ends up proposing over a real event. Stop and say so instead.
+    if account and not cal_ok:
+        return (
+            f"I couldn't reach your connected calendar just now to check availability "
+            f"for {tx.get('address', 'this property')}, so I don't want to propose times "
+            f"that might clash with something on it. Want me to try again in a moment?"
+        )
+    busy.extend(cal_busy)
     slots = scheduling.propose_slots(
         work_start=work_start,
         work_end=work_end,
         buffer_minutes=buffer_minutes,
         tz=tz,
-        start_day=now.date(),
+        start_day=start_day,
         days=days,
         busy=busy,
         now=now,
         max_slots=6,
     )
+    span = (
+        f"on {start_day.strftime('%A, %b %d')}"
+        if days == 1
+        else f"in the {days} days from {start_day.strftime('%b %d')}"
+    )
     if not slots:
         return (
-            f"I couldn't find open times for {tx.get('address', 'this property')} in "
-            "your working hours over that range."
+            f"I couldn't find open times for {tx.get('address', 'this property')} "
+            f"{span} within your working hours."
         )
-    lines = [f"Open times for {tx.get('address', 'this property')} ({tz.key}):"]
+    lines = [f"Open times for {tx.get('address', 'this property')} {span} ({tz.key}):"]
     lines += [f"- {_fmt_slot(s)}" for s in slots]
     lines.append("Tell me which one to book and I'll schedule it once you confirm.")
     return "\n".join(lines)
@@ -1401,11 +1435,17 @@ async def _exec_list_appointments(brokerage_id: str, inputs: dict) -> str:
 
 
 async def _exec_get_upcoming_appointments(brokerage_id: str, inputs: dict) -> str:
+    brokerage = await sb.get_brokerage(brokerage_id) or {}
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
+    now = datetime.now(tz)
+    window_end = now + timedelta(days=14)
+
+    # (sort_key, display_line) — Penny-booked appointments + connected-calendar events.
+    items: list[tuple[datetime, str]] = []
+
     txs = await sb.list_transactions(brokerage_id)
     addr_by_id = {t["id"]: (t.get("address") or "a property") for t in txs}
     appts = await sb.list_appointments_in(list(addr_by_id.keys())) if addr_by_id else []
-    now = datetime.now(timezone.utc)
-    upcoming: list[tuple[datetime, dict]] = []
     for a in appts:
         when = a.get("scheduled_at")
         if not when:
@@ -1418,19 +1458,55 @@ async def _exec_get_upcoming_appointments(brokerage_id: str, inputs: dict) -> st
             dt = dt.replace(tzinfo=timezone.utc)
         if dt < now:
             continue
-        upcoming.append((dt, a))
-    if not upcoming:
-        return (
-            "Nothing coming up on the calendar. You have no future appointments booked "
-            "right now. Want me to propose showing times for one of your deals?"
-        )
-    upcoming.sort(key=lambda x: x[0])
-    lines = ["Here's what's coming up:"]
-    for dt, a in upcoming[:15]:
         addr = addr_by_id.get(a.get("transaction_id"), "a property")
         label = (a.get("type") or "appointment").replace("_", " ")
-        lines.append(f"- {_fmt_slot(dt)}: {label} at {addr}")
-    return "\n".join(lines)
+        items.append((dt, f"{_fmt_slot(dt.astimezone(tz))}: {label} at {addr}"))
+
+    # The agent's own calendar isn't resolvable from a general "my schedule"
+    # question (no deal in context), so read the brokerage calendar.
+    account = calendar_provider.resolve_account(brokerage, None)
+    events, cal_ok = await calendar_provider.list_events(account, now, window_end)
+    today = now.date()
+    for ev in events:
+        raw = ev.get("start")
+        try:
+            if ev.get("all_day"):
+                d = date.fromisoformat(str(raw)[:10])
+                if d < today:
+                    continue
+                items.append(
+                    (
+                        datetime.combine(d, datetime.min.time(), tzinfo=tz),
+                        f"{d.strftime('%a %b %d')} (all day): {ev.get('summary')}",
+                    )
+                )
+            else:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if dt < now:
+                    continue
+                items.append(
+                    (dt, f"{_fmt_slot(dt.astimezone(tz))}: {ev.get('summary')} (calendar)")
+                )
+        except ValueError:
+            continue
+
+    cal_note = ""
+    if account and not cal_ok:
+        cal_note = (
+            "\n(Heads up: I couldn't reach your connected calendar just now, so this "
+            "may be missing events on it.)"
+        )
+
+    if not items:
+        return (
+            "Nothing coming up — no booked appointments, and your connected calendar is "
+            "clear over the next two weeks. Want me to propose showing times for one of "
+            "your deals?" + cal_note
+        )
+    items.sort(key=lambda x: x[0])
+    lines = [f"Here's what's coming up ({tz.key}):"]
+    lines += [f"- {line}" for _, line in items[:15]]
+    return "\n".join(lines) + cal_note
 
 
 _DONE_CHECKLIST = {"complete", "waived", "not_applicable"}

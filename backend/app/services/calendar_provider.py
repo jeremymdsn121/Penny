@@ -240,15 +240,20 @@ def _auth_headers(access_token: str) -> dict[str, str]:
 
 
 # --- Calendar operations --------------------------------------------------- #
-async def get_busy(
+async def get_busy_checked(
     account: dict[str, Any] | None, start: datetime, end: datetime
-) -> list[tuple[datetime, datetime]]:
-    """Busy intervals from the account's primary calendar. ``[]`` if no account."""
+) -> tuple[list[tuple[datetime, datetime]], bool]:
+    """Busy intervals from the account's primary calendar, plus an ``ok`` flag.
+
+    ``ok`` is False only when a *connected* calendar couldn't be read (dead token,
+    HTTP error, timeout) — callers should then avoid implying the user is free.
+    No connected account returns ``([], True)``: nothing to read is not an error.
+    """
     if not account:
-        return []
+        return [], True
     access = await _access_token(account)
     if not access:
-        return []
+        return [], False
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
@@ -262,7 +267,7 @@ async def get_busy(
             )
         if resp.status_code >= 400:
             print(f"[calendar] freeBusy failed: {resp.status_code} {resp.text}")
-            return []
+            return [], False
         cal = (resp.json().get("calendars") or {}).get("primary") or {}
         out: list[tuple[datetime, datetime]] = []
         for b in cal.get("busy", []):
@@ -272,10 +277,73 @@ async def get_busy(
             except (KeyError, ValueError):
                 continue
             out.append((bs, be))
-        return out
+        return out, True
     except Exception as exc:  # noqa: BLE001
         print(f"[calendar] freeBusy error: {exc!r}")
-        return []
+        return [], False
+
+
+async def get_busy(
+    account: dict[str, Any] | None, start: datetime, end: datetime
+) -> list[tuple[datetime, datetime]]:
+    """Busy intervals only (back-compat). ``[]`` on no account or any error."""
+    busy, _ = await get_busy_checked(account, start, end)
+    return busy
+
+
+async def list_events(
+    account: dict[str, Any] | None, start: datetime, end: datetime
+) -> tuple[list[dict[str, Any]], bool]:
+    """Actual events (with titles) on the primary calendar in ``[start, end)``.
+
+    Each event: ``{summary, all_day, start, end}`` (start/end are raw ISO strings —
+    a dateTime for timed events, a date for all-day). ``ok`` mirrors
+    :func:`get_busy_checked`. Used for "what's on my schedule", where free/busy
+    intervals (no titles) aren't enough.
+    """
+    if not account:
+        return [], True
+    access = await _access_token(account)
+    if not access:
+        return [], False
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{_CAL_BASE}/calendars/primary/events",
+                headers=_auth_headers(access),
+                params={
+                    "timeMin": start.isoformat(),
+                    "timeMax": end.isoformat(),
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                    "maxResults": "50",
+                },
+            )
+        if resp.status_code >= 400:
+            print(f"[calendar] events.list failed: {resp.status_code} {resp.text}")
+            return [], False
+        out: list[dict[str, Any]] = []
+        for it in resp.json().get("items", []):
+            if it.get("status") == "cancelled":
+                continue
+            s = it.get("start") or {}
+            e = it.get("end") or {}
+            all_day = "date" in s and "dateTime" not in s
+            start_raw = s.get("dateTime") or s.get("date")
+            if not start_raw:
+                continue
+            out.append(
+                {
+                    "summary": it.get("summary") or "(busy)",
+                    "all_day": all_day,
+                    "start": start_raw,
+                    "end": e.get("dateTime") or e.get("date"),
+                }
+            )
+        return out, True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[calendar] events.list error: {exc!r}")
+        return [], False
 
 
 def _event_body(

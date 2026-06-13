@@ -975,6 +975,8 @@ export interface ProposeResult {
   timezone: string
   duration_minutes: number
   calendar: { provider: string | null; connected: boolean; owner: 'agent' | 'brokerage' | null }
+  // True when a connected calendar couldn't be read, so slots may clash with real events.
+  calendar_unavailable?: boolean
   slots: string[]
 }
 
