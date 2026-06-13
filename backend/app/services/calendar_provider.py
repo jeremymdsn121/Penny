@@ -144,10 +144,15 @@ async def exchange_code(code: str, redirect_uri: str) -> dict[str, Any] | None:
         return None
 
 
-async def _refresh(token: dict[str, Any]) -> dict[str, Any] | None:
+async def _refresh(token: dict[str, Any]) -> tuple[dict[str, Any] | None, bool]:
+    """Refresh an access token. Returns ``(new_token | None, dead)`` where ``dead``
+    means the refresh token is permanently unusable (revoked/expired/missing) and
+    the user must reconnect — as opposed to a transient network/5xx hiccup."""
+    if not oauth_configured():
+        return None, False  # server misconfig, not the user's connection
     refresh_token = (token or {}).get("refresh_token")
-    if not refresh_token or not oauth_configured():
-        return None
+    if not refresh_token:
+        return None, True  # nothing to refresh with → reconnect needed
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
@@ -161,11 +166,13 @@ async def _refresh(token: dict[str, Any]) -> dict[str, Any] | None:
             )
         if resp.status_code >= 400:
             print(f"[calendar] refresh failed: {resp.status_code} {resp.text}")
-            return None
-        return _token_from_response(resp.json(), prior=token)
+            # invalid_grant = the refresh token is revoked/expired → reconnect.
+            dead = resp.status_code == 400 and "invalid_grant" in resp.text
+            return None, dead
+        return _token_from_response(resp.json(), prior=token), False
     except Exception as exc:  # noqa: BLE001
         print(f"[calendar] refresh error: {exc!r}")
-        return None
+        return None, False  # transient — don't flag the connection
 
 
 # --- Account resolution ---------------------------------------------------- #
@@ -220,18 +227,32 @@ async def _persist_token(account: dict[str, Any], token: dict[str, Any]) -> None
         print(f"[calendar] could not persist refreshed token: {exc!r}")
 
 
+async def _flag_reconnect(account: dict[str, Any]) -> None:
+    """Persist an ``invalid`` marker on the token so status shows 'reconnect
+    needed'. Cleared automatically when a fresh token is stored on reconnect."""
+    token = dict(account.get("token") or {})
+    if token.get("invalid"):
+        return
+    token["invalid"] = True
+    account["token"] = token
+    await _persist_token(account, token)
+
+
 async def _access_token(account: dict[str, Any]) -> str | None:
     """A live access token for this account, refreshing + persisting if expired."""
     token = account.get("token") or {}
     if token.get("expiry", 0) - _SKEW_SECONDS > time.time():
         return token.get("access_token")
-    refreshed = await _refresh(token)
+    refreshed, dead = await _refresh(token)
     if refreshed:
         account["token"] = refreshed
         await _persist_token(account, refreshed)
         return refreshed.get("access_token")
-    # Refresh failed (revoked / no refresh token) — try the existing token; if
-    # it's dead the API call below will just fail and degrade gracefully.
+    if dead:
+        # The refresh token is revoked/expired — flag for reconnect and stop.
+        await _flag_reconnect(account)
+        return None
+    # Transient failure — try the existing token; the call may still work.
     return token.get("access_token")
 
 
@@ -451,6 +472,12 @@ async def delete_event(account: dict[str, Any] | None, event_id: str) -> bool:
 
 
 # --- Status reporting ------------------------------------------------------ #
+def _needs_reconnect(holder: dict[str, Any] | None) -> bool:
+    """A connected calendar whose token went bad (flagged in :func:`_flag_reconnect`)."""
+    token = (holder or {}).get("google_calendar_token")
+    return bool(isinstance(token, dict) and token.get("access_token") and token.get("invalid"))
+
+
 def status(brokerage: dict[str, Any]) -> dict[str, Any]:
     """Brokerage-level calendar status (used in the propose response)."""
     token = _google_token(brokerage)
@@ -458,6 +485,7 @@ def status(brokerage: dict[str, Any]) -> dict[str, Any]:
         "provider": brokerage.get("calendar_provider"),
         "connected": bool(token),
         "sync_enabled": bool(token) and oauth_configured(),
+        "needs_reconnect": _needs_reconnect(brokerage),
     }
 
 
@@ -469,6 +497,7 @@ def agent_status(agent: dict[str, Any]) -> dict[str, Any]:
         "email": agent.get("email"),
         "provider": agent.get("calendar_provider"),
         "connected": bool(token),
+        "needs_reconnect": _needs_reconnect(agent),
         # Per-agent working-hours override (NULL = inherit the brokerage's).
         "work_start": agent.get("work_start"),
         "work_end": agent.get("work_end"),

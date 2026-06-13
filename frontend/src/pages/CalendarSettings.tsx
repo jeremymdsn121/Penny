@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, Check, Clock, Copy, Link2 } from 'lucide-react'
+import { AlertTriangle, Calendar, Check, Clock, Copy, Link2 } from 'lucide-react'
 import {
   calendarApi,
   type CalendarAgentStatus,
@@ -215,9 +215,24 @@ export default function CalendarSettings() {
               </div>
               {status?.brokerage.connected ? (
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
-                    <Check size={16} /> Connected
-                  </span>
+                  {status.brokerage.needs_reconnect ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600">
+                        <AlertTriangle size={16} /> Reconnect needed
+                      </span>
+                      <button
+                        onClick={() => connect()}
+                        disabled={!configured || busy === 'brokerage'}
+                        className="text-sm font-medium text-penny hover:text-penny-dark"
+                      >
+                        {busy === 'brokerage' ? 'Reconnecting…' : 'Reconnect'}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+                      <Check size={16} /> Connected
+                    </span>
+                  )}
                   <button
                     onClick={() => disconnect()}
                     disabled={busy === 'brokerage'}
@@ -258,9 +273,24 @@ export default function CalendarSettings() {
                     </div>
                     {a.connected ? (
                       <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
-                          <Check size={16} /> Connected
-                        </span>
+                        {a.needs_reconnect ? (
+                          <>
+                            <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600">
+                              <AlertTriangle size={16} /> Reconnect needed
+                            </span>
+                            <button
+                              onClick={() => connect(a.id)}
+                              disabled={!configured || busy === a.id}
+                              className="text-sm font-medium text-penny hover:text-penny-dark"
+                            >
+                              {busy === a.id ? 'Reconnecting…' : 'Reconnect'}
+                            </button>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+                            <Check size={16} /> Connected
+                          </span>
+                        )}
                         <button
                           onClick={() => disconnect(a.id)}
                           disabled={busy === a.id}
