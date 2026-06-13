@@ -63,13 +63,28 @@ async def test_collect_for_transaction_surfaces_all_action_types(monkeypatch):
     actions = await na.collect_for_transaction(tx)
     headlines = [a["headline"] for a in actions]
 
+    # Compliance flagged — fixed phrasing.
     assert any("Compliance is flagged" in h for h in headlines)
 
-    emd = next(a for a in actions if "EMD is" in a["headline"])
-    assert "3 days overdue" in emd["headline"]
-    assert "title" in emd["offer"]  # title email on file -> offer to draft to title
+    # EMD overdue. The headline wording is varied per deal (see
+    # _EMD_OVERDUE_HEADLINES), so identify the action by the stable signal that
+    # it's about earnest money rather than by one specific variant.
+    emd = next(
+        (a for a in actions
+         if "emd" in a["headline"].lower() or "earnest money" in a["headline"].lower()),
+        None,
+    )
+    assert emd is not None
+    assert "3 day" in emd["headline"]  # "3 days overdue" / "3 days past due"
+    assert "title" in emd["offer"]     # title email on file -> offer to chase title
 
-    assert any("Schedule inspection" in h and "overdue" in h for h in headlines)
+    # Overdue inspection task. The displayed subject is varied too, so identify
+    # it by its fixed click prompt instead of the headline text.
+    assert any(
+        "Propose inspection times" in a["prompt"] and "overdue" in a["headline"]
+        for a in actions
+    )
+
     assert any("Inspection deadline is tomorrow" in h for h in headlines)
     # required-only counting: exactly 1 missing required item
     assert any("1 required file item" in h for h in headlines)
