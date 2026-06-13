@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell'
+import PennyGlyphLayer from './components/PennyGlyphLayer'
 import ProtectedRoute from './components/ProtectedRoute'
 import Agents from './pages/Agents'
 import AutonomySettings from './pages/AutonomySettings'
@@ -36,6 +37,7 @@ export default function App() {
   const onboarded = useAuthStore((s) => !!s.brokerage?.onboarding_completed)
 
   return (
+    <>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
@@ -69,5 +71,10 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    {/* The single persistent Penny glyph — flies from onboarding to the home
+        hero. Sibling of <Routes> so it survives that route change. Dormant
+        unless a page registers a glyph slot. */}
+    <PennyGlyphLayer />
+    </>
   )
 }

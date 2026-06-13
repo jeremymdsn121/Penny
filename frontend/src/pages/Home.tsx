@@ -15,6 +15,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import PennyRibbon from '../components/PennyRibbon'
+import { usePennyGlyphSlot } from '../hooks/usePennyGlyphSlot'
+import { useGlyphStore } from '../store/glyph'
 import {
   briefingApi,
   brokerApi,
@@ -230,6 +232,23 @@ export default function Home() {
     return () => setChatStarted(false)
   }, [started, setChatStarted])
 
+  // Shared-glyph handoff from onboarding: when we arrive with a pending FLIP
+  // rect, the persistent PennyGlyphLayer flies the big glyph into the hero slot.
+  // Snapshot once on mount (the layer consumes pendingFrom in an effect, so a
+  // live subscription would flip back to false mid-flight).
+  const [arrivingFromOnboarding] = useState(() => useGlyphStore.getState().pendingFrom !== null)
+  const [landed, setLanded] = useState(false)
+  const flying = useGlyphStore((s) => s.flying)
+  const wasFlying = useRef(false)
+  useEffect(() => {
+    if (wasFlying.current && !flying) setLanded(true)
+    wasFlying.current = flying
+  }, [flying])
+  // While the glyph is in flight, render an invisible slot the layer fills; once
+  // it lands, swap to a pixel-identical static hero (and release the slot).
+  const showFloatingSlot = arrivingFromOnboarding && !reduceMotion && !landed
+  const heroSlotRef = usePennyGlyphSlot('home-hero', 198, showFloatingSlot && !started)
+
   // Animate the placeholder only on the empty landing, while the field is idle.
   const animatePlaceholder = !started && !focused && !input && !listening && !reduceMotion
   const typed = useTypewriter(suggestions, animatePlaceholder)
@@ -412,11 +431,20 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
-      {/* Brand mark — flies in from below last, after the chat bar and pills
-          have started rising. Then hovers gently. */}
-      <div className="mb-6 flex justify-center">
-        <PennyRibbon size={198} animated delay={reduceMotion ? 0 : 370} />
-      </div>
+      {/* Brand mark. Normal visits: flies in from below after the chat bar and
+          pills rise, then hovers. Arriving from onboarding: an invisible slot
+          the persistent glyph flies into, swapped for a static hero on landing. */}
+      {showFloatingSlot ? (
+        <div ref={heroSlotRef} aria-hidden style={{ width: 198, height: 198 }} className="mb-6 self-center" />
+      ) : (
+        <div className="mb-6 flex justify-center">
+          <PennyRibbon
+            size={198}
+            animated={!arrivingFromOnboarding}
+            delay={arrivingFromOnboarding || reduceMotion ? 0 : 370}
+          />
+        </div>
+      )}
 
       {/* Greeting + briefing */}
       <h1 className={`text-center text-3xl font-semibold tracking-tight text-ink ${riseClass}`} style={rise(60)}>
