@@ -714,8 +714,10 @@ checklist %, trigger matching, slot math, EMD overdue, reporting math) pass.
   (`reply.poweredbypenny.com` MX → `mx.sendgrid.net`) + SendGrid Inbound Parse pointed
   at `/api/v1/email/inbound`. **DNS is done** — the `reply.poweredbypenny.com` MX →
   `mx.sendgrid.net` resolves (verified 2026-06-13; DNS managed at Porkbun). The
-  inbound webhook is up + signature-enforcing (unsigned POST → 403). Remaining: confirm
-  the SendGrid Inbound Parse host→URL row exists, then a live reply-threading test.
+  inbound webhook is up + signature-enforcing (unsigned POST → 403). SendGrid Inbound
+  Parse is configured too (host `reply.poweredbypenny.com` → `/api/v1/email/inbound?key=…`,
+  the `?key=` matching `SENDGRID_WEBHOOK_KEY` on Render; confirmed 2026-06-13). Only a
+  live reply-threading test remains to fully verify Section 4 end-to-end.
 - **5 EMD tracking** — needs 013 applied. Already feeds the review queue.
 - **6 AI disclosure + consent** — needs 014 applied + `CONSENT_SECRET` set
   (the disclosure footer works without consent links; only the link path needs
@@ -736,9 +738,9 @@ exercised: `TWILIO_SMS_FROM` (1C), `SENDGRID_WEBHOOK_KEY` (4), `CONSENT_SECRET` 
 V1 keys (`ANTHROPIC_API_KEY`, `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`) cover most
 V2 sections too. DNS for `reply.poweredbypenny.com` (the `mx.sendgrid.net` MX that
 Section 4 inbound replies **and** the reply-forwarding toggle depend on) is **done** —
-verified resolving 2026-06-13, managed at Porkbun. The remaining Section 4 step is
-confirming SendGrid Inbound Parse is pointed at `/api/v1/email/inbound` plus a live
-reply-threading test.
+verified resolving 2026-06-13, managed at Porkbun. SendGrid Inbound Parse is wired to
+`/api/v1/email/inbound?key=…` (confirmed 2026-06-13), so the only remaining Section 4
+step is a live reply-threading test.
 
 ### Deferred (built behind seams, do not build blind)
 
