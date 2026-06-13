@@ -40,6 +40,7 @@ from app.services import (
     next_actions,
     rentcast,
     scheduling,
+    status_updates,
     workflow,
 )
 
@@ -189,6 +190,36 @@ _TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["address_query", "confirmed"],
+        },
+    },
+    {
+        "name": "send_status_update",
+        "description": (
+            "Send a status update on a transaction to its parties — a short 'here's "
+            "where we stand' summarizing the stage, what's coming up, and what's "
+            "still outstanding. Call without confirmed (or with confirmed=false) to "
+            "PREVIEW the update and recipients; the agent reviews, then call again "
+            "with confirmed=true to send. This sends external email, so confirmation "
+            "is required unless status updates are autonomous for this brokerage. "
+            "Penny also sends these automatically on a weekly cadence; use this for "
+            "an on-demand update between cycles."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address_query": {
+                    "type": "string",
+                    "description": "Part of the property address to identify the transaction.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "Must be true to send. Set only after the agent confirms, or "
+                        "when status updates are autonomous for this brokerage."
+                    ),
+                },
+            },
+            "required": ["address_query"],
         },
     },
     {
@@ -946,15 +977,12 @@ async def _exec_preview_intro_email(brokerage_id: str, inputs: dict) -> str:
     recipients = "\n".join(
         f"  - {p['role']}: {p['name']} <{p['email']}>" for p in parties
     )
-    already = (
-        "\n\nNote: an intro email was already sent for this deal."
-        if tx.get("intro_email_sent")
-        else ""
-    )
+    ok, reason = email_client.intro_email_appropriate(tx)
+    caveat = f"\n\nHeads up: {reason}, so I'd hold off on sending this." if not ok else ""
     return (
         f"Intro email preview for {address}:\n\n"
         f"To ({len(parties)} recipients):\n{recipients}\n\n"
-        f"Subject: {subject}\n\n{plain}{already}"
+        f"Subject: {subject}\n\n{plain}{caveat}"
     )
 
 
@@ -979,17 +1007,9 @@ async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
     if err:
         return err
     address = tx.get("address", "this transaction")
-    if tx.get("intro_email_sent"):
-        return (
-            f"The intro email for {address} was already sent, so I won't send it "
-            "again."
-        )
-    parties = email_client.gather_intro_parties(tx)
-    if not parties:
-        return (
-            f"No parties on {address} have email addresses on file, so there's no "
-            "one to send the intro email to."
-        )
+    ok, reason = email_client.intro_email_appropriate(tx)
+    if not ok:
+        return f"I won't send the intro email for {address} — {reason}."
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "the brokerage")
     result = await asyncio.to_thread(
@@ -1016,6 +1036,64 @@ async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
         f"Sent the intro email for {address} to {len(result['recipients'])} "
         f"people: {who}."
     )
+
+
+async def _exec_send_status_update(brokerage_id: str, inputs: dict) -> str:
+    tx, err = await _resolve_single(brokerage_id, inputs.get("address_query", ""))
+    if err:
+        return err
+    address = tx.get("address", "this transaction")
+    stage = (tx.get("stage") or "under_contract").strip().lower()
+    if stage in ("closed", "cancelled"):
+        return f"{address} is {stage}, so a status update to the parties isn't needed."
+    brokerage = await sb.get_brokerage(brokerage_id)
+    brokerage_name = (brokerage or {}).get("name", "the brokerage")
+    subject, html, plain, emails = await status_updates.compose_status_update(tx, brokerage_name)
+    if not emails:
+        return (
+            f"No parties on {address} have email addresses on file, so there's no one "
+            "to send a status update to. Add buyer/seller/agent emails first."
+        )
+
+    autonomous = False
+    try:
+        autonomy = await sb.get_task_autonomy(brokerage_id)
+        autonomous = any(
+            r.get("task_id") == "status-updates" and r.get("autonomous") for r in autonomy
+        )
+    except Exception:  # noqa: BLE001
+        autonomous = False
+
+    if not inputs.get("confirmed") and not autonomous:
+        recipients = ", ".join(emails)
+        return (
+            f"Status update preview for {address} (to {len(emails)} recipients: "
+            f"{recipients}):\n\nSubject: {subject}\n\n{plain}\n\n"
+            "Reply to confirm and I'll send it."
+        )
+
+    sent = await asyncio.to_thread(
+        email_client.send_email,
+        to_emails=emails,
+        subject=subject,
+        html=html,
+        plain=plain,
+        reply_to=email_client.reply_to_address(tx.get("id")),
+        disclosure=email_client.disclosure_text(brokerage),
+    )
+    if not sent:
+        return "I couldn't send the status update — SendGrid isn't configured or the send failed."
+    await status_updates.log_and_record(tx, subject, plain, html, emails)
+    try:
+        from datetime import datetime, timezone
+
+        await sb.update_transaction(
+            brokerage_id, tx["id"],
+            {"last_status_update_at": datetime.now(timezone.utc).isoformat()},
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return f"Sent the status update for {address} to {len(emails)} people: {', '.join(emails)}."
 
 
 async def _exec_draft_document(brokerage_id: str, inputs: dict) -> str:
@@ -2044,6 +2122,7 @@ _TOOL_MAP = {
     "add_transaction_note": _exec_add_transaction_note,
     "preview_intro_email": _exec_preview_intro_email,
     "send_intro_email": _exec_send_intro_email,
+    "send_status_update": _exec_send_status_update,
     "draft_document": _exec_draft_document,
     "list_deadlines": _exec_list_deadlines,
     "add_deadline": _exec_add_deadline,
@@ -2169,14 +2248,28 @@ async def run_penny_agent(
     except Exception:
         intro_autonomous = False
 
+    # When an intro is appropriate (the contract-to-close timing rule that real
+    # transaction coordinators follow). Shared by both the autonomous and
+    # confirm-gated phrasings below.
+    intro_timing = (
+        "- Intro-email timing: the all-parties introduction belongs at the START "
+        "of a deal — once it's under contract / in escrow and you have the parties' "
+        "contact info. Send it once per deal (it's marked so it never double-sends). "
+        "Do NOT send an intro on a deal that's already closed or cancelled, and "
+        "don't re-introduce a group that's already been introduced. If a deal is "
+        "under contract and the intro hasn't gone out, proactively offer to send it "
+        "rather than waiting to be asked."
+    )
     if intro_autonomous:
         intro_rule = (
+            intro_timing + "\n"
             "- This brokerage has pre-authorised autonomous intro emails. When the "
-            "agent asks you to send one, call preview_intro_email to show what will "
-            "go out, then call send_intro_email with confirmed=true."
+            "intro is appropriate (see timing above), call preview_intro_email to "
+            "show what will go out, then call send_intro_email with confirmed=true."
         )
     else:
         intro_rule = (
+            intro_timing + "\n"
             "- Intro emails are NOT autonomous for this brokerage. You MUST call "
             "preview_intro_email and get the agent's explicit 'yes' before calling "
             "send_intro_email with confirmed=true. Never send without that confirmation."
@@ -2351,6 +2444,8 @@ async def run_penny_agent(
         "receipt\n"
         "    'Send intro email' task → preview_intro_email (then send_intro_email "
         "after confirmation)\n"
+        "    'Send a status update' / 'update the parties' / 'where are we' to "
+        "share with everyone → send_status_update (preview first, then confirm)\n"
         "    'Order appraisal' / appraisal task → draft_document (audience='the "
         "lender') about appraisal scheduling\n"
         "    'Final walkthrough' task → propose_showing_times\n"

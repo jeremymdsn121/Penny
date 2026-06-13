@@ -5,12 +5,19 @@ import {
   CalendarClock,
   Clock,
   Plus,
+  Send,
   ShieldAlert,
   TrendingUp,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import { brokerApi, deadlinesApi, transactionsApi, type Transaction } from '../lib/api'
+import {
+  brokerApi,
+  deadlinesApi,
+  statusUpdatesApi,
+  transactionsApi,
+  type Transaction,
+} from '../lib/api'
 import { daysUntil } from '../lib/dates'
 import { useAuthStore } from '../store/auth'
 
@@ -91,6 +98,7 @@ export default function Dashboard() {
   const [txLoading, setTxLoading] = useState(true)
   const [reminderBusy, setReminderBusy] = useState(false)
   const [reminderNote, setReminderNote] = useState<string | null>(null)
+  const [statusBusy, setStatusBusy] = useState(false)
   const [reviewCount, setReviewCount] = useState(0)
 
   useEffect(() => {
@@ -132,6 +140,23 @@ export default function Dashboard() {
     }
   }
 
+  const onRunStatusUpdates = async () => {
+    setStatusBusy(true)
+    setReminderNote(null)
+    try {
+      const res = await statusUpdatesApi.runScan()
+      setReminderNote(
+        res.processed === 0
+          ? 'No deals are due for a status update right now.'
+          : `Sent or queued ${res.processed} status update${res.processed !== 1 ? 's' : ''}.`,
+      )
+    } catch {
+      setReminderNote('Could not run status updates. Please try again.')
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
       {/* Header */}
@@ -146,19 +171,34 @@ export default function Dashboard() {
               : `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} in your pipeline.`}
           </p>
         </div>
-        <button
-          onClick={onRunReminders}
-          disabled={reminderBusy}
-          className="btn-secondary"
-          title="Run deadline reminders now"
-        >
-          {reminderBusy ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-subtle border-t-transparent" />
-          ) : (
-            <Clock size={16} />
-          )}
-          Run reminders
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onRunStatusUpdates}
+            disabled={statusBusy}
+            className="btn-secondary"
+            title="Send or queue any due status updates now"
+          >
+            {statusBusy ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-subtle border-t-transparent" />
+            ) : (
+              <Send size={16} />
+            )}
+            Run status updates
+          </button>
+          <button
+            onClick={onRunReminders}
+            disabled={reminderBusy}
+            className="btn-secondary"
+            title="Run deadline reminders now"
+          >
+            {reminderBusy ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-subtle border-t-transparent" />
+            ) : (
+              <Clock size={16} />
+            )}
+            Run reminders
+          </button>
+        </div>
       </div>
 
       {reminderNote && (

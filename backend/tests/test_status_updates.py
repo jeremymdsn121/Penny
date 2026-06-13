@@ -1,0 +1,69 @@
+"""Tests for the deterministic parts of app.services.status_updates: the
+weekly cadence gate and the status-update content builder. The scan
+orchestration (sends/queues) needs live Supabase + SendGrid and is exercised
+manually."""
+
+import datetime as dt
+
+from app.services import status_updates as su
+
+
+def test_status_update_due_when_never_sent():
+    today = dt.date(2026, 6, 13)
+    assert su.status_update_due({}, today) is True
+    assert su.status_update_due({"last_status_update_at": None}, today) is True
+
+
+def test_status_update_due_respects_cadence():
+    today = dt.date(2026, 6, 13)
+    six_days = (today - dt.timedelta(days=6)).isoformat()
+    seven_days = (today - dt.timedelta(days=7)).isoformat()
+    assert su.status_update_due({"last_status_update_at": six_days}, today) is False
+    assert su.status_update_due({"last_status_update_at": seven_days}, today) is True
+
+
+def test_status_update_due_parses_timestamp_form():
+    today = dt.date(2026, 6, 13)
+    ts = "2026-06-01T09:30:00+00:00"  # 12 days prior
+    assert su.status_update_due({"last_status_update_at": ts}, today) is True
+
+
+def test_content_includes_standing_upcoming_and_outstanding():
+    today = dt.date(2026, 6, 13)
+    tx = {
+        "address": "123 Main St",
+        "stage": "under_contract",
+        "closing_date": (today + dt.timedelta(days=10)).isoformat(),
+        "emd_amount": 5000,
+        "emd_received": False,
+        "emd_due_date": (today + dt.timedelta(days=2)).isoformat(),
+    }
+    deadlines = [
+        {"label": "Inspection", "due_date": (today + dt.timedelta(days=3)).isoformat(), "resolved": False},
+        {"label": "Old", "due_date": (today - dt.timedelta(days=1)).isoformat(), "resolved": False},  # past → excluded
+    ]
+    tasks = [{"label": "Order appraisal", "status": "pending",
+              "due_date": (today + dt.timedelta(days=5)).isoformat()}]
+    checklist = [
+        {"label": "Seller disclosure", "required": True, "status": "pending"},
+        {"label": "Done item", "required": True, "status": "complete"},  # excluded
+    ]
+    subject, html, plain = su.build_status_update_content(
+        tx, deadlines, tasks, checklist, "Acme Realty", today
+    )
+    assert "123 Main St" in subject
+    assert "under contract" in plain
+    assert "Inspection" in plain and "Order appraisal" in plain
+    assert "Old" not in plain  # past deadline filtered out
+    assert "Seller disclosure" in plain
+    assert "Done item" not in plain
+    assert "Earnest money receipt" in plain
+    assert "Penny" in plain and "Acme Realty" in plain
+
+
+def test_content_handles_empty_deal_gracefully():
+    today = dt.date(2026, 6, 13)
+    tx = {"address": "9 Quiet Ln", "stage": "pending"}
+    subject, html, plain = su.build_status_update_content(tx, [], [], [], "Acme", today)
+    assert "Nothing outstanding" in plain
+    assert "<ul>" not in html  # no upcoming/outstanding lists rendered

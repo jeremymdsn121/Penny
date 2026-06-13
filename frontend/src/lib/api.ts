@@ -732,6 +732,40 @@ export const pendingRepliesApi = {
 }
 
 // --------------------------------------------------------------------------- //
+// Recurring status updates (Autonomy task `status-updates`, migration 027)
+// --------------------------------------------------------------------------- //
+
+export interface PendingStatusUpdate {
+  id: string
+  transaction_id: string
+  subject: string
+  body_text: string
+  body_html?: string | null
+  recipient_emails: string[]
+  status: 'pending' | 'sent' | 'dismissed'
+  created_at: string
+}
+
+export const statusUpdatesApi = {
+  runScan: () =>
+    api
+      .post<{ processed: number; items: unknown[] }>(`/status-updates/run`)
+      .then((r) => r.data),
+  listForTransaction: (txId: string) =>
+    api
+      .get<PendingStatusUpdate[]>(`/status-updates/pending`, { params: { transaction_id: txId } })
+      .then((r) => r.data),
+  send: (id: string) =>
+    api
+      .post<PendingStatusUpdate>(`/status-updates/pending/${id}/send`, { confirmed: true })
+      .then((r) => r.data),
+  dismiss: (id: string) =>
+    api
+      .post<PendingStatusUpdate>(`/status-updates/pending/${id}/dismiss`, {})
+      .then((r) => r.data),
+}
+
+// --------------------------------------------------------------------------- //
 // Workflow tasks (V2 Section 3)
 // --------------------------------------------------------------------------- //
 

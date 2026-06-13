@@ -60,14 +60,29 @@ _DEFAULT_RULES: list[dict[str, str]] = [
      "requirement": "Seller's property condition disclosure was provided where required."},
     {"id": "lead_paint", "category": "Disclosure",
      "requirement": "Lead-based paint disclosure is included for any dwelling built before 1978."},
-    {"id": "addenda_attached", "category": "Documents",
-     "requirement": "Every addendum referenced in the contract is attached and signed."},
-    {"id": "signatures", "category": "Execution",
-     "requirement": "All required signatures, initials, and dates are present from every party."},
     {"id": "earnest_money", "category": "Funds",
      "requirement": "Earnest money amount, receipt, and handling are documented."},
     {"id": "contingency_dates", "category": "Dates",
      "requirement": "Financing, appraisal, and inspection contingency dates are specified."},
+]
+
+# Execution-completeness audit (always run, in EVERY state). This is the
+# "comb every page for missing signatures, initials, and dates" pass that is a
+# transaction coordinator's first job on a newly executed contract. The
+# state-specific rulesets below cover disclosures/forms but historically said
+# nothing about whether the contract is even fully signed — so these are merged
+# into every review (see ``review_ruleset``). Surface-only, like everything in
+# compliance: Penny flags a missing signature for a human to chase, never signs
+# or approves.
+EXECUTION_RULES: list[dict[str, str]] = [
+    {"id": "exec_signatures", "category": "Execution",
+     "requirement": "Every party who must sign (buyer, seller, and the agents where required) has signed the contract."},
+    {"id": "exec_initials", "category": "Execution",
+     "requirement": "All required initials are present on every page or clause that calls for them."},
+    {"id": "exec_dates", "category": "Execution",
+     "requirement": "Every signature and initial is dated, and the execution/effective date is filled in."},
+    {"id": "exec_addenda", "category": "Execution",
+     "requirement": "Every addendum, exhibit, or rider referenced in the contract is attached and executed."},
 ]
 
 _STATE_RULES: dict[str, list[dict[str, str]]] = {
@@ -142,11 +157,22 @@ _STATE_RULES: dict[str, list[dict[str, str]]] = {
 
 def get_ruleset(state: str | None) -> tuple[str, list[dict[str, str]]]:
     """Return ``(ruleset_state, rules)`` — the detailed ruleset for a covered
-    state, otherwise the DEFAULT checklist."""
+    state, otherwise the DEFAULT checklist. State/disclosure rules only; the
+    universal execution-completeness rules are added by ``review_ruleset``."""
     code = (state or "").strip().upper()
     if code in DETAILED_RULESET_STATES and code in _STATE_RULES:
         return code, _STATE_RULES[code]
     return "DEFAULT", _DEFAULT_RULES
+
+
+def review_ruleset(state: str | None) -> tuple[str, list[dict[str, str]]]:
+    """The full checklist a review runs: the state/disclosure ruleset plus the
+    universal execution-completeness audit, deduped by id (a state ruleset could
+    in principle define its own execution rule)."""
+    ruleset_state, base = get_ruleset(state)
+    seen = {r["id"] for r in base}
+    merged = base + [r for r in EXECUTION_RULES if r["id"] not in seen]
+    return ruleset_state, merged
 
 
 # --------------------------------------------------------------------------- #
@@ -221,7 +247,10 @@ def _build_system(ruleset_state: str, rules: list[dict[str, str]]) -> str:
         "COMPLIANCE REVIEW of a purchase contract. You surface possible issues for a "
         "human to verify — you do NOT approve anything and you never give legal advice.\n\n"
         f"Compliance checklist for {ruleset_state}:\n{rule_lines}\n\n"
-        "Read the attached contract document and assess each checklist item.\n"
+        "Read the attached contract document and assess each checklist item. The "
+        "exec_* items are an execution-completeness audit — comb every page for "
+        "missing signatures, initials, and dates the way a transaction coordinator "
+        "would, and mark an item \"missing\" if any required mark is absent.\n"
         "Return ONLY a JSON object: {\"assessments\": [{\"rule_id\": <id>, "
         "\"status\": \"satisfied\"|\"missing\"|\"unclear\", "
         "\"confidence\": \"high\"|\"medium\"|\"low\", \"note\": <short reason>}]}.\n"
@@ -319,7 +348,7 @@ async def review_transaction(
     Never writes to the database. Returns findings, the annotated state
     checklist, and a *suggested* status (the human still decides).
     """
-    ruleset_state, rules = get_ruleset(tx.get("state"))
+    ruleset_state, rules = review_ruleset(tx.get("state"))
     findings = run_structural_checks(tx)
 
     # Start the checklist as "not_reviewed"; AI annotates it if it runs.
