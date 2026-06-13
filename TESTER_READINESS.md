@@ -149,12 +149,15 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   service is actually created on the deployed account, then confirm one run logs a
   200 + idempotent summary. Reminders + scheduled-reply resurfacing no longer depend
   on the dashboard dev buttons once that's live.
-- [ ] **Frontend custom domain** — move the browser app to `app.poweredbypenny.com`.
-  Code prep done 2026-06-13: `render.yaml` declares the domain on `penny-web` and pins
-  the public URLs (`VITE_API_BASE_URL`, plus `penny-api`'s `EXTRA_CORS_ORIGINS` /
-  `FRONTEND_BASE_URL` → the app origin). **Remaining (dashboard/DNS):** add the custom
-  domain in Render + the `CNAME`, redeploy penny-web, and add the origin to Supabase
-  Auth's URL allowlist. Step-by-step in `DEPLOYMENT.md` § 4c.
+- [x] **Frontend custom domain** — DONE 2026-06-13. Browser app live on
+  `app.poweredbypenny.com` (Render custom domain + cert; CNAME at Porkbun; penny-web
+  redeployed). `render.yaml` declares the domain on `penny-web` and pins the public URLs
+  (`VITE_API_BASE_URL`, plus `penny-api`'s `EXTRA_CORS_ORIGINS` / `FRONTEND_BASE_URL` →
+  the app origin); Supabase Auth Site URL set to the new host. **Verified live** in the
+  browser: dashboard loaded, `transactions` + `review-queue` XHRs hit
+  `api.poweredbypenny.com/api/v1` and returned 200 (CORS + baked `VITE_API_BASE_URL` +
+  auth all good); only console noise was a browser-extension message, nothing app-side.
+  Runbook in `DEPLOYMENT.md` § 4c.
 - [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for
   design partners with test data; have the explicit conversation before real client PII
   at scale. See `BLOCKERS.md` HL6.
