@@ -59,7 +59,8 @@ This doc is kept as the record of what was done. Original plan/ordering below.
       (priority 10).
 - [ ] **(Recommended) Backend CNAME:** `api.poweredbypenny.com` → the Render
       service host (`<service>.onrender.com`). Then attach it in Render (step C).
-- [ ] *(Later)* `app.poweredbypenny.com` → frontend host, when the frontend deploys.
+- [ ] `app.poweredbypenny.com` → frontend host (`CNAME` → penny-web's onrender host).
+      Blueprint declares it + pins the env vars; full runbook in `DEPLOYMENT.md` § 4c.
 
 ## B. SendGrid dashboard
 - [ ] **Settings → Sender Authentication → Authenticate Your Domain** →

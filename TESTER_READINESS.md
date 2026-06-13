@@ -149,8 +149,12 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   service is actually created on the deployed account, then confirm one run logs a
   200 + idempotent summary. Reminders + scheduled-reply resurfacing no longer depend
   on the dashboard dev buttons once that's live.
-- [ ] **Frontend custom domain** — currently `sloane-web.onrender.com`; move to
-  `app.poweredbypenny.com` (and rebuild with `VITE_API_BASE_URL`).
+- [ ] **Frontend custom domain** — move the browser app to `app.poweredbypenny.com`.
+  Code prep done 2026-06-13: `render.yaml` declares the domain on `penny-web` and pins
+  the public URLs (`VITE_API_BASE_URL`, plus `penny-api`'s `EXTRA_CORS_ORIGINS` /
+  `FRONTEND_BASE_URL` → the app origin). **Remaining (dashboard/DNS):** add the custom
+  domain in Render + the `CNAME`, redeploy penny-web, and add the origin to Supabase
+  Auth's URL allowlist. Step-by-step in `DEPLOYMENT.md` § 4c.
 - [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for
   design partners with test data; have the explicit conversation before real client PII
   at scale. See `BLOCKERS.md` HL6.

@@ -119,6 +119,29 @@ submitting, and again whenever the carrier re-checks the URLs.
 Business identity (company name, support email, address, last-updated) lives in the
 HTML in `marketing/` (and the constants at the top of `legal.py` for the backend copy).
 
+## 4c. Frontend custom domain (app.poweredbypenny.com)
+
+The browser app (`penny-web`) currently serves on its `*.onrender.com` host; move it
+to `app.poweredbypenny.com`. The blueprint already declares the domain and pins the
+public URLs (`penny-web` `domains:` + `VITE_API_BASE_URL`, plus `penny-api`'s
+`EXTRA_CORS_ORIGINS` / `FRONTEND_BASE_URL`), so the remaining work is DNS + a redeploy.
+
+1. **Render — penny-web → Settings → Custom Domains → Add** `app.poweredbypenny.com`.
+   Render shows a `CNAME` target (the `penny-web` `*.onrender.com` host).
+2. **DNS (registrar):** add `CNAME app → <that onrender host>`. Wait for Render to
+   issue the cert (domain goes green).
+3. **Redeploy penny-web** so the build inlines `VITE_API_BASE_URL=https://api.poweredbypenny.com/api/v1`
+   (Vite bakes it at build time — a redeploy is required, not just a domain attach).
+4. **penny-api env** already carries `EXTRA_CORS_ORIGINS=https://app.poweredbypenny.com`
+   (so the new origin passes CORS) and `FRONTEND_BASE_URL=https://app.poweredbypenny.com`
+   (the calendar OAuth redirect-back target). If the API isn't blueprint-managed, set
+   both in its Environment tab and redeploy.
+5. **Supabase → Auth → URL Configuration:** add `https://app.poweredbypenny.com` to
+   Site URL + the redirect allowlist (previously localhost-only).
+6. **Verify:** load `https://app.poweredbypenny.com` → login works (Supabase redirect),
+   network calls hit `api.poweredbypenny.com` with no CORS error, and a calendar
+   connect round-trips back to `/settings/calendar` on the new host.
+
 ## 5. AI disclosure consent links (6)
 
 - Set `CONSENT_SECRET` (HMAC for consent links; falls back to `SECRET_KEY`).
@@ -158,3 +181,5 @@ Calendar OAuth (Google/Microsoft), MLS write APIs, and DocuSign are behind seams
 - [ ] `REPLY_EMAIL_DOMAIN` MX record live; `SENDGRID_WEBHOOK_KEY` set
 - [ ] `CONSENT_SECRET`, `PUBLIC_BASE_URL` set
 - [ ] `CRON_SECRET` set; `penny-cron-scans` cron job live (hits `/cron/run-scans`)
+- [ ] Frontend on `app.poweredbypenny.com` (CNAME + cert; penny-web redeployed with
+      `VITE_API_BASE_URL`); origin in penny-api CORS; Supabase Auth URL allowlist updated
