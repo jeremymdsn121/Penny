@@ -15,6 +15,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.core import supabase_client as sb
@@ -22,6 +23,16 @@ from app.core.security import get_current_brokerage
 from app.services import calendar_provider as cal
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
+
+_HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class WorkingHoursUpdate(BaseModel):
+    """Scheduling window Penny proposes within (brokerage-level)."""
+
+    work_start: str = Field(pattern=_HHMM)
+    work_end: str = Field(pattern=_HHMM)
+    buffer_minutes: int = Field(ge=0, le=240)
 
 
 def _redirect_uri() -> str:
@@ -43,6 +54,80 @@ async def calendar_status(
         "brokerage": cal.status(brokerage),
         "agents": [cal.agent_status(a) for a in agents],
     }
+
+
+@router.put("/working-hours")
+async def update_working_hours(
+    body: WorkingHoursUpdate,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Edit the scheduling window + buffer set during onboarding.
+
+    These feed ``propose_slots`` (showing-time proposals); changing them takes
+    effect on the next proposal. ``buffer_minutes`` pads each slot on both sides.
+    """
+    if body.work_end <= body.work_start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End time must be after start time.",
+        )
+    updated = await sb.update_brokerage(
+        brokerage["id"],
+        {
+            "work_start": body.work_start,
+            "work_end": body.work_end,
+            "buffer_minutes": body.buffer_minutes,
+        },
+    )
+    return {
+        "work_start": updated.get("work_start"),
+        "work_end": updated.get("work_end"),
+        "buffer_minutes": updated.get("buffer_minutes"),
+    }
+
+
+@router.put("/agents/{agent_id}/working-hours")
+async def update_agent_working_hours(
+    agent_id: str,
+    body: WorkingHoursUpdate,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Set an agent's working-hours override (replaces inheriting the brokerage)."""
+    if body.work_end <= body.work_start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End time must be after start time.",
+        )
+    agent = await sb.get_agent(brokerage["id"], agent_id)
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    updated = await sb.update_agent(
+        brokerage["id"],
+        agent_id,
+        {
+            "work_start": body.work_start,
+            "work_end": body.work_end,
+            "buffer_minutes": body.buffer_minutes,
+        },
+    )
+    return cal.agent_status(updated or {})
+
+
+@router.delete("/agents/{agent_id}/working-hours")
+async def clear_agent_working_hours(
+    agent_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Clear an agent's override so they inherit the brokerage working hours."""
+    agent = await sb.get_agent(brokerage["id"], agent_id)
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    updated = await sb.update_agent(
+        brokerage["id"],
+        agent_id,
+        {"work_start": None, "work_end": None, "buffer_minutes": None},
+    )
+    return cal.agent_status(updated or {})
 
 
 @router.get("/google/connect")

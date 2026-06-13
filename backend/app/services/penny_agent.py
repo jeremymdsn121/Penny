@@ -1196,14 +1196,16 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
         except Exception:
             cal_agent = None
     account = calendar_provider.resolve_account(brokerage, cal_agent)
+    # The deal's agent overrides the brokerage's working hours/buffer when set.
+    work_start, work_end, buffer_minutes = scheduling.resolve_working_hours(brokerage, cal_agent)
     window_end = datetime.combine(
         now.date() + timedelta(days=days), datetime.min.time(), tzinfo=tz
     )
     busy.extend(await calendar_provider.get_busy(account, now, window_end))
     slots = scheduling.propose_slots(
-        work_start=brokerage.get("work_start"),
-        work_end=brokerage.get("work_end"),
-        buffer_minutes=brokerage.get("buffer_minutes") or 0,
+        work_start=work_start,
+        work_end=work_end,
+        buffer_minutes=buffer_minutes,
         tz=tz,
         start_day=now.date(),
         days=days,
@@ -2085,11 +2087,16 @@ async def run_penny_agent(
         "reporting, admin only), 'Brand & Style' (letterhead and writing-style "
         "rules), 'Team' (agents and their per-agent style), 'Messaging' (WhatsApp "
         "and SMS numbers plus Reply Handling settings), 'Calendar' (connect a Google "
-        "Calendar), 'Compliance' (AI-disclosure and consent settings), and 'Autonomy' "
-        "(which tasks Penny may do unattended, plus Document Routing rules).\n"
+        "Calendar and set working hours), 'Compliance' (AI-disclosure and consent "
+        "settings), and 'Autonomy' (which tasks Penny may do unattended, plus Document "
+        "Routing rules).\n"
         "- To connect a calendar: open 'Calendar' in the sidebar and use the Connect "
         "Google Calendar button. A brokerage admin can also connect an individual "
         "agent's calendar from there.\n"
+        "- To change working hours or the buffer between appointments: open 'Calendar' "
+        "in the sidebar — the Working hours card at the top sets the brokerage default, "
+        "and each agent row below can keep its own hours (or inherit the brokerage's). "
+        "They're set during onboarding and editable there any time.\n"
         "- Per-deal work happens on the transaction page (open a deal from the "
         "Dashboard or a Dashboard card). That page has a section nav down the side "
         "with these panels: Details, Deadlines, Scheduling, Earnest Money, Tasks, "

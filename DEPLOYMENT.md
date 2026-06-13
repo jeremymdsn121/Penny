@@ -149,6 +149,47 @@ public URLs (`penny-web` `domains:` + `VITE_API_BASE_URL`, plus `penny-api`'s
    `api.poweredbypenny.com` with no CORS error, and a calendar connect round-trips back
    to `/settings/calendar` on the new host.
 
+## 4d. Google Calendar OAuth (scheduling)
+
+The Google Calendar sync is built behind the `calendar_provider` seam; it stays
+dormant until these credentials exist. Without them, scheduling still works off
+working hours + appointments booked through Penny — it just can't read a user's
+real free/busy. Connecting activates per-deal free/busy + event create/update.
+
+The redirect URI the server sends is built from `PUBLIC_BASE_URL` as
+`{PUBLIC_BASE_URL}/api/v1/calendar/google/callback`. It must match what's
+registered in Google **exactly** or consent fails with `redirect_uri_mismatch`.
+For production that's:
+
+```
+https://api.poweredbypenny.com/api/v1/calendar/google/callback
+```
+
+1. **Google Cloud Console → APIs & Services → Library → enable "Google Calendar API."**
+2. **OAuth consent screen:** User type **External**; add scopes
+   `.../auth/calendar.events` and `.../auth/calendar.freebusy`. Keep publishing
+   status **Testing** and add testers under **Test users** (up to 100) — no full
+   app verification needed for a tester cohort.
+3. **Credentials → Create OAuth client ID → Web application.** Add the redirect
+   URI above under **Authorized redirect URIs** (no JS origins needed — it's a
+   server-side redirect). Copy the Client ID + Secret.
+4. **penny-api env:** set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   `PUBLIC_BASE_URL=https://api.poweredbypenny.com` (defaults to localhost — the
+   most common miss), and confirm `FRONTEND_BASE_URL=https://app.poweredbypenny.com`
+   (the redirect-back target). Migration 024 (per-agent calendar columns) must be
+   applied. Redeploy.
+5. **Connect:** in the app → **Settings → Calendar → Connect** → sign into the
+   Google account whose **primary** calendar you want read (free/busy reads
+   `primary`). Brokerage-level connect (no `agent_id`) covers every deal; a deal
+   assigned to an agent with their own calendar connected uses the agent's.
+6. **Verify:** the free/busy merge runs inside **per-deal showing-time
+   proposals**, not a bare "what's my availability" (that may route to Penny's own
+   bookings and skip Google). Test with *"Propose showing times for <address>
+   tomorrow"* — a real calendar event in that window should be excluded from the
+   proposed slots. On callback failure the page lands on
+   `/settings/calendar?calendar_error=<reason>` (`invalid_state` /
+   `exchange_failed` / `store_failed`).
+
 ## 5. AI disclosure consent links (6)
 
 - Set `CONSENT_SECRET` (HMAC for consent links; falls back to `SECRET_KEY`).

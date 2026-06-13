@@ -398,6 +398,10 @@ def agent_status(agent: dict[str, Any]) -> dict[str, Any]:
         "email": agent.get("email"),
         "provider": agent.get("calendar_provider"),
         "connected": bool(token),
+        # Per-agent working-hours override (NULL = inherit the brokerage's).
+        "work_start": agent.get("work_start"),
+        "work_end": agent.get("work_end"),
+        "buffer_minutes": agent.get("buffer_minutes"),
     }
 
 

@@ -102,18 +102,26 @@ async def _scoped_appointment(
     return appt, tx
 
 
+async def _resolve_agent(
+    brokerage: dict[str, Any], tx: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The deal's assigned agent row, or None. Swallows lookup errors — a missing
+    agent never blocks scheduling (it just falls back to brokerage defaults)."""
+    agent_id = tx.get("agent_id")
+    if not agent_id:
+        return None
+    try:
+        return await sb.get_agent(brokerage["id"], agent_id)
+    except sb.SupabaseError:
+        return None
+
+
 async def _resolve_account(
     brokerage: dict[str, Any], tx: dict[str, Any]
 ) -> dict[str, Any] | None:
     """The calendar a deal should use: its agent's if connected, else the
-    brokerage's. Swallows lookup errors — calendar issues never block scheduling."""
-    agent = None
-    agent_id = tx.get("agent_id")
-    if agent_id:
-        try:
-            agent = await sb.get_agent(brokerage["id"], agent_id)
-        except sb.SupabaseError:
-            agent = None
+    brokerage's."""
+    agent = await _resolve_agent(brokerage, tx)
     return calendar_provider.resolve_account(brokerage, agent)
 
 
@@ -182,7 +190,9 @@ async def propose(
     brokerage: dict[str, Any] = Depends(get_current_brokerage),
 ) -> dict[str, Any]:
     tx = await _require_owned_transaction(brokerage["id"], body.transaction_id)
-    account = await _resolve_account(brokerage, tx)
+    agent = await _resolve_agent(brokerage, tx)
+    account = calendar_provider.resolve_account(brokerage, agent)
+    work_start, work_end, buffer_minutes = scheduling.resolve_working_hours(brokerage, agent)
     tz = scheduling.resolve_timezone(brokerage.get("state"))
     now = datetime.now(tz)
     if body.start_date:
@@ -201,9 +211,9 @@ async def propose(
     )
     busy = await _busy_intervals(brokerage, account, now, window_end)
     slots = scheduling.propose_slots(
-        work_start=brokerage.get("work_start"),
-        work_end=brokerage.get("work_end"),
-        buffer_minutes=brokerage.get("buffer_minutes") or 0,
+        work_start=work_start,
+        work_end=work_end,
+        buffer_minutes=buffer_minutes,
         tz=tz,
         start_day=start_day,
         days=max(1, body.days),
