@@ -136,11 +136,18 @@ public URLs (`penny-web` `domains:` + `VITE_API_BASE_URL`, plus `penny-api`'s
    (so the new origin passes CORS) and `FRONTEND_BASE_URL=https://app.poweredbypenny.com`
    (the calendar OAuth redirect-back target). If the API isn't blueprint-managed, set
    both in its Environment tab and redeploy.
-5. **Supabase → Auth → URL Configuration:** add `https://app.poweredbypenny.com` to
-   Site URL + the redirect allowlist (previously localhost-only).
-6. **Verify:** load `https://app.poweredbypenny.com` → login works (Supabase redirect),
-   network calls hit `api.poweredbypenny.com` with no CORS error, and a calendar
-   connect round-trips back to `/settings/calendar` on the new host.
+5. **Supabase → Auth → URL Configuration:** set **Site URL** to
+   `https://app.poweredbypenny.com`. The **Redirect URLs** allowlist is **not required**
+   — Penny's frontend has no Supabase client and never redirects to Supabase (login is
+   `POST /auth/login` → backend → token; the calendar OAuth redirect-back uses
+   `FRONTEND_BASE_URL`, not Supabase). Site URL only feeds Supabase-*sent* auth emails
+   (password reset / confirmation), which Penny doesn't currently use — so this is
+   hygiene, not a gate. Add a redirect entry only if you later enable magic links,
+   social login, or email password reset.
+6. **Verify:** load `https://app.poweredbypenny.com` → login works (backend token auth,
+   independent of the Supabase URL config above), network calls hit
+   `api.poweredbypenny.com` with no CORS error, and a calendar connect round-trips back
+   to `/settings/calendar` on the new host.
 
 ## 5. AI disclosure consent links (6)
 
@@ -182,4 +189,5 @@ Calendar OAuth (Google/Microsoft), MLS write APIs, and DocuSign are behind seams
 - [ ] `CONSENT_SECRET`, `PUBLIC_BASE_URL` set
 - [ ] `CRON_SECRET` set; `penny-cron-scans` cron job live (hits `/cron/run-scans`)
 - [ ] Frontend on `app.poweredbypenny.com` (CNAME + cert; penny-web redeployed with
-      `VITE_API_BASE_URL`); origin in penny-api CORS; Supabase Auth URL allowlist updated
+      `VITE_API_BASE_URL`); origin in penny-api CORS; Supabase Auth **Site URL** set
+      (redirect allowlist not required — backend token auth, no Supabase client)
