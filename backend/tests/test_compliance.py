@@ -19,6 +19,25 @@ def test_get_ruleset_falls_back_to_default():
     assert c.get_ruleset("")[0] == "DEFAULT"
 
 
+def test_review_ruleset_always_includes_execution_audit():
+    # The execution-completeness audit (signatures/initials/dates/addenda) must
+    # run in EVERY state — the state-specific rulesets historically omitted it.
+    exec_ids = {r["id"] for r in c.EXECUTION_RULES}
+    assert exec_ids  # sanity
+    for state in [None, "DEFAULT", "ZZ", *c.DETAILED_RULESET_STATES]:
+        _, rules = c.review_ruleset(state)
+        ids = {r["id"] for r in rules}
+        assert exec_ids <= ids, f"{state} review is missing execution rules"
+        assert any(r["category"] == "Execution" for r in rules)
+
+
+def test_review_ruleset_does_not_duplicate_rule_ids():
+    for state in [None, "TX", "FL", "CA", "NY", "SC"]:
+        _, rules = c.review_ruleset(state)
+        ids = [r["id"] for r in rules]
+        assert len(ids) == len(set(ids)), f"{state} has duplicate rule ids"
+
+
 def test_structural_checks_flag_missing_core_fields():
     findings = c.run_structural_checks({})
     msgs = [f["message"] for f in findings]

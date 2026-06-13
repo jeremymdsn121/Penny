@@ -21,6 +21,7 @@ from app.api.v1.routes import (
     onboarding,
     reports,
     sms,
+    status_updates,
     tasks,
     transactions,
     whatsapp,
@@ -49,4 +50,5 @@ api_router.include_router(doc_routing.router)
 api_router.include_router(briefing.router)
 api_router.include_router(legal.router)
 api_router.include_router(calendar.router)
+api_router.include_router(status_updates.router)
 api_router.include_router(cron.router)

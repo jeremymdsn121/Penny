@@ -31,7 +31,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 
 from app.config import settings
 from app.core import supabase_client as sb
-from app.services import deadline_reminders, email_scheduler
+from app.services import deadline_reminders, email_scheduler, status_updates
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 logger = logging.getLogger(__name__)
@@ -55,6 +55,7 @@ async def run_scans(
         "reminders_processed": 0,
         "replies_resurfaced": 0,
         "replies_reminded": 0,
+        "status_updates_processed": 0,
         "errors": [],
     }
     for b in brokerages:
@@ -72,5 +73,11 @@ async def run_scans(
         except Exception as exc:  # noqa: BLE001
             logger.error("Cron reply scan failed for brokerage %s: %s", bid, exc)
             summary["errors"].append({"brokerage_id": bid, "scan": "scheduled-replies"})
+        try:
+            su = await status_updates.run_status_updates(bid)
+            summary["status_updates_processed"] += su.get("processed", 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Cron status-update scan failed for brokerage %s: %s", bid, exc)
+            summary["errors"].append({"brokerage_id": bid, "scan": "status-updates"})
 
     return {"ok": True, **summary}

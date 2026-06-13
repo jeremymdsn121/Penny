@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   emailsApi,
   pendingRepliesApi,
+  statusUpdatesApi,
   type EmailDeliveryEvent,
   type PendingEmailReply,
+  type PendingStatusUpdate,
   type TransactionEmail,
 } from '../lib/api'
 
@@ -58,6 +60,11 @@ export default function Communications({
   // Delivery problems (bounced/dropped/spam-flagged outbound mail).
   const [deliveryEvents, setDeliveryEvents] = useState<EmailDeliveryEvent[]>([])
 
+  // Recurring status updates drafted by Penny, awaiting the agent's send.
+  const [statusUpdates, setStatusUpdates] = useState<PendingStatusUpdate[]>([])
+  const [suConfirmId, setSuConfirmId] = useState<string | null>(null)
+  const [suBusyId, setSuBusyId] = useState<string | null>(null)
+
   useEffect(() => {
     let ignore = false
     setLoading(true)
@@ -79,8 +86,42 @@ export default function Communications({
       .deliveryEvents(txId)
       .then((ev) => { if (!ignore) setDeliveryEvents(ev) })
       .catch(() => {})
+    // Best-effort: pending status updates render only when present.
+    statusUpdatesApi
+      .listForTransaction(txId)
+      .then((su) => { if (!ignore) setStatusUpdates(su) })
+      .catch(() => {})
     return () => { ignore = true }
   }, [txId])
+
+  async function sendStatusUpdate(su: PendingStatusUpdate) {
+    setSuBusyId(su.id)
+    setError(null)
+    try {
+      await statusUpdatesApi.send(su.id)
+      setStatusUpdates((prev) => prev.filter((x) => x.id !== su.id))
+      setSuConfirmId(null)
+      setEmails(await emailsApi.list(txId))
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail ?? 'Could not send the status update.')
+    } finally {
+      setSuBusyId(null)
+    }
+  }
+
+  async function dismissStatusUpdate(id: string) {
+    setSuBusyId(id)
+    try {
+      await statusUpdatesApi.dismiss(id)
+      setStatusUpdates((prev) => prev.filter((x) => x.id !== id))
+    } catch {
+      setError('Could not dismiss the status update.')
+    } finally {
+      setSuBusyId(null)
+    }
+  }
 
   async function sendSuggested(r: PendingEmailReply) {
     const draft = drafts[r.id] ?? { subject: r.subject, body: r.draft_body }
@@ -178,6 +219,68 @@ export default function Communications({
           <p className="mt-2 text-xs text-amber-700">
             Check the address on the deal — this party isn't receiving Penny's emails.
           </p>
+        </div>
+      )}
+
+      {statusUpdates.length > 0 && (
+        <div className="mb-5 space-y-3">
+          {statusUpdates.map((su) => {
+            const confirming = suConfirmId === su.id
+            const busy = suBusyId === su.id
+            const to = su.recipient_emails.join(', ')
+            return (
+              <div key={su.id} className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+                <p className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sky-700">
+                  <span className="inline-block rounded bg-sky-200 px-1.5 py-0.5 text-[10px]">
+                    Status update
+                  </span>
+                  <span className="font-normal normal-case text-ink-subtle">to {to}</span>
+                </p>
+                <p className="mb-1 text-sm font-medium text-ink">{su.subject}</p>
+                <pre className="mb-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-white/70 p-3 text-sm text-ink-muted">
+                  {su.body_text}
+                </pre>
+                {!confirming ? (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSuConfirmId(su.id)}
+                      disabled={busy || su.recipient_emails.length === 0}
+                      className="btn-primary text-sm disabled:opacity-50"
+                    >
+                      Send…
+                    </button>
+                    <button
+                      onClick={() => dismissStatusUpdate(su.id)}
+                      disabled={busy}
+                      className="text-sm font-medium text-ink-muted hover:text-ink"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-white px-3 py-2">
+                    <span className="text-sm text-sky-800">
+                      Send this update to <strong>{su.recipient_emails.length}</strong> parties?
+                    </span>
+                    <button
+                      onClick={() => sendStatusUpdate(su)}
+                      disabled={busy}
+                      className="btn-primary text-sm"
+                    >
+                      {busy ? 'Sending…' : 'Confirm send'}
+                    </button>
+                    <button
+                      onClick={() => setSuConfirmId(null)}
+                      disabled={busy}
+                      className="text-sm font-medium text-ink-muted hover:text-ink"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

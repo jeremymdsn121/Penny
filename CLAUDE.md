@@ -127,6 +127,11 @@ URL when done.
   Hybrid: deterministic structural checks over the transaction record + an AI
   pass that reads the contract PDF and assesses it against the state ruleset
   (DEFAULT or the detailed TX/SC/FL/CA/NY checklist), mirroring `ai_extract`.
+  Every review also runs the universal **execution-completeness audit**
+  (`EXECUTION_RULES` — signatures/initials/dates/referenced-addenda, merged into
+  every ruleset by `review_ruleset`), the "comb every page for missing marks"
+  pass a TC does on a freshly executed contract — the detailed state rulesets
+  historically only covered disclosures/forms. Still surface-only.
   `POST /transactions/{id}/compliance-review` only **surfaces** findings +
   annotated checklist + a *suggested* status (read-only, never approves);
   `POST /transactions/{id}/compliance-decision` (confirm-gated) records the
@@ -219,6 +224,24 @@ URL when done.
   next action (propose times / draft email / chase receipt) and flags missing
   party emails, rather than only offering to "mark complete." Applies across web,
   WhatsApp, and SMS (same agent loop).
+- **Recurring status updates (Autonomy task `status-updates`):**
+  `app/services/status_updates.py` — a TC's most routine job, the weekly "here's
+  where we stand" to a deal's parties (stage + what's coming up + what's still
+  outstanding), built deterministically from the deal's deadlines/tasks/checklist
+  (no LLM, degrades cleanly). Mirrors the deadline-reminder pattern: the idempotent
+  scan `POST /status-updates/run` (also looped by `/cron/run-scans`) finds active
+  deals due for an update (weekly cadence via `transactions.last_status_update_at`)
+  and either **sends to the parties** when `status-updates` is autonomous, or
+  **queues a `pending_status_updates` row + WhatsApp-nudges the deal's agent** to
+  confirm-send (the default — external sends stay human-gated). `last_status_update_at`
+  is claimed before the side effect so overlapping runs can't double-send. Confirm
+  queue: `GET /status-updates/pending` (optional `?transaction_id=`),
+  `POST /status-updates/pending/{id}/send` (`confirmed=true`, no bypass),
+  `/dismiss`. Agent tool `send_status_update` (preview → confirm) handles on-demand
+  updates between cycles; web UI is a "Status update" card on the Communications
+  tab + a "Run status updates" dev button on the dashboard. This wires the
+  previously-inert `status-updates` autonomy toggle (it had a draft `doc_type` but
+  no sender — like `doc-routing` before it was wired). Migration 027.
 - **Production plumbing (post-V2):** four pieces added after the gap review.
   (1) **Unattended scans:** `POST /cron/run-scans` (`routes/cron.py`,
   `X-Cron-Secret` = `CRON_SECRET`, 503 when unset) loops every brokerage and runs
@@ -456,6 +479,10 @@ Post-V2 (web-app work):
   receipt, autonomous/confirmed sends). Feeds the per-deal Activity timeline
   (`GET /transactions/{id}/activity`, which merges it with emails + delivery
   events + appointments). **Applied in dev (2026-06-11).** Full timeline active.
+- `027_status_updates.sql` — `transactions.last_status_update_at` (cadence anchor
+  + idempotency claim) + `pending_status_updates` (the one-click send queue for
+  recurring status updates). See the Recurring status updates bullet. **Not yet
+  applied in dev.**
 
 **Apply in strict order.** 007 depends on 004 (`knowledge_documents` must exist);
 008 depends on 007 (its data-copy reads `whatsapp_contacts.agent_id`). If a paste

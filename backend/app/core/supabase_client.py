@@ -2026,6 +2026,95 @@ async def update_pending_doc_route(route_id: str, data: dict[str, Any]) -> dict[
 
 
 # --------------------------------------------------------------------------- #
+# Recurring status updates (migration 027). Mirrors pending_doc_routes: Penny
+# drafts a status update, the agent confirms the send (or it goes out
+# autonomously and is logged here as 'sent').
+# --------------------------------------------------------------------------- #
+
+async def insert_pending_status_update(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Insert a status-update row. Returns None on the open-row unique conflict
+    (a pending update already waits for this transaction), which keeps the scan
+    idempotent across repeated runs."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            f"{REST_BASE}/pending_status_updates",
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code == 409:
+        return None
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def list_pending_status_updates(
+    brokerage_id: str, *, status_filter: str | None = "pending"
+) -> list[dict[str, Any]]:
+    params = {
+        "brokerage_id": f"eq.{brokerage_id}",
+        "select": "*",
+        "order": "created_at.desc",
+    }
+    if status_filter:
+        params["status"] = f"eq.{status_filter}"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_status_updates", params=params, headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def list_pending_status_updates_for_transaction(
+    transaction_id: str, *, status_filter: str | None = "pending"
+) -> list[dict[str, Any]]:
+    params = {
+        "transaction_id": f"eq.{transaction_id}",
+        "select": "*",
+        "order": "created_at.desc",
+    }
+    if status_filter:
+        params["status"] = f"eq.{status_filter}"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_status_updates", params=params, headers=_service_headers()
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    return resp.json()
+
+
+async def get_pending_status_update(row_id: str) -> dict[str, Any] | None:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            f"{REST_BASE}/pending_status_updates",
+            params={"id": f"eq.{row_id}", "select": "*", "limit": "1"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def update_pending_status_update(row_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{REST_BASE}/pending_status_updates",
+            params={"id": f"eq.{row_id}"},
+            json=data,
+            headers=_service_headers() | {"Prefer": "return=representation"},
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+    rows = resp.json()
+    return rows[0] if rows else {}
+
+
+# --------------------------------------------------------------------------- #
 # Agent lookup by email — used to recognise an inbound email reply as coming
 # from one of the brokerage's own agents (vs. an outside party).
 # --------------------------------------------------------------------------- #
