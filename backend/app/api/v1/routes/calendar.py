@@ -86,6 +86,50 @@ async def update_working_hours(
     }
 
 
+@router.put("/agents/{agent_id}/working-hours")
+async def update_agent_working_hours(
+    agent_id: str,
+    body: WorkingHoursUpdate,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Set an agent's working-hours override (replaces inheriting the brokerage)."""
+    if body.work_end <= body.work_start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End time must be after start time.",
+        )
+    agent = await sb.get_agent(brokerage["id"], agent_id)
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    updated = await sb.update_agent(
+        brokerage["id"],
+        agent_id,
+        {
+            "work_start": body.work_start,
+            "work_end": body.work_end,
+            "buffer_minutes": body.buffer_minutes,
+        },
+    )
+    return cal.agent_status(updated or {})
+
+
+@router.delete("/agents/{agent_id}/working-hours")
+async def clear_agent_working_hours(
+    agent_id: str,
+    brokerage: dict[str, Any] = Depends(get_current_brokerage),
+) -> dict[str, Any]:
+    """Clear an agent's override so they inherit the brokerage working hours."""
+    agent = await sb.get_agent(brokerage["id"], agent_id)
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    updated = await sb.update_agent(
+        brokerage["id"],
+        agent_id,
+        {"work_start": None, "work_end": None, "buffer_minutes": None},
+    )
+    return cal.agent_status(updated or {})
+
+
 @router.get("/google/connect")
 async def google_connect(
     agent_id: str | None = Query(default=None),

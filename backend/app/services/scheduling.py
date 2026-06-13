@@ -46,6 +46,28 @@ def resolve_timezone(state: str | None) -> ZoneInfo:
     return ZoneInfo(STATE_TIMEZONES.get(code, DEFAULT_TZ))
 
 
+def resolve_working_hours(
+    brokerage: dict, agent: dict | None = None
+) -> tuple[str | None, str | None, int]:
+    """Effective (work_start, work_end, buffer_minutes) for a deal.
+
+    Per-field fallback: the deal's agent overrides the brokerage when set,
+    otherwise the brokerage value is used (and ``propose_slots`` applies its own
+    09:00/17:00/0 defaults if both are blank). ``buffer_minutes`` of 0 is a real
+    value — only ``None`` means "inherit".
+    """
+
+    def pick(field: str):
+        if agent is not None:
+            av = agent.get(field)
+            if av is not None and av != "":
+                return av
+        return brokerage.get(field)
+
+    buf = pick("buffer_minutes")
+    return pick("work_start"), pick("work_end"), int(buf) if buf is not None else 0
+
+
 def _parse_hhmm(value: str | None, fallback: time) -> time:
     if not value:
         return fallback

@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Calendar, Check, Clock, Copy, Link2 } from 'lucide-react'
-import { calendarApi, type CalendarStatus } from '../lib/api'
+import {
+  calendarApi,
+  type CalendarAgentStatus,
+  type CalendarStatus,
+  type WorkingHours,
+} from '../lib/api'
 import { useAuthStore } from '../store/auth'
 
 export default function CalendarSettings() {
@@ -245,7 +250,8 @@ export default function CalendarSettings() {
             ) : (
               <ul className="divide-y divide-hairline">
                 {status?.agents.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-4 py-3">
+                  <li key={a.id} className="py-3">
+                    <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <p className="truncate text-sm text-ink">{a.name || a.email || 'Agent'}</p>
                       {a.email && <p className="truncate text-xs text-ink-muted">{a.email}</p>}
@@ -284,6 +290,12 @@ export default function CalendarSettings() {
                         </button>
                       </div>
                     )}
+                    </div>
+                    <AgentHours
+                      agent={a}
+                      fb={{ work_start: workStart, work_end: workEnd, buffer_minutes: buffer }}
+                      setBanner={setBanner}
+                    />
                   </li>
                 ))}
               </ul>
@@ -291,6 +303,120 @@ export default function CalendarSettings() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+// Per-agent working-hours override. Self-contained: edits its own state and
+// reflects whether the agent is using a custom window or inheriting the
+// brokerage's (`fb`). Saving sets all three; "Use brokerage hours" clears them.
+function AgentHours({
+  agent,
+  fb,
+  setBanner,
+}: {
+  agent: CalendarAgentStatus
+  fb: WorkingHours
+  setBanner: (b: { ok: boolean; text: string }) => void
+}) {
+  const who = agent.name || agent.email || 'Agent'
+  const [override, setOverride] = useState(agent.work_start != null)
+  const [start, setStart] = useState(agent.work_start ?? fb.work_start)
+  const [end, setEnd] = useState(agent.work_end ?? fb.work_end)
+  const [buffer, setBuffer] = useState<number>(agent.buffer_minutes ?? fb.buffer_minutes)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (end <= start) {
+      setBanner({ ok: false, text: 'End time must be after start time.' })
+      return
+    }
+    setSaving(true)
+    try {
+      await calendarApi.updateAgentWorkingHours(agent.id, {
+        work_start: start,
+        work_end: end,
+        buffer_minutes: buffer,
+      })
+      setOverride(true)
+      setBanner({ ok: true, text: `Hours saved for ${who}.` })
+    } catch {
+      setBanner({ ok: false, text: 'Could not save agent hours.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function clear() {
+    setSaving(true)
+    try {
+      await calendarApi.clearAgentWorkingHours(agent.id)
+      setOverride(false)
+      setStart(fb.work_start)
+      setEnd(fb.work_end)
+      setBuffer(fb.buffer_minutes)
+      setBanner({ ok: true, text: `${who} now uses brokerage hours.` })
+    } catch {
+      setBanner({ ok: false, text: 'Could not reset agent hours.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-hairline bg-surface-2 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium text-ink-muted">Working hours</span>
+        <span className="text-xs text-ink-subtle">
+          {override ? 'Custom' : 'Using brokerage hours'}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="block">
+          <span className="mb-1 block text-xs text-ink-subtle">Start</span>
+          <input
+            className="input w-28 py-1"
+            type="time"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-ink-subtle">End</span>
+          <input
+            className="input w-28 py-1"
+            type="time"
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-ink-subtle">Buffer</span>
+          <select
+            className="input w-24 py-1"
+            value={buffer}
+            onChange={(e) => setBuffer(Number(e.target.value))}
+          >
+            {[0, 15, 30, 45, 60].map((m) => (
+              <option key={m} value={m}>
+                {m}m
+              </option>
+            ))}
+          </select>
+        </label>
+        <button onClick={save} disabled={saving} className="btn-primary">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        {override && (
+          <button
+            onClick={clear}
+            disabled={saving}
+            className="text-sm font-medium text-ink-muted hover:text-ink"
+          >
+            Use brokerage hours
+          </button>
+        )}
+      </div>
     </div>
   )
 }

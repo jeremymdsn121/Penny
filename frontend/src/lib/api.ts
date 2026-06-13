@@ -184,6 +184,10 @@ export interface CalendarAgentStatus {
   email?: string | null
   provider?: string | null
   connected: boolean
+  // Per-agent working-hours override; null on any field means inherit the brokerage.
+  work_start?: string | null
+  work_end?: string | null
+  buffer_minutes?: number | null
 }
 
 export interface CalendarStatus {
@@ -208,6 +212,14 @@ export const calendarApi = {
     }),
   updateWorkingHours: (data: WorkingHours) =>
     api.put<WorkingHours>('/calendar/working-hours', data).then((r) => r.data),
+  updateAgentWorkingHours: (agentId: string, data: WorkingHours) =>
+    api
+      .put<CalendarAgentStatus>(`/calendar/agents/${agentId}/working-hours`, data)
+      .then((r) => r.data),
+  clearAgentWorkingHours: (agentId: string) =>
+    api
+      .delete<CalendarAgentStatus>(`/calendar/agents/${agentId}/working-hours`)
+      .then((r) => r.data),
 }
 
 export interface WorkingHours {
