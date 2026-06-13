@@ -2,13 +2,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PennyBubble from '../components/PennyBubble'
 import TaskToggle from '../components/TaskToggle'
+import { usePennyGlyphSlot } from '../hooks/usePennyGlyphSlot'
+import { useGlyphStore } from '../store/glyph'
 import {
   onboardingApi,
   type OnboardingOptions,
 } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 
-const STEPS = ['State', 'Identity', 'Email', 'Calendar', 'Autonomy'] as const
+// Onboarding is the user's first conversation with Penny: a large glyph greets
+// them, then she asks the five setup questions ONE AT A TIME (greeting beat +
+// five question beats), each a chat bubble with a clean answer board below.
+// On finish the big glyph shrinks and flies to become the home hero (the glyph
+// itself is the shared PennyGlyphLayer; this page just registers its slot and
+// hands off the rect before navigating).
+
+const STEP_LABELS = ['State', 'Identity', 'Email', 'Calendar', 'Autonomy'] as const
+const STEP_COUNT = STEP_LABELS.length
+const GLYPH_SIZE = 168
 
 type EmailMode = 'own' | 'monitor'
 type CalendarProvider = 'google' | 'outlook' | ''
@@ -20,27 +31,32 @@ export default function Onboarding() {
   const setBrokerage = useAuthStore((s) => s.setBrokerage)
 
   const [options, setOptions] = useState<OnboardingOptions | null>(null)
-  const [step, setStep] = useState(0)
+  // beat 0 = greeting, 1..STEP_COUNT = questions. step = beat - 1.
+  const [beat, setBeat] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Step 1 — State
+  // Question 1 — State
   const [state, setState] = useState(brokerage?.state ?? '')
-  // Step 2 — Identity (assistant is always "Penny"; not user-editable)
+  // Question 2 — Identity (assistant is always "Penny"; not user-editable)
   const [name, setName] = useState(brokerage?.name ?? '')
   const [email, setEmail] = useState(brokerage?.email ?? '')
   const [phone, setPhone] = useState(brokerage?.phone ?? '')
-  // Step 3 — Email handling
+  // Question 3 — Email handling
   const [emailMode, setEmailMode] = useState<EmailMode>('own')
   const [monitorEmail, setMonitorEmail] = useState('')
-  // Step 4 — Calendar / scheduling
+  // Question 4 — Calendar / scheduling
   const [calendarProvider, setCalendarProvider] = useState<CalendarProvider>('')
   const [workStart, setWorkStart] = useState('09:00')
   const [workEnd, setWorkEnd] = useState('17:00')
   const [bufferMinutes, setBufferMinutes] = useState(15)
   const [showingMethod, setShowingMethod] = useState<ShowingMethod>('email')
-  // Step 5 — Task autonomy
+  // Question 5 — Task autonomy
   const [autonomy, setAutonomy] = useState<Record<string, boolean>>({})
+
+  // The invisible slot the floating glyph fills. The persistent layer paints the
+  // big glyph here; on finish we hand off its rect so it can fly to the home hero.
+  const slotRef = usePennyGlyphSlot('onboard-hero', GLYPH_SIZE)
 
   useEffect(() => {
     onboardingApi
@@ -55,6 +71,7 @@ export default function Onboarding() {
   }, [])
 
   const assistant = 'Penny'
+  const step = beat - 1
   const isDetailedState = useMemo(
     () => !!state && (options?.detailed_ruleset_states.includes(state) ?? false),
     [state, options],
@@ -102,7 +119,11 @@ export default function Onboarding() {
         })),
       })
       setBrokerage(updated)
-      navigate('/dashboard')
+      // Capture the live glyph rect as the FLIP "from" BEFORE navigating — the
+      // onboarding slot unmounts the instant we leave the route.
+      const r = slotRef.current?.getBoundingClientRect()
+      if (r) useGlyphStore.getState().beginHandoff({ x: r.left, y: r.top, size: r.width })
+      navigate('/')
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? 'Something went wrong saving your setup.')
     } finally {
@@ -112,184 +133,203 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-surface-2 px-4 py-10">
-      <div className="mx-auto w-full max-w-lg space-y-6">
-        <Stepper step={step} />
-        <PennyBubble>{bubble}</PennyBubble>
+      <div className="mx-auto flex w-full max-w-lg flex-col items-center">
+        {/* Large glyph slot — the persistent PennyGlyphLayer paints the big
+            glyph over this invisible spacer. */}
+        <div ref={slotRef} aria-hidden style={{ width: GLYPH_SIZE, height: GLYPH_SIZE }} />
 
-        <div className="space-y-5 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
-          {!options && !error && <p className="text-sm text-ink-muted">Loading…</p>}
-
-          {step === 0 && options && (
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-ink">State</span>
-                <select className="input" value={state} onChange={(e) => setState(e.target.value)}>
-                  <option value="">Select a state…</option>
-                  {options.states.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {state && (
-                <p className="text-xs text-ink-muted">
-                  {isDetailedState
-                    ? `I have detailed compliance rules for ${state}.`
-                    : `I'll use my default compliance checklist for ${state}. Verify state-specific addenda.`}
-                </p>
-              )}
-            </div>
-          )}
-
-          {step === 1 && options && (
-            <div className="space-y-4">
-              <TextField label="Brokerage name" value={name} onChange={setName} />
-              <TextField label="Email" type="email" value={email} onChange={setEmail} placeholder="penny@yourbrokerage.com" />
-              <TextField label="Phone" value={phone} onChange={setPhone} placeholder="(512) 555-0100" />
-            </div>
-          )}
-
-          {step === 2 && options && (
-            <div className="space-y-3">
-              <OptionCard
-                selected={emailMode === 'own'}
-                onClick={() => setEmailMode('own')}
-                title={`${assistant} gets her own address`}
-                desc={`I send and receive as my own address${email ? ` (${email})` : ''}.`}
-              />
-              <OptionCard
-                selected={emailMode === 'monitor'}
-                onClick={() => setEmailMode('monitor')}
-                title="I monitor an inbox you already use"
-                desc="I watch an existing mailbox and act on what comes in."
-              />
-              {emailMode === 'monitor' && (
-                <TextField
-                  label="Inbox to monitor"
-                  type="email"
-                  value={monitorEmail}
-                  onChange={setMonitorEmail}
-                  placeholder="deals@yourbrokerage.com"
-                />
-              )}
-              <p className="text-xs text-ink-muted">
-                I&rsquo;ll connect to the live mailbox when we set up scheduling. For now this just records how you want it to work.
+        {/* Beat content cross-fades: key forces a remount so fade-up replays. */}
+        <div key={beat} className="w-full animate-fade-up">
+          {beat === 0 ? (
+            <div className="space-y-5 text-center">
+              <p className="text-2xl font-semibold tracking-tight text-ink">
+                Hey there, I&rsquo;m Penny. Let&rsquo;s get you started.
               </p>
+              <p className="text-sm text-ink-muted">
+                A few quick questions and I&rsquo;ll be ready to run your transactions with you.
+              </p>
+              <button type="button" className="btn-primary" onClick={() => setBeat(1)} disabled={!options}>
+                {options ? "Let's go" : 'Loading…'}
+              </button>
+              {error && <p className="text-sm text-red-600">{error}</p>}
             </div>
-          )}
+          ) : (
+            <div className="space-y-5">
+              <Progress step={step} />
+              <PennyBubble>{bubble}</PennyBubble>
 
-          {step === 3 && options && (
-            <div className="space-y-4">
-              <div>
-                <span className="mb-1 block text-sm font-medium text-ink">Calendar</span>
-                <div className="grid grid-cols-3 gap-2">
-                  <ChoicePill label="Google" active={calendarProvider === 'google'} onClick={() => setCalendarProvider('google')} />
-                  <ChoicePill label="Outlook" active={calendarProvider === 'outlook'} onClick={() => setCalendarProvider('outlook')} />
-                  <ChoicePill label="Decide later" active={calendarProvider === ''} onClick={() => setCalendarProvider('')} />
-                </div>
-                <p className="mt-1 text-xs text-ink-muted">
-                  I&rsquo;ll connect your calendar account when we turn on scheduling.
-                </p>
+              <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+                {!options && !error && <p className="text-sm text-ink-muted">Loading…</p>}
+
+                {step === 0 && options && (
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-ink">State</span>
+                      <select className="input" value={state} onChange={(e) => setState(e.target.value)}>
+                        <option value="">Select a state…</option>
+                        {options.states.map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {state && (
+                      <p className="text-xs text-ink-muted">
+                        {isDetailedState
+                          ? `I have detailed compliance rules for ${state}.`
+                          : `I'll use my default compliance checklist for ${state}. Verify state-specific addenda.`}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {step === 1 && options && (
+                  <div className="space-y-4">
+                    <TextField label="Brokerage name" value={name} onChange={setName} />
+                    <TextField label="Email" type="email" value={email} onChange={setEmail} placeholder="penny@yourbrokerage.com" />
+                    <TextField label="Phone" value={phone} onChange={setPhone} placeholder="(512) 555-0100" />
+                  </div>
+                )}
+
+                {step === 2 && options && (
+                  <div className="space-y-3">
+                    <OptionCard
+                      selected={emailMode === 'own'}
+                      onClick={() => setEmailMode('own')}
+                      title={`${assistant} gets her own address`}
+                      desc={`I send and receive as my own address${email ? ` (${email})` : ''}.`}
+                    />
+                    <OptionCard
+                      selected={emailMode === 'monitor'}
+                      onClick={() => setEmailMode('monitor')}
+                      title="I monitor an inbox you already use"
+                      desc="I watch an existing mailbox and act on what comes in."
+                    />
+                    {emailMode === 'monitor' && (
+                      <TextField
+                        label="Inbox to monitor"
+                        type="email"
+                        value={monitorEmail}
+                        onChange={setMonitorEmail}
+                        placeholder="deals@yourbrokerage.com"
+                      />
+                    )}
+                    <p className="text-xs text-ink-muted">
+                      I&rsquo;ll connect to the live mailbox when we set up scheduling. For now this just records how you want it to work.
+                    </p>
+                  </div>
+                )}
+
+                {step === 3 && options && (
+                  <div className="space-y-4">
+                    <div>
+                      <span className="mb-1 block text-sm font-medium text-ink">Calendar</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <ChoicePill label="Google" active={calendarProvider === 'google'} onClick={() => setCalendarProvider('google')} />
+                        <ChoicePill label="Outlook" active={calendarProvider === 'outlook'} onClick={() => setCalendarProvider('outlook')} />
+                        <ChoicePill label="Decide later" active={calendarProvider === ''} onClick={() => setCalendarProvider('')} />
+                      </div>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        I&rsquo;ll connect your calendar account when we turn on scheduling.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <TextField label="Working hours start" type="time" value={workStart} onChange={setWorkStart} />
+                      <TextField label="Working hours end" type="time" value={workEnd} onChange={setWorkEnd} />
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-ink">Buffer between appointments</span>
+                      <select
+                        className="input"
+                        value={bufferMinutes}
+                        onChange={(e) => setBufferMinutes(Number(e.target.value))}
+                      >
+                        {[0, 15, 30, 45, 60].map((m) => (
+                          <option key={m} value={m}>
+                            {m} minutes
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div>
+                      <span className="mb-1 block text-sm font-medium text-ink">How showings get booked</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <ChoicePill label="Email-based" active={showingMethod === 'email'} onClick={() => setShowingMethod('email')} />
+                        <ChoicePill label="ShowingTime" active={showingMethod === 'showingtime'} onClick={() => setShowingMethod('showingtime')} />
+                      </div>
+                      {showingMethod === 'showingtime' && (
+                        <p className="mt-1 text-xs text-ink-muted">
+                          ShowingTime handles the booking itself. I step in afterward, confirming the showing and reminding everyone.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {step === 4 && options && (
+                  <div className="space-y-3">
+                    {options.tasks.map((t) => (
+                      <TaskToggle
+                        key={t.task_id}
+                        task={t}
+                        value={t.locked ? false : !!autonomy[t.task_id]}
+                        onChange={(v) => setAutonomy((prev) => ({ ...prev, [t.task_id]: v }))}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <TextField label="Working hours start" type="time" value={workStart} onChange={setWorkStart} />
-                <TextField label="Working hours end" type="time" value={workEnd} onChange={setWorkEnd} />
-              </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-ink">Buffer between appointments</span>
-                <select
-                  className="input"
-                  value={bufferMinutes}
-                  onChange={(e) => setBufferMinutes(Number(e.target.value))}
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setBeat((b) => Math.max(1, b - 1))}
+                  disabled={beat === 1}
+                  className="text-sm font-medium text-ink-muted hover:text-ink disabled:invisible"
                 >
-                  {[0, 15, 30, 45, 60].map((m) => (
-                    <option key={m} value={m}>
-                      {m} minutes
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div>
-                <span className="mb-1 block text-sm font-medium text-ink">How showings get booked</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <ChoicePill label="Email-based" active={showingMethod === 'email'} onClick={() => setShowingMethod('email')} />
-                  <ChoicePill label="ShowingTime" active={showingMethod === 'showingtime'} onClick={() => setShowingMethod('showingtime')} />
-                </div>
-                {showingMethod === 'showingtime' && (
-                  <p className="mt-1 text-xs text-ink-muted">
-                    ShowingTime handles the booking itself. I step in afterward, confirming the showing and reminding everyone.
-                  </p>
+                  Back
+                </button>
+                {step < STEP_COUNT - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setBeat((b) => b + 1)}
+                    disabled={!canNext || !options}
+                    className="btn-primary"
+                  >
+                    Continue
+                  </button>
+                ) : (
+                  <button type="button" onClick={onFinish} disabled={submitting} className="btn-primary">
+                    {submitting ? 'Finishing…' : 'Finish setup'}
+                  </button>
                 )}
               </div>
             </div>
           )}
-
-          {step === 4 && options && (
-            <div className="space-y-3">
-              {options.tasks.map((t) => (
-                <TaskToggle
-                  key={t.task_id}
-                  task={t}
-                  value={t.locked ? false : !!autonomy[t.task_id]}
-                  onChange={(v) => setAutonomy((prev) => ({ ...prev, [t.task_id]: v }))}
-                />
-              ))}
-            </div>
-          )}
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="button"
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="text-sm font-medium text-ink-muted hover:text-ink disabled:invisible"
-            >
-              Back
-            </button>
-            {step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={() => setStep((s) => s + 1)}
-                disabled={!canNext || !options}
-                className="btn-primary"
-              >
-                Continue
-              </button>
-            ) : (
-              <button type="button" onClick={onFinish} disabled={submitting} className="btn-primary">
-                {submitting ? 'Finishing…' : 'Finish setup'}
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function Stepper({ step }: { step: number }) {
+// Slim dots progress — replaces the old numbered Stepper to keep the
+// conversational flow uncluttered.
+function Progress({ step }: { step: number }) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2">
-      {STEPS.map((label, i) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <div
-            className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-              i <= step ? 'bg-penny text-white' : 'bg-surface-3 text-ink-muted'
-            }`}
-          >
-            {i + 1}
-          </div>
-          <span className={`text-sm ${i === step ? 'font-medium text-ink' : 'text-ink-subtle'}`}>
-            {label}
-          </span>
-          {i < STEPS.length - 1 && <span className="mx-1 h-px w-4 bg-surface-3" />}
-        </div>
+    <div className="flex items-center justify-center gap-1.5" aria-label={`Step ${step + 1} of ${STEP_COUNT}: ${STEP_LABELS[step]}`}>
+      {STEP_LABELS.map((label, i) => (
+        <span
+          key={label}
+          className={`h-1.5 rounded-full transition-all ${
+            i === step ? 'w-6 bg-penny' : i < step ? 'w-1.5 bg-penny/50' : 'w-1.5 bg-surface-3'
+          }`}
+        />
       ))}
     </div>
   )
@@ -337,12 +377,14 @@ function OptionCard({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-lg border p-3 text-left transition-colors ${
-        selected ? 'border-penny bg-penny-light' : 'border-hairline hover:border-hairline'
+      className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
+        selected
+          ? 'border-penny bg-penny-light ring-2 ring-penny/20'
+          : 'border-hairline hover:border-penny/40'
       }`}
     >
       <p className="text-sm font-medium text-ink">{title}</p>
-      <p className="text-xs text-ink-muted">{desc}</p>
+      <p className="mt-0.5 text-xs text-ink-muted">{desc}</p>
     </button>
   )
 }
@@ -360,12 +402,13 @@ function ChoicePill({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-        active ? 'border-penny bg-penny-light font-medium text-penny-dark' : 'border-hairline text-ink hover:border-hairline'
+      className={`rounded-xl border-2 px-4 py-3 text-sm transition-colors ${
+        active
+          ? 'border-penny bg-penny-light font-medium text-penny-dark'
+          : 'border-hairline text-ink hover:border-penny/40'
       }`}
     >
       {label}
     </button>
   )
 }
-
