@@ -155,7 +155,8 @@ async def _busy_intervals(
             b_start = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
         except ValueError:
             continue
-        busy.append((b_start, b_start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)))
+        mins = a.get("duration_minutes") or scheduling.DEFAULT_DURATION_MIN
+        busy.append((b_start, b_start + timedelta(minutes=mins)))
     cal_busy, cal_ok = await calendar_provider.get_busy_checked(account, start, end)
     busy.extend(cal_busy)
     return busy, cal_ok
@@ -266,6 +267,7 @@ async def book(
         "type": body.type,
         "showing_method": brokerage.get("showing_method"),
         "scheduled_at": start.isoformat(),
+        "duration_minutes": body.duration_minutes,
         "confirmed": True,
         "calendar_event_id": event_id,
         "attendees": [a for a in body.attendees if a and a.strip()],

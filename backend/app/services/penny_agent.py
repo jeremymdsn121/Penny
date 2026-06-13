@@ -359,6 +359,13 @@ _TOOLS: list[dict[str, Any]] = [
                         "start_date is given (just that day), else 5."
                     ),
                 },
+                "duration_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Length of the appointment to fit, in minutes (default 30). "
+                        "Use the real length the agent mentions so slots are wide enough."
+                    ),
+                },
             },
             "required": ["address_query"],
         },
@@ -386,6 +393,15 @@ _TOOLS: list[dict[str, Any]] = [
                 "scheduled_at": {
                     "type": "string",
                     "description": "ISO 8601 datetime, ideally one of the proposed slots.",
+                },
+                "duration_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "How long the appointment runs, in minutes (default 30). Pass "
+                        "the real length when the agent says one, e.g. a 2-hour "
+                        "inspection is 120 — it sets the calendar event end and the "
+                        "window checked for conflicts."
+                    ),
                 },
                 "type": {
                     "type": "string",
@@ -1185,6 +1201,15 @@ def _fmt_slot(dt: datetime) -> str:
     return dt.strftime("%a %b %d, ") + f"{hour}:{dt.minute:02d} {ampm}"
 
 
+def _clamp_duration(raw: object) -> int:
+    """Appointment length in minutes, defaulted + bounded (15 min – 8 h)."""
+    try:
+        d = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return scheduling.DEFAULT_DURATION_MIN
+    return max(15, min(d, 480))
+
+
 async def _brokerage_busy(brokerage_id: str) -> list[tuple[datetime, datetime]]:
     txs = await sb.list_transactions(brokerage_id)
     appts = await sb.list_appointments_in([t["id"] for t in txs])
@@ -1197,7 +1222,9 @@ async def _brokerage_busy(brokerage_id: str) -> list[tuple[datetime, datetime]]:
             bs = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
         except ValueError:
             continue
-        busy.append((bs, bs + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)))
+        # Block the appointment's real length so later conflict checks are honest.
+        mins = a.get("duration_minutes") or scheduling.DEFAULT_DURATION_MIN
+        busy.append((bs, bs + timedelta(minutes=mins)))
     return busy
 
 
@@ -1217,6 +1244,7 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
         except ValueError:
             start_day = now.date()
     days = int(inputs.get("days") or (1 if start_raw else 5))
+    duration = _clamp_duration(inputs.get("duration_minutes"))
     busy = await _brokerage_busy(brokerage_id)
     # Merge the connected calendar's busy times — otherwise Penny proposes (and
     # then books) over real events. Same account routing as booking: the deal's
@@ -1250,6 +1278,7 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
         tz=tz,
         start_day=start_day,
         days=days,
+        duration_minutes=duration,
         busy=busy,
         now=now,
         max_slots=6,
@@ -1320,7 +1349,8 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
         start = start.replace(tzinfo=tz)
     appt_type = (inputs.get("type") or "showing").strip()
     attendees = [a for a in (inputs.get("attendees") or []) if a and a.strip()]
-    end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
+    duration = _clamp_duration(inputs.get("duration_minutes"))
+    end = start + timedelta(minutes=duration)
     address = (tx.get("address") or "the property").strip()
     # Route to the deal's agent calendar if connected, else the brokerage's.
     cal_agent = None
@@ -1377,12 +1407,17 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
         "type": appt_type,
         "showing_method": brokerage.get("showing_method"),
         "scheduled_at": start.isoformat(),
+        "duration_minutes": duration,
         "confirmed": True,
         "calendar_event_id": event_id,
         "attendees": attendees,
     })
     synced = " and added it to your calendar" if event_id else ""
-    return f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{synced}.{cal_unverified}"
+    length = f" ({duration} min)" if duration != scheduling.DEFAULT_DURATION_MIN else ""
+    return (
+        f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{length}{synced}."
+        f"{cal_unverified}"
+    )
 
 
 # Sensible default targets for coordinating an appointment: the agents (for
