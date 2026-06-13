@@ -2026,7 +2026,7 @@ async def update_pending_doc_route(route_id: str, data: dict[str, Any]) -> dict[
 
 
 # --------------------------------------------------------------------------- #
-# Recurring status updates (migration 027). Mirrors pending_doc_routes: Penny
+# Recurring status updates (migration 029). Mirrors pending_doc_routes: Penny
 # drafts a status update, the agent confirms the send (or it goes out
 # autonomously and is logged here as 'sent').
 # --------------------------------------------------------------------------- #

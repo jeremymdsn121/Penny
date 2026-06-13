@@ -2,7 +2,7 @@
 -- A transaction coordinator's most-cited routine: a regular "here's where we
 -- stand" update to the parties on a deal (done / upcoming / awaiting). Penny
 -- now sends these on a weekly cadence from an idempotent scan, mirroring the
--- deadline-reminder + scheduled-reply pattern. Run after 026.
+-- deadline-reminder + scheduled-reply pattern. Run after 028.
 --
 -- Two pieces, both brokerage-scoped:
 --   transactions.last_status_update_at — cadence anchor + idempotency claim. The

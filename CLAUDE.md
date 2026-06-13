@@ -241,7 +241,7 @@ URL when done.
   updates between cycles; web UI is a "Status update" card on the Communications
   tab + a "Run status updates" dev button on the dashboard. This wires the
   previously-inert `status-updates` autonomy toggle (it had a draft `doc_type` but
-  no sender — like `doc-routing` before it was wired). Migration 027.
+  no sender — like `doc-routing` before it was wired). Migration 029.
 - **Production plumbing (post-V2):** four pieces added after the gap review.
   (1) **Unattended scans:** `POST /cron/run-scans` (`routes/cron.py`,
   `X-Cron-Secret` = `CRON_SECRET`, 503 when unset) loops every brokerage and runs
@@ -479,7 +479,13 @@ Post-V2 (web-app work):
   receipt, autonomous/confirmed sends). Feeds the per-deal Activity timeline
   (`GET /transactions/{id}/activity`, which merges it with emails + delivery
   events + appointments). **Applied in dev (2026-06-11).** Full timeline active.
-- `027_status_updates.sql` — `transactions.last_status_update_at` (cadence anchor
+- `027_agent_working_hours.sql` — per-agent scheduling window + buffer overrides
+  on `agents` (NULL inherits the brokerage's `work_start`/`work_end`/
+  `buffer_minutes` from 002; resolved per-field in `scheduling.resolve_working_hours`).
+- `028_appointment_duration.sql` — `appointments.duration_minutes` (default 30),
+  so a booking's real length drives the calendar event end + conflict/busy math
+  instead of an implied 30 minutes.
+- `029_status_updates.sql` — `transactions.last_status_update_at` (cadence anchor
   + idempotency claim) + `pending_status_updates` (the one-click send queue for
   recurring status updates). See the Recurring status updates bullet. **Not yet
   applied in dev.**
