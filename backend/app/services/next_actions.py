@@ -83,16 +83,53 @@ def _cap(s: str) -> str:
 
 
 def _task_kind(label: str) -> str | None:
+    """Classify a workflow-task label into a phrasing bucket (order matters)."""
     lower = (label or "").lower()
+    if "inspection" in lower and "objection" not in lower:
+        return "inspection"
+    if "walkthrough" in lower or "final walk" in lower:
+        return "walkthrough"
+    if "appraisal" in lower:
+        return "appraisal"
+    if "lender" in lower or "loan" in lower or "financing" in lower:
+        return "financing"
     if "intro" in lower or "introduction" in lower:
         return "intro"
     if "earnest" in lower or "emd" in lower:
         return "emd"
+    if "title" in lower or "settlement" in lower or "closing" in lower:
+        return "title"
+    if "hoa" in lower:
+        return "hoa"
+    if "disclosure" in lower:
+        return "disclosure"
     return None
 
 
 # Noun phrase for a recognised task, dropped into "<subject> is due …" headlines.
 _TASK_SUBJECTS: dict[str, list[str]] = {
+    "inspection": [
+        "the home inspection",
+        "getting the inspection scheduled",
+        "the buyer's inspection",
+        "booking the inspection",
+    ],
+    "walkthrough": [
+        "the final walkthrough",
+        "scheduling the final walkthrough",
+        "the buyer's final walk-through",
+    ],
+    "appraisal": [
+        "the appraisal",
+        "getting the appraisal ordered",
+        "the lender's appraisal",
+    ],
+    "financing": [
+        "the financing check-in",
+        "the loan status",
+        "following up with the lender",
+        "the financing update",
+    ],
     "intro": [
         "the intro email to all parties",
         "the intro that introduces everyone on the deal",
@@ -105,9 +142,46 @@ _TASK_SUBJECTS: dict[str, list[str]] = {
         "the EMD receipt",
         "the earnest money confirmation",
     ],
+    "title": [
+        "the title company follow-up",
+        "looping in title",
+        "the title coordination",
+        "the closing-side title check-in",
+    ],
+    "hoa": [
+        "the HOA documents",
+        "tracking down the HOA docs",
+        "the HOA paperwork",
+    ],
+    "disclosure": [
+        "the seller's disclosure",
+        "the disclosure follow-up",
+        "the property disclosure",
+    ],
 }
 
 _TASK_OFFERS: dict[str, list[str]] = {
+    "inspection": [
+        "propose inspection times for the buyer",
+        "find open inspection times to send the buyer",
+        "line up inspection slots for the buyer",
+        "pull a few inspection times to propose",
+    ],
+    "walkthrough": [
+        "propose times for the final walkthrough",
+        "find final walkthrough times to send",
+        "line up the final walk-through",
+    ],
+    "appraisal": [
+        "draft an email to the lender about appraisal scheduling",
+        "email the lender to get the appraisal moving",
+        "nudge the lender on the appraisal",
+    ],
+    "financing": [
+        "draft an email to the lender",
+        "check in with the lender by email",
+        "draft a financing follow-up to the lender",
+    ],
     "intro": [
         "preview the intro email so you can send it",
         "pull up the intro email to introduce everyone",
@@ -119,7 +193,38 @@ _TASK_OFFERS: dict[str, list[str]] = {
         "look up where earnest money stands and chase the receipt",
         "pull the EMD status and nudge title if it's still out",
     ],
+    "title": [
+        "draft an email to title",
+        "email the title company for you",
+        "reach out to title to keep things moving",
+    ],
+    "hoa": [
+        "draft an email to the listing agent for HOA docs",
+        "email the listing agent to request the HOA documents",
+        "ask the listing agent for the HOA paperwork",
+    ],
+    "disclosure": [
+        "draft an email to the listing agent for the disclosure",
+        "email the listing agent about the disclosure",
+        "request the disclosure from the listing agent",
+    ],
 }
+
+
+def _task_prompt(kind: str | None, label: str, address: str) -> str:
+    """The imperative message sent to Penny on click — fixed per kind (stability
+    matters here; only the displayed wording varies)."""
+    return {
+        "inspection": f"Propose inspection times for {address}",
+        "walkthrough": f"Propose final walkthrough times for {address}",
+        "appraisal": f"Draft an email to the lender about appraisal scheduling for {address}",
+        "financing": f"Draft an email to the lender on {address}",
+        "intro": f"Preview the intro email for {address}",
+        "emd": f"What's the EMD status on {address}?",
+        "title": f"Draft an email to the title company on {address}",
+        "hoa": f"Draft an email to the listing agent on {address} requesting HOA documents",
+        "disclosure": f"Draft an email to the listing agent on {address} about the disclosure",
+    }.get(kind or "", f'What should I do about "{label}" on {address}?')
 
 # The EMD-overdue card (separate from a workflow task).
 _EMD_OVERDUE_HEADLINES = [
@@ -138,60 +243,14 @@ _EMD_OVERDUE_OFFERS = [
 def action_for_task_label(label: str, address: str, seed: str = "") -> tuple[str, str]:
     """Map a workflow-task label to (offer, prompt).
 
-    ``offer`` is first-person prose for display (varied per ``seed`` for
-    recognised task kinds); ``prompt`` is the imperative message sent to Penny
-    when the user clicks to act on it.
+    ``offer`` is first-person prose for display, varied per ``seed`` (deal id)
+    across the recognised task kinds; ``prompt`` is the fixed imperative message
+    sent to Penny when the user clicks to act on it.
     """
-    lower = (label or "").lower()
-    if "inspection" in lower and "objection" not in lower:
-        return (
-            "propose inspection times for the buyer",
-            f"Propose inspection times for {address}",
-        )
-    if "walkthrough" in lower or "final walk" in lower:
-        return (
-            "propose times for the final walkthrough",
-            f"Propose final walkthrough times for {address}",
-        )
-    if "appraisal" in lower:
-        return (
-            "draft an email to the lender about appraisal scheduling",
-            f"Draft an email to the lender about appraisal scheduling for {address}",
-        )
-    if "lender" in lower or "loan" in lower or "financing" in lower:
-        return (
-            "draft an email to the lender",
-            f"Draft an email to the lender on {address}",
-        )
-    if "intro" in lower or "introduction" in lower:
-        return (
-            _pick(_TASK_OFFERS["intro"], seed, "intro"),
-            f"Preview the intro email for {address}",
-        )
-    if "earnest" in lower or "emd" in lower:
-        return (
-            _pick(_TASK_OFFERS["emd"], seed, "emd"),
-            f"What's the EMD status on {address}?",
-        )
-    if "title" in lower or "settlement" in lower or "closing" in lower:
-        return (
-            "draft an email to title",
-            f"Draft an email to the title company on {address}",
-        )
-    if "hoa" in lower:
-        return (
-            "draft an email to the listing agent for HOA docs",
-            f"Draft an email to the listing agent on {address} requesting HOA documents",
-        )
-    if "disclosure" in lower:
-        return (
-            "draft an email to the listing agent for the disclosure",
-            f"Draft an email to the listing agent on {address} about the disclosure",
-        )
-    return (
-        "draft an email or schedule a time — tell me which",
-        f'What should I do about "{label}" on {address}?',
-    )
+    kind = _task_kind(label)
+    offers = _TASK_OFFERS.get(kind) if kind else None
+    offer = _pick(offers, seed, kind) if offers else "draft an email or schedule a time — tell me which"
+    return offer, _task_prompt(kind, label, address)
 
 
 async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
@@ -252,7 +311,8 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
         # Vary the subject for recognised kinds so the headline doesn't echo the
         # same static label everywhere; fall back to the quoted label otherwise.
         kind = _task_kind(label)
-        subject = _cap(_pick(_TASK_SUBJECTS[kind], tx_id, kind)) if kind else f"'{label}'"
+        subjects = _TASK_SUBJECTS.get(kind) if kind else None
+        subject = _cap(_pick(subjects, tx_id, kind)) if subjects else f"'{label}'"
         days_to = (d - today).days
         if days_to < 0:
             add(
