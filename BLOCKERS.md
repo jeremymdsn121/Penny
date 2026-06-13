@@ -120,7 +120,9 @@ equivalent), enterprise-adjacent brokerages won't sign.
   (policy value + an opt-in "enforce" flag). Automated purge of expired documents
   is a **separately-gated** follow-up; nothing is deleted blind. The policy math
   lives in `services/retention.py` (unit-tested), ready for the enforcement seam.
-- **Still to do (business):** SOC 2 readiness, Privacy Policy + DPA.
+- **Still to do (business):** SOC 2 readiness; finalize + publish Privacy Policy + DPA.
+  **Starting drafts exist** in `legal/` (`DPA.md`, `PRIVACY_POLICY.md`) — built from the
+  actual subprocessor/security posture, flagged for attorney review (not legal advice).
 
 ---
 
