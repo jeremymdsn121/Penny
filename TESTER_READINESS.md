@@ -141,14 +141,14 @@ responses cover most of it, and the real UI is spot-checked in normal use.
 
 ## Tier 2 — Production hardening before real client NPI
 
-- [x] **Unattended cron actually scheduled** — DONE 2026-06-12. Added the
-  `penny-cron-scans` Render Cron Job to `render.yaml` (every 15 min,
-  `backend/scripts/run_cron_scans.py` → `POST /api/v1/cron/run-scans`); it pulls
-  `CRON_SECRET` from `penny-api` via `fromService` so the generated value matches
-  on both sides. **Remaining:** apply the blueprint in Render (re-sync) so the cron
-  service is actually created on the deployed account, then confirm one run logs a
-  200 + idempotent summary. Reminders + scheduled-reply resurfacing no longer depend
-  on the dashboard dev buttons once that's live.
+- [x] **Unattended cron actually scheduled** — DONE + VERIFIED LIVE 2026-06-13. The
+  `penny-cron-scans` Render Cron Job (every 15 min, `backend/scripts/run_cron_scans.py`
+  → `POST /api/v1/cron/run-scans`) pulls `CRON_SECRET` from `penny-api` via `fromService`
+  so the generated value matches on both sides. **Verified** in the Render logs: back-to-
+  back scheduled runs (08:15 / 08:30) each returned `200` with
+  `{"ok":true,"brokerages":4,...,"errors":[]}` and finished successfully — confirms the
+  schedule, the secret wiring, the per-brokerage loop, and idempotency. Reminders +
+  scheduled-reply resurfacing no longer depend on the dashboard dev buttons.
 - [x] **Frontend custom domain** — DONE 2026-06-13. Browser app live on
   `app.poweredbypenny.com` (Render custom domain + cert; CNAME at Porkbun; penny-web
   redeployed). `render.yaml` declares the domain on `penny-web` and pins the public URLs
