@@ -160,10 +160,13 @@ responses cover most of it, and the real UI is spot-checked in normal use.
   Runbook in `DEPLOYMENT.md` § 4c.
 - [ ] **NPI / data posture** — only HL6 interim retention exists (no SOC 2). Fine for
   design partners with test data; have the explicit conversation before real client PII
-  at scale. See `BLOCKERS.md` HL6.
+  at scale. **Decision write-up (question / options / recommendation) in
+  `TIER2_DECISIONS.md` § 1** — recommends onboarding pilots under a written DPA +
+  Privacy Policy, test/redacted data only. See also `BLOCKERS.md` HL6.
 - [ ] **Multi-seat decision** — `require_admin` is a no-op; one admin login per
   brokerage. Confirm that's acceptable for testers (agents use WhatsApp/SMS, not logins)
-  or scope real multi-seat.
+  or scope real multi-seat. **Decision write-up in `TIER2_DECISIONS.md` § 2** —
+  recommends keeping single-admin for the pilot (the gate is already wired).
 
 ## ⏸ Deferred — explicitly out of tester scope (behind seams)
 
