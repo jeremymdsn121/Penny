@@ -39,6 +39,40 @@ _INTRO_PARTY_FIELDS: list[tuple[str, str, str]] = list(_PARTY_BY_KEY.values())
 # Exposed so routes/agent can validate responsible_parties keys.
 PARTY_KEYS: list[str] = list(_PARTY_BY_KEY.keys())
 
+# Stages on which an all-parties introduction is no longer appropriate. Mirrors
+# how human transaction coordinators work: the intro goes out at the *start* of
+# the contract-to-close period (a deal under contract / in escrow), never on a
+# deal that has already closed or fell through.
+INTRO_BLOCKING_STAGES: frozenset[str] = frozenset({"closed", "cancelled"})
+
+
+def intro_email_appropriate(tx: dict[str, Any]) -> tuple[bool, str | None]:
+    """Whether an all-parties intro email is appropriate for this deal *now*.
+
+    Encodes standard transaction-coordinator practice rather than blindly
+    sending whenever asked:
+
+      * the intro belongs to the start of contract-to-close, so it is **not**
+        sent on a ``closed`` or ``cancelled`` deal;
+      * it is sent **once** per deal (``intro_email_sent`` guards re-sends);
+      * there has to be at least one party with an email to introduce.
+
+    Returns ``(ok, reason)`` — ``reason`` is a human-readable explanation when
+    ``ok`` is False, suitable for surfacing to the agent.
+    """
+    if tx.get("intro_email_sent"):
+        return False, "an intro email was already sent for this deal"
+    stage = (tx.get("stage") or "under_contract").strip().lower()
+    if stage in INTRO_BLOCKING_STAGES:
+        label = "closed" if stage == "closed" else "cancelled"
+        return False, (
+            f"this deal is {label} — an all-parties introduction isn't appropriate "
+            "anymore (intro emails belong to the start of contract-to-close)"
+        )
+    if not gather_intro_parties(tx):
+        return False, "no parties have email addresses on file yet"
+    return True, None
+
 
 # --------------------------------------------------------------------------- #
 # Intro-email party gathering
@@ -270,13 +304,10 @@ def send_intro_email(
     as ``intro_email_sent``. When ``brokerage`` is supplied, the AI-disclosure
     footer and (if enabled) per-party consent links are added.
     """
+    ok, reason = intro_email_appropriate(tx)
+    if not ok:
+        return {"sent": False, "recipients": [], "reason": reason}
     parties = gather_intro_parties(tx)
-    if not parties:
-        return {
-            "sent": False,
-            "recipients": [],
-            "reason": "no parties have email addresses on file",
-        }
 
     subject, html, plain = build_intro_content(tx, brokerage_name)
 

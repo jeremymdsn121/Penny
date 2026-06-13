@@ -26,6 +26,7 @@ from datetime import date
 from typing import Any
 
 from app.core import supabase_client as sb
+from app.services import email_client
 
 # Priority bands — lower number surfaces first.
 P_EMD_OVERDUE = 1
@@ -36,6 +37,7 @@ P_TASK_DUE_TODAY = 2
 P_CHECKLIST_GAP_NEAR_CLOSING = 2  # required item missing + closing <= 14d
 P_TASK_DUE_THIS_WEEK = 3
 P_DEADLINE_THIS_WEEK = 3
+P_INTRO_NEEDED = 3  # under contract, group not yet introduced
 P_MISSING_PARTY_EMAIL = 4
 
 ACTIVE_STAGES = ("under_contract", "pending")
@@ -387,7 +389,29 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
                 f"What's missing on {address}?",
             )
 
-    # 6. Missing party emails on active deals
+    # 6. Intro email not yet sent — a deal under contract whose group hasn't been
+    # introduced. This is how a human TC opens contract-to-close, so surface it
+    # once the deal is active and there's a group worth introducing (>= 2 parties
+    # with emails). intro_email_appropriate also screens out closed/cancelled and
+    # already-sent deals.
+    ok, _reason = email_client.intro_email_appropriate(tx)
+    if ok and len(email_client.gather_intro_parties(tx)) >= 2:
+        add(
+            P_INTRO_NEEDED,
+            _pick(
+                [
+                    f"The parties on {address} haven't been introduced yet",
+                    f"No intro email has gone out on {address} yet",
+                    f"{address} is under contract but the group hasn't met me yet",
+                ],
+                tx_id,
+                "intro_needed",
+            ),
+            "send the intro email so everyone has each other's details (you confirm first)",
+            f"Send the intro email for {address}",
+        )
+
+    # 7. Missing party emails on active deals
     if (tx.get("stage") or "under_contract") in ACTIVE_STAGES:
         for field, role in (("lender_email", "lender"), ("title_email", "title company")):
             if not tx.get(field):

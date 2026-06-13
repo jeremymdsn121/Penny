@@ -946,15 +946,12 @@ async def _exec_preview_intro_email(brokerage_id: str, inputs: dict) -> str:
     recipients = "\n".join(
         f"  - {p['role']}: {p['name']} <{p['email']}>" for p in parties
     )
-    already = (
-        "\n\nNote: an intro email was already sent for this deal."
-        if tx.get("intro_email_sent")
-        else ""
-    )
+    ok, reason = email_client.intro_email_appropriate(tx)
+    caveat = f"\n\nHeads up: {reason}, so I'd hold off on sending this." if not ok else ""
     return (
         f"Intro email preview for {address}:\n\n"
         f"To ({len(parties)} recipients):\n{recipients}\n\n"
-        f"Subject: {subject}\n\n{plain}{already}"
+        f"Subject: {subject}\n\n{plain}{caveat}"
     )
 
 
@@ -979,17 +976,9 @@ async def _exec_send_intro_email(brokerage_id: str, inputs: dict) -> str:
     if err:
         return err
     address = tx.get("address", "this transaction")
-    if tx.get("intro_email_sent"):
-        return (
-            f"The intro email for {address} was already sent, so I won't send it "
-            "again."
-        )
-    parties = email_client.gather_intro_parties(tx)
-    if not parties:
-        return (
-            f"No parties on {address} have email addresses on file, so there's no "
-            "one to send the intro email to."
-        )
+    ok, reason = email_client.intro_email_appropriate(tx)
+    if not ok:
+        return f"I won't send the intro email for {address} — {reason}."
     brokerage = await sb.get_brokerage(brokerage_id)
     brokerage_name = (brokerage or {}).get("name", "the brokerage")
     result = await asyncio.to_thread(
@@ -2169,14 +2158,28 @@ async def run_penny_agent(
     except Exception:
         intro_autonomous = False
 
+    # When an intro is appropriate (the contract-to-close timing rule that real
+    # transaction coordinators follow). Shared by both the autonomous and
+    # confirm-gated phrasings below.
+    intro_timing = (
+        "- Intro-email timing: the all-parties introduction belongs at the START "
+        "of a deal — once it's under contract / in escrow and you have the parties' "
+        "contact info. Send it once per deal (it's marked so it never double-sends). "
+        "Do NOT send an intro on a deal that's already closed or cancelled, and "
+        "don't re-introduce a group that's already been introduced. If a deal is "
+        "under contract and the intro hasn't gone out, proactively offer to send it "
+        "rather than waiting to be asked."
+    )
     if intro_autonomous:
         intro_rule = (
+            intro_timing + "\n"
             "- This brokerage has pre-authorised autonomous intro emails. When the "
-            "agent asks you to send one, call preview_intro_email to show what will "
-            "go out, then call send_intro_email with confirmed=true."
+            "intro is appropriate (see timing above), call preview_intro_email to "
+            "show what will go out, then call send_intro_email with confirmed=true."
         )
     else:
         intro_rule = (
+            intro_timing + "\n"
             "- Intro emails are NOT autonomous for this brokerage. You MUST call "
             "preview_intro_email and get the agent's explicit 'yes' before calling "
             "send_intro_email with confirmed=true. Never send without that confirmation."
