@@ -21,6 +21,7 @@ imported from both the agent and the route layer without a circular import.
 """
 
 import asyncio
+import hashlib
 from datetime import date
 from typing import Any
 
@@ -63,11 +64,83 @@ def _short_address(tx: dict[str, Any]) -> str:
     return addr or "this deal"
 
 
-def action_for_task_label(label: str, address: str) -> tuple[str, str]:
+# --- Phrasing variety ------------------------------------------------------ #
+# Recurring tasks otherwise read identically on every deal ("Send intro email to
+# all parties" everywhere). These give a deal-stable but varied phrasing —
+# _pick is seeded by transaction id, so wording differs across deals and doesn't
+# flicker between refreshes of the same one. Prompts (sent to Penny) stay fixed.
+
+def _pick(options: list[str], *seed_parts: object) -> str:
+    if not options:
+        return ""
+    seed = "|".join(str(p) for p in seed_parts)
+    idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(options)
+    return options[idx]
+
+
+def _cap(s: str) -> str:
+    return s[:1].upper() + s[1:] if s else s
+
+
+def _task_kind(label: str) -> str | None:
+    lower = (label or "").lower()
+    if "intro" in lower or "introduction" in lower:
+        return "intro"
+    if "earnest" in lower or "emd" in lower:
+        return "emd"
+    return None
+
+
+# Noun phrase for a recognised task, dropped into "<subject> is due …" headlines.
+_TASK_SUBJECTS: dict[str, list[str]] = {
+    "intro": [
+        "the intro email to all parties",
+        "the intro that introduces everyone on the deal",
+        "the kickoff intro email",
+        "introductions for everyone on the file",
+    ],
+    "emd": [
+        "the earnest money receipt",
+        "confirming the earnest money landed",
+        "the EMD receipt",
+        "the earnest money confirmation",
+    ],
+}
+
+_TASK_OFFERS: dict[str, list[str]] = {
+    "intro": [
+        "preview the intro email so you can send it",
+        "pull up the intro email to introduce everyone",
+        "get the intro ready for your review",
+        "draft the all-parties intro for you to send",
+    ],
+    "emd": [
+        "check EMD status, or draft an email to title for the receipt",
+        "look up where earnest money stands and chase the receipt",
+        "pull the EMD status and nudge title if it's still out",
+    ],
+}
+
+# The EMD-overdue card (separate from a workflow task).
+_EMD_OVERDUE_HEADLINES = [
+    "EMD is {days} overdue on {address}",
+    "Still waiting on the earnest money receipt for {address} — {days} past due",
+    "Earnest money receipt is {days} overdue on {address}",
+    "{address} hasn't logged its EMD receipt yet — {days} overdue",
+]
+_EMD_OVERDUE_OFFERS = [
+    "draft an email to title asking for the receipt",
+    "email the title company to chase the receipt",
+    "nudge title for the earnest money receipt",
+]
+
+
+def action_for_task_label(label: str, address: str, seed: str = "") -> tuple[str, str]:
     """Map a workflow-task label to (offer, prompt).
 
-    ``offer`` is first-person prose for display; ``prompt`` is the imperative
-    message sent to Penny when the user clicks to act on it.
+    ``offer`` is first-person prose for display (varied per ``seed`` for
+    recognised task kinds); ``prompt`` is the imperative message sent to Penny
+    when the user clicks to act on it.
     """
     lower = (label or "").lower()
     if "inspection" in lower and "objection" not in lower:
@@ -92,12 +165,12 @@ def action_for_task_label(label: str, address: str) -> tuple[str, str]:
         )
     if "intro" in lower or "introduction" in lower:
         return (
-            "preview the intro email so you can send it",
+            _pick(_TASK_OFFERS["intro"], seed, "intro"),
             f"Preview the intro email for {address}",
         )
     if "earnest" in lower or "emd" in lower:
         return (
-            "check EMD status, or draft an email to title for the receipt",
+            _pick(_TASK_OFFERS["emd"], seed, "emd"),
             f"What's the EMD status on {address}?",
         )
     if "title" in lower or "settlement" in lower or "closing" in lower:
@@ -151,18 +224,17 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
     emd_due = _parse_date(tx.get("emd_due_date"))
     if emd_due and not tx.get("emd_received") and emd_due < today:
         days_over = (today - emd_due).days
+        days_str = f"{days_over} day{'s' if days_over != 1 else ''}"
         if tx.get("title_email"):
-            offer = "draft an email to title asking for the receipt"
+            offer = _pick(_EMD_OVERDUE_OFFERS, tx_id, "emd_overdue_offer")
             prompt = f"Draft an email to the title company on {address} requesting the earnest money receipt"
         else:
             offer = "check EMD status — there's no title email on file to chase it"
             prompt = f"What's the EMD status on {address}?"
-        add(
-            P_EMD_OVERDUE,
-            f"EMD is {days_over} day{'s' if days_over != 1 else ''} overdue on {address}",
-            offer,
-            prompt,
+        headline = _pick(_EMD_OVERDUE_HEADLINES, tx_id, "emd_overdue").format(
+            days=days_str, address=address
         )
+        add(P_EMD_OVERDUE, headline, offer, prompt)
 
     # 3. Pending workflow tasks, bucketed by urgency
     try:
@@ -176,21 +248,25 @@ async def collect_for_transaction(tx: dict[str, Any]) -> list[dict[str, Any]]:
         if d is None:
             continue  # undated tasks stay out of the synthesis
         label = t.get("label") or "a task"
-        offer, prompt = action_for_task_label(label, address)
+        offer, prompt = action_for_task_label(label, address, seed=str(tx_id or ""))
+        # Vary the subject for recognised kinds so the headline doesn't echo the
+        # same static label everywhere; fall back to the quoted label otherwise.
+        kind = _task_kind(label)
+        subject = _cap(_pick(_TASK_SUBJECTS[kind], tx_id, kind)) if kind else f"'{label}'"
         days_to = (d - today).days
         if days_to < 0:
             add(
                 P_TASK_OVERDUE,
-                f"'{label}' is overdue on {address} (was due {_fmt_date(t.get('due_date'))})",
+                f"{subject} is overdue on {address} (was due {_fmt_date(t.get('due_date'))})",
                 offer,
                 prompt,
             )
         elif days_to == 0:
-            add(P_TASK_DUE_TODAY, f"'{label}' is due today on {address}", offer, prompt)
+            add(P_TASK_DUE_TODAY, f"{subject} is due today on {address}", offer, prompt)
         elif days_to <= 7:
             add(
                 P_TASK_DUE_THIS_WEEK,
-                f"'{label}' is due in {days_to} day{'s' if days_to != 1 else ''} on {address}",
+                f"{subject} is due in {days_to} day{'s' if days_to != 1 else ''} on {address}",
                 offer,
                 prompt,
             )
