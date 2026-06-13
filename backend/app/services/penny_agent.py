@@ -369,7 +369,12 @@ _TOOLS: list[dict[str, Any]] = [
             "Book an appointment (showing, inspection, etc.) on a transaction at a "
             "specific time. This creates a calendar event when a calendar is "
             "connected, so it requires confirmed=true — set that only after the "
-            "agent confirms the time, or when scheduling is autonomous for this brokerage."
+            "agent confirms the time, or when scheduling is autonomous for this "
+            "brokerage. Before booking, it checks the requested time against the "
+            "connected calendar and existing appointments; if something is already "
+            "there (including non-deal personal events) it does NOT book — it names "
+            "the conflict and suggests the next opening. Only after the agent says "
+            "to book over it, call again with ignore_conflicts=true."
         ),
         "input_schema": {
             "type": "object",
@@ -396,6 +401,13 @@ _TOOLS: list[dict[str, Any]] = [
                     "description": (
                         "Must be true to book. Set only after the agent confirms, "
                         "or when scheduling is autonomous for this brokerage."
+                    ),
+                },
+                "ignore_conflicts": {
+                    "type": "boolean",
+                    "description": (
+                        "Set true only after the agent explicitly says to book over a "
+                        "calendar conflict you already surfaced. Skips the conflict check."
                     ),
                 },
             },
@@ -1258,6 +1270,26 @@ async def _exec_propose_showing_times(brokerage_id: str, inputs: dict) -> str:
     return "\n".join(lines)
 
 
+async def _next_open_slot(
+    brokerage: dict, cal_agent: dict | None, account: dict | None,
+    after: datetime, tz,
+) -> datetime | None:
+    """The first open slot at/after ``after``, honouring working hours, existing
+    appointments, and the connected calendar. Searches up to 3 days out."""
+    ws, we, buf = scheduling.resolve_working_hours(brokerage, cal_agent)
+    window_end = datetime.combine(
+        after.date() + timedelta(days=3), datetime.min.time(), tzinfo=tz
+    )
+    busy = await _brokerage_busy(brokerage["id"])
+    cal_busy, _ = await calendar_provider.get_busy_checked(account, after, window_end)
+    busy.extend(cal_busy)
+    slots = scheduling.propose_slots(
+        work_start=ws, work_end=we, buffer_minutes=buf, tz=tz,
+        start_day=after.date(), days=3, busy=busy, now=after, max_slots=1,
+    )
+    return slots[0] if slots else None
+
+
 async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
     autonomous = False
     try:
@@ -1281,10 +1313,11 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
     except ValueError:
         return "I need the time as an ISO 8601 datetime (e.g. 2026-06-01T14:30:00-05:00)."
     brokerage = await sb.get_brokerage(brokerage_id) or {}
+    tz = scheduling.resolve_timezone(brokerage.get("state"))
     # Anchor a naive time to the brokerage tz; a timestamptz column would
     # otherwise treat an offset-less time as UTC and shift it.
     if start.tzinfo is None:
-        start = start.replace(tzinfo=scheduling.resolve_timezone(brokerage.get("state")))
+        start = start.replace(tzinfo=tz)
     appt_type = (inputs.get("type") or "showing").strip()
     attendees = [a for a in (inputs.get("attendees") or []) if a and a.strip()]
     end = start + timedelta(minutes=scheduling.DEFAULT_DURATION_MIN)
@@ -1297,6 +1330,41 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
         except Exception:
             cal_agent = None
     account = calendar_provider.resolve_account(brokerage, cal_agent)
+
+    # Conflict guard: never silently book over something already on the calendar
+    # — a deal appointment OR a personal event. Name it and offer the next opening.
+    cal_unverified = ""
+    if not inputs.get("ignore_conflicts"):
+        conflicts: list[str] = []
+        events, cal_ok = await calendar_provider.list_events(account, start, end)
+        for ev in events:
+            if not ev.get("busy", True):
+                continue  # "Free"-marked events (e.g. birthdays) don't block
+            title = ev.get("summary") or "an event"
+            if ev.get("all_day"):
+                conflicts.append(f"“{title}” (all day)")
+            else:
+                try:
+                    es = datetime.fromisoformat(str(ev["start"]).replace("Z", "+00:00"))
+                    conflicts.append(f"“{title}” at {_fmt_slot(es.astimezone(tz))}")
+                except (KeyError, ValueError):
+                    conflicts.append(f"“{title}”")
+        for b_start, b_end in await _brokerage_busy(brokerage_id):
+            if b_start < end and start < b_end:
+                conflicts.append(
+                    f"an existing appointment at {_fmt_slot(b_start.astimezone(tz))}"
+                )
+        if account and not cal_ok:
+            cal_unverified = " (Note: I couldn't fully reach your calendar to double-check.)"
+        if conflicts:
+            nxt = await _next_open_slot(brokerage, cal_agent, account, start, tz)
+            nxt_line = f" Your next opening is {_fmt_slot(nxt)}." if nxt else ""
+            return (
+                f"Hold on — {_fmt_slot(start)} runs into {', and '.join(conflicts)} on "
+                f"your calendar. Want me to book over it, or take the next opening?"
+                f"{nxt_line} (Tell me to go ahead and I'll book over it.){cal_unverified}"
+            )
+
     event_id = await calendar_provider.create_event(
         account,
         summary=f"{appt_type.replace('_', ' ').title()} — {address}",
@@ -1314,7 +1382,7 @@ async def _exec_book_appointment(brokerage_id: str, inputs: dict) -> str:
         "attendees": attendees,
     })
     synced = " and added it to your calendar" if event_id else ""
-    return f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{synced}."
+    return f"Booked the {appt_type} for {address} on {_fmt_slot(start)}{synced}.{cal_unverified}"
 
 
 # Sensible default targets for coordinating an appointment: the agents (for
@@ -2206,8 +2274,14 @@ async def run_penny_agent(
         "(unless scheduling is autonomous for this brokerage). When booking, ask what "
         "kind of appointment it is (showing, inspection, walkthrough, closing) and pass "
         "it as the type. list_appointments shows one deal's appointments; "
-        "get_upcoming_appointments shows what's coming up across ALL the agent's deals, "
-        "so use it for general 'what's on my calendar' or 'what's next' questions.\n"
+        "get_upcoming_appointments shows what's coming up across ALL the agent's deals "
+        "AND the events on their connected calendar (including non-deal personal ones), "
+        "so use it for general 'what's on my schedule' or 'what's next' questions.\n"
+        "- book_appointment checks the requested time against the calendar first. If it "
+        "comes back saying the time conflicts with something (e.g. a personal event), "
+        "relay that to the agent and offer the next opening it gave you — do NOT just "
+        "rebook. Only if the agent says to book over it, call book_appointment again "
+        "with ignore_conflicts=true.\n"
         "- After you book a time, be a coordinator: offer to reach the parties who need "
         "to agree (the listing agent for access, the buyer for availability) with "
         "notify_appointment_parties. Frame it as PROPOSING the time, never confirming it "

@@ -338,6 +338,9 @@ async def list_events(
                     "all_day": all_day,
                     "start": start_raw,
                     "end": e.get("dateTime") or e.get("date"),
+                    # "transparent" events (Google "Free") don't block time — they
+                    # show in the schedule view but shouldn't flag a booking conflict.
+                    "busy": it.get("transparency", "opaque") != "transparent",
                 }
             )
         return out, True
