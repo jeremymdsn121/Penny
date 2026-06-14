@@ -200,17 +200,18 @@ export default function Onboarding() {
                       selected={emailMode === 'own'}
                       onClick={() => setEmailMode('own')}
                       title={`${assistant} gets her own address`}
-                      desc={`I send and receive as my own address${email ? ` (${email})` : ''}.`}
+                      desc="I send and receive from a dedicated inbox I set up for you. Nothing to configure, and it works right away."
                     />
                     <OptionCard
                       selected={emailMode === 'monitor'}
                       onClick={() => setEmailMode('monitor')}
                       title="I monitor an inbox you already use"
-                      desc="I watch an existing mailbox and act on what comes in."
+                      badge="Coming soon"
+                      desc="I watch a mailbox you already have. Inbox connections aren't live yet, so I'll remember your choice and switch over once they are."
                     />
                     {emailMode === 'monitor' && (
                       <TextField
-                        label="Inbox to monitor"
+                        label="Inbox you'd want me to watch"
                         type="email"
                         value={monitorEmail}
                         onChange={setMonitorEmail}
@@ -218,7 +219,8 @@ export default function Onboarding() {
                       />
                     )}
                     <p className="text-xs text-ink-muted">
-                      I&rsquo;ll connect to the live mailbox when we set up scheduling. For now this just records how you want it to work.
+                      My own address works today. Connecting an inbox you already use needs an
+                      email integration I&rsquo;m still finishing.
                     </p>
                   </div>
                 )}
@@ -369,11 +371,13 @@ function OptionCard({
   onClick,
   title,
   desc,
+  badge,
 }: {
   selected: boolean
   onClick: () => void
   title: string
   desc: string
+  badge?: string
 }) {
   return (
     <button
@@ -385,7 +389,14 @@ function OptionCard({
           : 'border-hairline hover:border-penny/40'
       }`}
     >
-      <p className="text-sm font-medium text-ink">{title}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-ink">{title}</p>
+        {badge && (
+          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+            {badge}
+          </span>
+        )}
+      </div>
       <p className="mt-0.5 text-xs text-ink-muted">{desc}</p>
     </button>
   )
