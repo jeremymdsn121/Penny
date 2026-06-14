@@ -92,7 +92,10 @@ export default function PennyGlyphLayer() {
         pointerEvents: 'none',
       }}
     >
-      <PennyRibbon size={base.size} />
+      {/* Animated: she hovers + twinkles throughout (entrance plays once, on the
+          layer's first mount during onboarding). The layer owns the travel via a
+          transform on the wrapper above, which composes with the idle hover. */}
+      <PennyRibbon size={base.size} animated />
     </div>
   )
 }

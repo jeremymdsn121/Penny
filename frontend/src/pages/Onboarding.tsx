@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PennyBubble from '../components/PennyBubble'
 import TaskToggle from '../components/TaskToggle'
 import { usePennyGlyphSlot } from '../hooks/usePennyGlyphSlot'
 import { useGlyphStore } from '../store/glyph'
@@ -19,7 +18,9 @@ import { useAuthStore } from '../store/auth'
 
 const STEP_LABELS = ['State', 'Identity', 'Email', 'Calendar', 'Autonomy'] as const
 const STEP_COUNT = STEP_LABELS.length
-const GLYPH_SIZE = 168
+// Deliberately larger than the home hero (198) — Penny is the focal point of her
+// own introduction, and the shrink to 198 on finish reads as her settling in.
+const GLYPH_SIZE = 264
 
 type EmailMode = 'own' | 'monitor'
 type CalendarProvider = 'google' | 'outlook' | ''
@@ -95,6 +96,13 @@ export default function Onboarding() {
     'Last step. Decide what I handle on my own versus draft for your approval.',
   ][step]
 
+  // Penny "speaks" each beat: the greeting, then each question. Typed out
+  // character by character (instant under reduced motion).
+  const reduceMotion = useReducedMotion()
+  const speech = beat === 0 ? "Hey there, I'm Penny. Let's get you started." : bubble ?? ''
+  const typed = useTypeOnce(speech, !reduceMotion)
+  const typing = typed.length < speech.length
+
   const onFinish = async () => {
     if (!options) return
     setSubmitting(true)
@@ -132,18 +140,21 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-2 px-4 py-10">
-      <div className="mx-auto flex w-full max-w-lg flex-col items-center">
-        {/* Large glyph slot — the persistent PennyGlyphLayer paints the big
-            glyph over this invisible spacer. */}
-        <div ref={slotRef} aria-hidden style={{ width: GLYPH_SIZE, height: GLYPH_SIZE }} />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4 py-10">
+      <div className="flex w-full max-w-lg flex-col items-center">
+        {/* Large glyph slot — the persistent PennyGlyphLayer paints the big,
+            animated glyph (hover + twinkle) over this invisible spacer. shrink-0
+            so a tall step can't compress it (the fixed layer would then spill
+            over the bubble). */}
+        <div ref={slotRef} aria-hidden className="shrink-0" style={{ width: GLYPH_SIZE, height: GLYPH_SIZE }} />
 
         {/* Beat content cross-fades: key forces a remount so fade-up replays. */}
-        <div key={beat} className="w-full animate-fade-up">
+        <div key={beat} className="flex w-full flex-col items-center animate-fade-up">
           {beat === 0 ? (
-            <div className="space-y-5 text-center">
-              <p className="text-2xl font-semibold tracking-tight text-ink">
-                Hey there, I&rsquo;m Penny. Let&rsquo;s get you started.
+            <div className="flex flex-col items-center space-y-5 text-center">
+              <p className="min-h-[2.25rem] text-2xl font-semibold tracking-tight text-ink">
+                {typed}
+                {typing && <Caret />}
               </p>
               <p className="text-sm text-ink-muted">
                 A few quick questions and I&rsquo;ll be ready to run your transactions with you.
@@ -154,11 +165,17 @@ export default function Onboarding() {
               {error && <p className="text-sm text-red-600">{error}</p>}
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="flex w-full flex-col items-center space-y-5">
+              {/* Penny's question — a centered chat bubble, no inline glyph (the
+                  big glyph above her is the avatar), typed out character by
+                  character. */}
+              <div className="w-full max-w-md rounded-2xl bg-penny-light px-5 py-3 text-center text-sm leading-relaxed text-gray-800">
+                {typed}
+                {typing && <Caret />}
+              </div>
               <Progress step={step} />
-              <PennyBubble>{bubble}</PennyBubble>
 
-              <div className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+              <div className="w-full rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
                 {!options && !error && <p className="text-sm text-ink-muted">Loading…</p>}
 
                 {step === 0 && options && (
@@ -198,17 +215,18 @@ export default function Onboarding() {
                       selected={emailMode === 'own'}
                       onClick={() => setEmailMode('own')}
                       title={`${assistant} gets her own address`}
-                      desc={`I send and receive as my own address${email ? ` (${email})` : ''}.`}
+                      desc="I send and receive from a dedicated inbox I set up for you. Nothing to configure, and it works right away."
                     />
                     <OptionCard
                       selected={emailMode === 'monitor'}
                       onClick={() => setEmailMode('monitor')}
                       title="I monitor an inbox you already use"
-                      desc="I watch an existing mailbox and act on what comes in."
+                      badge="Coming soon"
+                      desc="I watch a mailbox you already have. Inbox connections aren't live yet, so I'll remember your choice and switch over once they are."
                     />
                     {emailMode === 'monitor' && (
                       <TextField
-                        label="Inbox to monitor"
+                        label="Inbox you'd want me to watch"
                         type="email"
                         value={monitorEmail}
                         onChange={setMonitorEmail}
@@ -216,7 +234,8 @@ export default function Onboarding() {
                       />
                     )}
                     <p className="text-xs text-ink-muted">
-                      I&rsquo;ll connect to the live mailbox when we set up scheduling. For now this just records how you want it to work.
+                      My own address works today. Connecting an inbox you already use needs an
+                      email integration I&rsquo;m still finishing.
                     </p>
                   </div>
                 )}
@@ -286,7 +305,7 @@ export default function Onboarding() {
                 {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex w-full items-center justify-between">
                 <button
                   type="button"
                   onClick={() => setBeat((b) => Math.max(1, b - 1))}
@@ -316,6 +335,51 @@ export default function Onboarding() {
       </div>
     </div>
   )
+}
+
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReduced(mq.matches)
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduced
+}
+
+// Type `text` out once, character by character, re-running when the text
+// changes (i.e. on each beat). Returns the full text immediately when disabled.
+function useTypeOnce(text: string, enabled: boolean): string {
+  const [out, setOut] = useState(enabled ? '' : text)
+  useEffect(() => {
+    if (!enabled) {
+      setOut(text)
+      return
+    }
+    setOut('')
+    let i = 0
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
+      if (cancelled) return
+      i += 1
+      setOut(text.slice(0, i))
+      if (i < text.length) timer = setTimeout(tick, 26)
+    }
+    timer = setTimeout(tick, 160)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [text, enabled])
+  return out
+}
+
+// Blinking caret shown while Penny is still "typing".
+function Caret() {
+  return <span className="ml-0.5 animate-pulse font-normal text-penny">▏</span>
 }
 
 // Slim dots progress — replaces the old numbered Stepper to keep the
@@ -367,11 +431,13 @@ function OptionCard({
   onClick,
   title,
   desc,
+  badge,
 }: {
   selected: boolean
   onClick: () => void
   title: string
   desc: string
+  badge?: string
 }) {
   return (
     <button
@@ -383,7 +449,14 @@ function OptionCard({
           : 'border-hairline hover:border-penny/40'
       }`}
     >
-      <p className="text-sm font-medium text-ink">{title}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-ink">{title}</p>
+        {badge && (
+          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+            {badge}
+          </span>
+        )}
+      </div>
       <p className="mt-0.5 text-xs text-ink-muted">{desc}</p>
     </button>
   )

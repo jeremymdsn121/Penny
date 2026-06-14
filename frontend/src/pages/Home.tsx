@@ -233,20 +233,14 @@ export default function Home() {
   }, [started, setChatStarted])
 
   // Shared-glyph handoff from onboarding: when we arrive with a pending FLIP
-  // rect, the persistent PennyGlyphLayer flies the big glyph into the hero slot.
-  // Snapshot once on mount (the layer consumes pendingFrom in an effect, so a
-  // live subscription would flip back to false mid-flight).
+  // rect, the persistent PennyGlyphLayer flies the big glyph into the hero slot
+  // and stays there as the (animated, hovering) hero — so no static swap and no
+  // need to refresh to get the animation back. Snapshot once on mount (the layer
+  // consumes pendingFrom in an effect, so a live subscription would flip false).
   const [arrivingFromOnboarding] = useState(() => useGlyphStore.getState().pendingFrom !== null)
-  const [landed, setLanded] = useState(false)
-  const flying = useGlyphStore((s) => s.flying)
-  const wasFlying = useRef(false)
-  useEffect(() => {
-    if (wasFlying.current && !flying) setLanded(true)
-    wasFlying.current = flying
-  }, [flying])
-  // While the glyph is in flight, render an invisible slot the layer fills; once
-  // it lands, swap to a pixel-identical static hero (and release the slot).
-  const showFloatingSlot = arrivingFromOnboarding && !reduceMotion && !landed
+  // While arriving (and motion is allowed), the layer owns the hero: we render an
+  // invisible slot it fills. Otherwise Home draws its own ribbon as before.
+  const showFloatingSlot = arrivingFromOnboarding && !reduceMotion
   const heroSlotRef = usePennyGlyphSlot('home-hero', 198, showFloatingSlot && !started)
 
   // Animate the placeholder only on the empty landing, while the field is idle.

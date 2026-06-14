@@ -112,6 +112,30 @@ async def admin_delete_user(user_id: str, *, suppress: bool = False) -> None:
             raise
 
 
+async def admin_get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Find an auth user by email (admin). Dev/ops use — paginates the admin
+    user list and matches case-insensitively (GoTrue has no email filter param)."""
+    target = email.strip().lower()
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        page = 1
+        while True:
+            resp = await client.get(
+                f"{AUTH_BASE}/admin/users",
+                params={"page": page, "per_page": 200},
+                headers=_service_headers(),
+            )
+            if resp.status_code >= 400:
+                raise SupabaseError(resp.status_code, _detail(resp))
+            data = resp.json()
+            users = data.get("users", []) if isinstance(data, dict) else (data or [])
+            for u in users:
+                if (u.get("email") or "").strip().lower() == target:
+                    return u
+            if len(users) < 200:
+                return None
+            page += 1
+
+
 async def sign_in(email: str, password: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.post(
@@ -210,6 +234,32 @@ async def update_brokerage(brokerage_id: str, data: dict[str, Any]) -> dict[str,
         raise SupabaseError(resp.status_code, _detail(resp))
     rows = resp.json()
     return rows[0] if isinstance(rows, list) and rows else rows
+
+
+async def delete_brokerage(brokerage_id: str) -> None:
+    """Delete a brokerage row. Dev/ops cleanup — callers should clear scoped
+    child rows first (FKs may RESTRICT)."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/brokerages",
+            params={"id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
+
+
+async def delete_rows_by_brokerage(table: str, brokerage_id: str) -> None:
+    """Delete every row in ``table`` scoped to a brokerage. Dev/ops cleanup —
+    callers sweep several tables best-effort before deleting the brokerage."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.delete(
+            f"{REST_BASE}/{table}",
+            params={"brokerage_id": f"eq.{brokerage_id}"},
+            headers=_service_headers(),
+        )
+    if resp.status_code >= 400:
+        raise SupabaseError(resp.status_code, _detail(resp))
 
 
 async def get_task_autonomy(brokerage_id: str) -> list[dict[str, Any]]:
