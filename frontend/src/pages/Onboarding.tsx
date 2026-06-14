@@ -19,7 +19,9 @@ import { useAuthStore } from '../store/auth'
 
 const STEP_LABELS = ['State', 'Identity', 'Email', 'Calendar', 'Autonomy'] as const
 const STEP_COUNT = STEP_LABELS.length
-const GLYPH_SIZE = 168
+// Deliberately larger than the home hero (198) — Penny is the focal point of her
+// own introduction, and the shrink to 198 on finish reads as her settling in.
+const GLYPH_SIZE = 264
 
 type EmailMode = 'own' | 'monitor'
 type CalendarProvider = 'google' | 'outlook' | ''
@@ -132,10 +134,10 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-2 px-4 py-10">
-      <div className="mx-auto flex w-full max-w-lg flex-col items-center">
-        {/* Large glyph slot — the persistent PennyGlyphLayer paints the big
-            glyph over this invisible spacer. */}
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4 py-10">
+      <div className="flex w-full max-w-lg flex-col items-center">
+        {/* Large glyph slot — the persistent PennyGlyphLayer paints the big,
+            animated glyph (hover + twinkle) over this invisible spacer. */}
         <div ref={slotRef} aria-hidden style={{ width: GLYPH_SIZE, height: GLYPH_SIZE }} />
 
         {/* Beat content cross-fades: key forces a remount so fade-up replays. */}
